@@ -1,63 +1,103 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { auth } from "@clerk/nextjs/server";
+import { Pinecone } from "@pinecone-database/pinecone";
 
-import { createClient } from "@supabase/supabase-js";
-import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
-import { OpenAIEmbeddings } from "@langchain/openai";
+// Remove edge runtime since we need Node.js features
+// export const runtime = "edge";
 
-export const runtime = "edge";
+if (!process.env.PINECONE_API_KEY) {
+  throw new Error("Missing PINECONE_API_KEY environment variable");
+}
 
-// Before running, follow set-up instructions at
-// https://js.langchain.com/v0.2/docs/integrations/vectorstores/supabase
+if (!process.env.PINECONE_INDEX) {
+  throw new Error("Missing PINECONE_INDEX environment variable");
+}
+
+if (!process.env.PINECONE_ENVIRONMENT) {
+  throw new Error("Missing PINECONE_ENVIRONMENT environment variable");
+}
+
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY,
+});
 
 /**
  * This handler takes input text, splits it into chunks, and embeds those chunks
- * into a vector store for later retrieval. See the following docs for more information:
- *
- * https://js.langchain.com/v0.2/docs/how_to/recursive_text_splitter
- * https://js.langchain.com/v0.2/docs/integrations/vectorstores/supabase
+ * into Pinecone using Gemini embeddings for retrieval.
  */
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const text = body.text;
-
-  if (process.env.NEXT_PUBLIC_DEMO === "true") {
-    return NextResponse.json(
-      {
-        error: [
-          "Ingest is not supported in demo mode.",
-          "Please set up your own version of the repo here: https://github.com/langchain-ai/langchain-nextjs-template",
-        ].join("\n"),
-      },
-      { status: 403 },
-    );
-  }
-
   try {
-    const client = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_PRIVATE_KEY!,
-    );
+    console.log("Starting document ingestion process...");
 
-    const splitter = RecursiveCharacterTextSplitter.fromLanguage("markdown", {
-      chunkSize: 256,
-      chunkOverlap: 20,
+    // Check authentication first
+    console.log("Checking authentication...");
+    const { userId } = await auth();
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    // Get the input text from the request
+    const { text } = await req.json();
+    if (!text) {
+      return new NextResponse("Missing text in request body", { status: 400 });
+    }
+
+    // Initialize text splitter
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 1000,
+      chunkOverlap: 200,
     });
 
-    const splitDocuments = await splitter.createDocuments([text]);
+    // Split text into chunks
+    console.log("Splitting text into chunks...");
+    const chunks = await splitter.splitText(text);
 
-    const vectorstore = await SupabaseVectorStore.fromDocuments(
-      splitDocuments,
-      new OpenAIEmbeddings(),
-      {
-        client,
-        tableName: "documents",
-        queryName: "match_documents",
-      },
+    // Initialize embeddings model with dimension matching Pinecone index
+    console.log("Initializing embeddings model...");
+    const embeddings = new GoogleGenerativeAIEmbeddings({
+      apiKey: process.env.GOOGLE_API_KEY || "",
+      modelName: "embedding-001"
+    });
+
+    // Get the Pinecone index
+    const index = pinecone.index(process.env.PINECONE_INDEX || "");
+
+    // Generate embeddings and upsert to Pinecone
+    console.log("Generating embeddings and upserting to Pinecone...");
+    const vectors = await Promise.all(
+      chunks.map(async (chunk: string, i: number) => {
+        const embedding = await embeddings.embedQuery(chunk);
+        return {
+          id: `${userId}-${Date.now()}-${i}`,
+          values: embedding,
+          metadata: {
+            text: chunk,
+            userId,
+          },
+        };
+      })
     );
 
-    return NextResponse.json({ ok: true }, { status: 200 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    // Upsert vectors in batches
+    const batchSize = 100;
+    for (let i = 0; i < vectors.length; i += batchSize) {
+      const batch = vectors.slice(i, i + batchSize);
+      await index.upsert(batch);
+    }
+
+    console.log("Successfully ingested document");
+    return new NextResponse(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  } catch (error) {
+    console.error("Error in document ingestion:", error);
+    return new NextResponse(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
