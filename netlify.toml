@@ -1,0 +1,10 @@
+[build]
+  command = "yarn build"
+  publish = ".next"
+
+[functions]
+  external_node_modules = ["styled-jsx"]
+  included_files = ["node_modules/styled-jsx/**/*"]
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs" 
