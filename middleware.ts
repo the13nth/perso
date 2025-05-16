@@ -7,7 +7,8 @@ const isProtectedRoute = createRouteMatcher([
   "/retrieval(.*)", 
   "/agents(.*)",
   "/structured_output(.*)",
-  "/streaming(.*)"
+  "/streaming(.*)",
+  "/visualize(.*)"
 ]);
 
 // Create route matchers for public routes
