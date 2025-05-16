@@ -122,7 +122,7 @@ export default function ClientVisualization() {
     return () => {
       isMounted = false;
     };
-  }, [isClient, updateStepStatus, simulateProgress]);
+  }, [isClient, updateStepStatus, simulateProgress, loadingSteps]);
 
   if (!isClient) {
     return null;
