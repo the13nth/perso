@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import dynamic from 'next/dynamic';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -42,7 +42,7 @@ export default function ClientVisualization() {
   ]);
 
   // Update loading step status
-  const updateStepStatus = (stepId: string, status: LoadingStep['status'], progress?: number) => {
+  const updateStepStatus = useCallback((stepId: string, status: LoadingStep['status'], progress?: number) => {
     setLoadingSteps(steps => 
       steps.map(step => 
         step.id === stepId 
@@ -50,11 +50,22 @@ export default function ClientVisualization() {
           : step
       )
     );
-  };
+  }, []);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Simulate progress for loading steps
+  const simulateProgress = useCallback(async (stepId: string) => {
+    let progress = 0;
+    while (progress < 100) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      progress += Math.random() * 10;
+      progress = Math.min(progress, 100);
+      updateStepStatus(stepId, 'loading', progress);
+    }
+  }, [updateStepStatus]);
 
   useEffect(() => {
     async function fetchEmbeddings() {
@@ -96,18 +107,7 @@ export default function ClientVisualization() {
     if (isClient) {
       fetchEmbeddings();
     }
-  }, [isClient]);
-
-  // Simulate progress for loading steps
-  const simulateProgress = async (stepId: string) => {
-    let progress = 0;
-    while (progress < 100) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-      progress += Math.random() * 10;
-      progress = Math.min(progress, 100);
-      updateStepStatus(stepId, 'loading', progress);
-    }
-  };
+  }, [isClient, loadingSteps, simulateProgress]);
 
   if (!isClient) {
     return null;

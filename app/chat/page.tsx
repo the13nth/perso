@@ -14,7 +14,7 @@ export default function ChatPage() {
         <li>
           🤝
           <span className="ml-2">
-            Built on the principle of Ubuntu: "I am because we are" - fostering community and shared growth.
+            Built on the principle of Ubuntu: &ldquo;I am because we are&rdquo; - fostering community and shared growth.
           </span>
         </li>
         <li className="text-l">
@@ -32,7 +32,7 @@ export default function ChatPage() {
         <li className="text-l">
           👇
           <span className="ml-2">
-            Try asking: "How can I adapt my business strategy for the East African market?" or "What are important cultural considerations when expanding to West Africa?"
+            Try asking: &ldquo;How can I adapt my business strategy for the East African market?&rdquo; or &ldquo;What are important cultural considerations when expanding to West Africa?&rdquo;
           </span>
         </li>
       </ul>

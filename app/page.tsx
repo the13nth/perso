@@ -63,7 +63,7 @@ export default function HomePage() {
         />
         <FeatureCard
           title="Community Focus"
-          description="Built on the principle of Ubuntu - 'I am because we are'"
+          description="Built on the principle of Ubuntu - &apos;I am because we are&apos;"
           href="/structured_output"
           icon={<Heart className="w-6 h-6" />}
           delay={5}
@@ -79,7 +79,7 @@ export default function HomePage() {
 
       <div className="flex flex-col items-center space-y-4 animate-fade-in-up">
         <p className="text-lg text-muted-foreground max-w-xl">
-          Ubumuntu means 'humanity towards others' in Kinyarwanda. We're building AI that understands and serves the African context.
+          Ubumuntu means &apos;humanity towards others&apos; in Kinyarwanda. We&apos;re building AI that understands and serves the African context.
         </p>
         <Link
           href="/chat"
