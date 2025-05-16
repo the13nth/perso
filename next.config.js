@@ -8,14 +8,11 @@ const nextConfig = {
     turbotrace: {
       enabled: true,
     },
+    serverComponentsExternalPackages: ['styled-jsx']
   },
-  // Enable SWC minification
   swcMinify: true,
-  // Configure build output
   output: 'standalone',
-  // Enable build cache
-  cache: true,
-  // Configure image domains if needed
+  distDir: '.next',
   images: {
     domains: [],
   },
