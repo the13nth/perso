@@ -4,10 +4,13 @@ import { useState, type FormEvent } from "react";
 import DEFAULT_RETRIEVAL_TEXT from "@/data/DefaultRetrievalText";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
+import { useUser } from "@clerk/nextjs";
 
 export function UploadDocumentsForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [document, setDocument] = useState(DEFAULT_RETRIEVAL_TEXT);
+  const { user } = useUser();
+
   const ingest = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
@@ -15,6 +18,7 @@ export function UploadDocumentsForm() {
       method: "POST",
       body: JSON.stringify({
         text: document,
+        userId: user?.id,
       }),
     });
     if (response.status === 200) {
@@ -34,7 +38,7 @@ export function UploadDocumentsForm() {
         value={document}
         onChange={(e) => setDocument(e.target.value)}
       />
-      <Button type="submit">
+      <Button type="submit" disabled={!user}>
         <div
           role="status"
           className={`${isLoading ? "" : "hidden"} flex justify-center`}

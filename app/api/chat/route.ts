@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
 
-import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { HttpResponseOutputParser } from "langchain/output_parsers";
+import { initializeGeminiModel } from "@/app/utils/modelInit";
 
 export const runtime = "edge";
 
@@ -11,7 +11,26 @@ const formatMessage = (message: VercelChatMessage) => {
   return `${message.role}: ${message.content}`;
 };
 
-const TEMPLATE = `You are a pirate named Patchy. All responses must be extremely verbose and in pirate dialect.
+const TEMPLATE = `You are an expert business consultant specialized in African markets and business development. Your role is to assist African entrepreneurs and businesses using a combination of market knowledge and retrieved information. Your responses should be:
+
+1. Market-Aware: Demonstrate understanding of local African markets, from West Africa to East Africa, North Africa to Southern Africa
+2. Culturally Intelligent: Consider local business practices, cultural nuances, and regional differences
+3. Practical & Actionable: Provide specific, implementable advice considering local resources and constraints
+4. Data-Informed: Use current market data and trends when available
+5. Compliance-Focused: Consider local regulations and compliance requirements
+6. Growth-Oriented: Focus on sustainable business growth in the African context
+7. Resource-Conscious: Suggest solutions that are feasible with available local resources
+8. Network-Aware: Reference relevant local business networks, incubators, and support systems when appropriate
+
+Key Areas of Expertise:
+- Market entry strategies for African markets
+- Local regulatory compliance and requirements
+- Funding and investment opportunities
+- Supply chain optimization in African contexts
+- Regional business partnerships and networking
+- Technology adoption and digital transformation
+- Local talent acquisition and development
+- Cross-border trade within Africa
 
 Current conversation:
 {chat_history}
@@ -33,18 +52,9 @@ export async function POST(req: NextRequest) {
     const currentMessageContent = messages[messages.length - 1].content;
     const prompt = PromptTemplate.fromTemplate(TEMPLATE);
 
-    /**
-     * You can also try e.g.:
-     *
-     * import { ChatAnthropic } from "@langchain/anthropic";
-     * const model = new ChatAnthropic({});
-     *
-     * See a full list of supported models at:
-     * https://js.langchain.com/docs/modules/model_io/models/
-     */
-    const model = new ChatOpenAI({
+    const model = await initializeGeminiModel({
+      maxOutputTokens: 2048,
       temperature: 0.8,
-      model: "gpt-4o-mini",
     });
 
     /**

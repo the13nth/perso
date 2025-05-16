@@ -1,37 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
-
-import { createClient } from "@supabase/supabase-js";
-
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { Document } from "@langchain/core/documents";
 import { RunnableSequence } from "@langchain/core/runnables";
+import { initializeGeminiModel } from "@/app/utils/modelInit";
 import {
   BytesOutputParser,
   StringOutputParser,
 } from "@langchain/core/output_parsers";
-
-export const runtime = "edge";
-
-const combineDocumentsFn = (docs: Document[]) => {
-  const serializedDocs = docs.map((doc) => doc.pageContent);
-  return serializedDocs.join("\n\n");
-};
-
-const formatVercelMessages = (chatHistory: VercelChatMessage[]) => {
-  const formattedDialogueTurns = chatHistory.map((message) => {
-    if (message.role === "user") {
-      return `Human: ${message.content}`;
-    } else if (message.role === "assistant") {
-      return `Assistant: ${message.content}`;
-    } else {
-      return `${message.role}: ${message.content}`;
-    }
-  });
-  return formattedDialogueTurns.join("\n");
-};
+import { Pinecone } from "@pinecone-database/pinecone";
 
 const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
 
@@ -41,14 +19,14 @@ const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follo
 
 Follow Up Input: {question}
 Standalone question:`;
+
 const condenseQuestionPrompt = PromptTemplate.fromTemplate(
   CONDENSE_QUESTION_TEMPLATE,
 );
 
-const ANSWER_TEMPLATE = `You are an energetic talking puppy named Dana, and must answer all questions like a happy, talking dog would.
-Use lots of puns!
+const ANSWER_TEMPLATE = `You are an AI assistant for African business growth. Answer the question based only on the following context and chat history.
+If you don't know the answer, just say you don't know. DO NOT try to make up an answer.
 
-Answer the question based only on the following context and chat history:
 <context>
   {context}
 </context>
@@ -58,15 +36,31 @@ Answer the question based only on the following context and chat history:
 </chat_history>
 
 Question: {question}
-`;
+Answer:`;
+
 const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
 
-/**
- * This handler initializes and calls a retrieval chain. It composes the chain using
- * LangChain Expression Language. See the docs for more information:
- *
- * https://js.langchain.com/v0.2/docs/how_to/qa_chat_history_how_to/
- */
+async function searchPinecone(pineconeIndex: any, embeddings: GoogleGenerativeAIEmbeddings, query: string, topK: number = 5) {
+  // Get the embedding for the query
+  const queryEmbedding = await embeddings.embedQuery(query);
+
+  // Search for similar documents in Pinecone
+  const results = await pineconeIndex.query({
+    vector: queryEmbedding,
+    topK,
+    includeMetadata: true
+  });
+
+  // Convert the matches to Document objects
+  return results.matches.map((match: any) => new Document({
+    pageContent: match.metadata.text,
+    metadata: {
+      ...match.metadata,
+      similarity: match.score
+    }
+  }));
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -74,52 +68,39 @@ export async function POST(req: NextRequest) {
     const previousMessages = messages.slice(0, -1);
     const currentMessageContent = messages[messages.length - 1].content;
 
-    const model = new ChatOpenAI({
-      model: "gpt-4o-mini",
+    const model = await initializeGeminiModel({
+      maxOutputTokens: 2048,
       temperature: 0.2,
     });
 
-    const client = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_PRIVATE_KEY!,
-    );
-    const vectorstore = new SupabaseVectorStore(new OpenAIEmbeddings(), {
-      client,
-      tableName: "documents",
-      queryName: "match_documents",
+    const pinecone = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY || "",
     });
 
-    /**
-     * We use LangChain Expression Language to compose two chains.
-     * To learn more, see the guide here:
-     *
-     * https://js.langchain.com/docs/guides/expression_language/cookbook
-     *
-     * You can also use the "createRetrievalChain" method with a
-     * "historyAwareRetriever" to get something prebaked.
-     */
-    const standaloneQuestionChain = RunnableSequence.from([
-      condenseQuestionPrompt,
-      model,
-      new StringOutputParser(),
-    ]);
+    const embeddings = new GoogleGenerativeAIEmbeddings({
+      apiKey: process.env.GOOGLE_API_KEY || "",
+      modelName: "embedding-001",
+    });
+
+    const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX || "");
 
     let resolveWithDocuments: (value: Document[]) => void;
     const documentPromise = new Promise<Document[]>((resolve) => {
       resolveWithDocuments = resolve;
     });
 
-    const retriever = vectorstore.asRetriever({
-      callbacks: [
-        {
-          handleRetrieverEnd(documents) {
-            resolveWithDocuments(documents);
-          },
-        },
-      ],
-    });
+    const retriever = {
+      invoke: async (query: string) => {
+        const documents = await searchPinecone(pineconeIndex, embeddings, query);
+        resolveWithDocuments(documents);
+        return documents;
+      },
+    };
 
-    const retrievalChain = retriever.pipe(combineDocumentsFn);
+    const retrievalChain = async (query: string) => {
+      const docs = await retriever.invoke(query);
+      return docs.map((doc: Document) => doc.pageContent).join('\n\n');
+    };
 
     const answerChain = RunnableSequence.from([
       {
@@ -132,31 +113,21 @@ export async function POST(req: NextRequest) {
       },
       answerPrompt,
       model,
-    ]);
-
-    const conversationalRetrievalQAChain = RunnableSequence.from([
-      {
-        question: standaloneQuestionChain,
-        chat_history: (input) => input.chat_history,
-      },
-      answerChain,
       new BytesOutputParser(),
     ]);
 
-    const stream = await conversationalRetrievalQAChain.stream({
+    const stream = await answerChain.stream({
       question: currentMessageContent,
-      chat_history: formatVercelMessages(previousMessages),
+      chat_history: formatMessages(previousMessages),
     });
 
     const documents = await documentPromise;
     const serializedSources = Buffer.from(
       JSON.stringify(
-        documents.map((doc) => {
-          return {
-            pageContent: doc.pageContent.slice(0, 50) + "...",
-            metadata: doc.metadata,
-          };
-        }),
+        documents.map((doc) => ({
+          pageContent: doc.pageContent.slice(0, 50) + "...",
+          metadata: doc.metadata,
+        })),
       ),
     ).toString("base64");
 
@@ -167,6 +138,16 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
+    console.error("Error during retrieval:", e);
+    return NextResponse.json(
+      { error: e.message, details: e.stack },
+      { status: e.status ?? 500 }
+    );
   }
+}
+
+function formatMessages(messages: VercelChatMessage[]) {
+  return messages
+    .map((m) => `${m.role}: ${m.content}`)
+    .join('\n');
 }

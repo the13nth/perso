@@ -1,15 +1,16 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { ChatInput, ChatLayout } from "@/components/ChatWindow";
 import { GuideInfoBox } from "@/components/guide/GuideInfoBox";
 import { ReactNode, Suspense, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/utils/cn";
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { useQueryState } from "nuqs";
+import { useQueryState, parseAsString } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Message } from "@langchain/langgraph-sdk";
+import type { Message } from "@langchain/langgraph-sdk";
 
 const onError = (error: unknown) => {
   toast.error("Failed to handle input", {
@@ -178,13 +179,15 @@ function StatefulChatInput(props: {
 }
 
 function ClientLanggraphPage() {
-  const [threadId, setThreadId] = useQueryState("threadId");
+  const [threadId, setThreadId] = useQueryState(
+    "threadId",
+    parseAsString.withDefault("")
+  );
 
   const thread = useStream<{ messages?: Message[]; timestamp?: number }>({
     assistantId: "agent",
     apiUrl: "http://localhost:2024",
     threadId,
-
     onThreadId: setThreadId,
     onError,
   });
