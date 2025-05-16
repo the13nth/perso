@@ -34,6 +34,7 @@ export default function ClientVisualization() {
   const [embeddings, setEmbeddings] = useState<Embedding[]>([]);
   const [error, setError] = useState<string>("");
   const [isClient, setIsClient] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [loadingSteps, setLoadingSteps] = useState<LoadingStep[]>([
     { id: 'init', label: 'Initializing visualization engine', status: 'pending' },
     { id: 'fetch', label: 'Fetching embeddings data', status: 'pending' },
@@ -43,8 +44,8 @@ export default function ClientVisualization() {
 
   // Update loading step status
   const updateStepStatus = useCallback((stepId: string, status: LoadingStep['status'], progress?: number) => {
-    setLoadingSteps(steps => 
-      steps.map(step => 
+    setLoadingSteps(prev => 
+      prev.map(step => 
         step.id === stepId 
           ? { ...step, status, progress } 
           : step
@@ -52,28 +53,35 @@ export default function ClientVisualization() {
     );
   }, []);
 
+  // Simulate progress for loading steps
+  const simulateProgress = useCallback(async (stepId: string) => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 5;
+      if (progress >= 100) {
+        clearInterval(interval);
+        updateStepStatus(stepId, 'complete', 100);
+      } else {
+        updateStepStatus(stepId, 'loading', progress);
+      }
+    }, 100);
+  }, [updateStepStatus]);
+
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Simulate progress for loading steps
-  const simulateProgress = useCallback(async (stepId: string) => {
-    let progress = 0;
-    while (progress < 100) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-      progress += Math.random() * 10;
-      progress = Math.min(progress, 100);
-      updateStepStatus(stepId, 'loading', progress);
-    }
-  }, [updateStepStatus]);
-
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchEmbeddings() {
       try {
+        if (!isClient) return;
+
         // Step 1: Initialize
         updateStepStatus('init', 'loading');
         await simulateProgress('init');
-        updateStepStatus('init', 'complete');
+        if (!isMounted) return;
 
         // Step 2: Fetch
         updateStepStatus('fetch', 'loading');
@@ -82,20 +90,25 @@ export default function ClientVisualization() {
           throw new Error("Failed to fetch embeddings");
         }
         const data = await response.json();
+        if (!isMounted) return;
         updateStepStatus('fetch', 'complete');
 
         // Step 3: Process
         updateStepStatus('process', 'loading');
         await simulateProgress('process');
+        if (!isMounted) return;
         setEmbeddings(data.embeddings);
         updateStepStatus('process', 'complete');
 
         // Step 4: Plot
         updateStepStatus('plot', 'loading');
         await simulateProgress('plot');
+        if (!isMounted) return;
         updateStepStatus('plot', 'complete');
+        setIsLoading(false);
 
       } catch (err) {
+        if (!isMounted) return;
         const errorStep = loadingSteps.find(step => step.status === 'loading');
         if (errorStep) {
           updateStepStatus(errorStep.id, 'error');
@@ -104,18 +117,16 @@ export default function ClientVisualization() {
       }
     }
 
-    if (isClient) {
-      fetchEmbeddings();
-    }
-  }, [isClient, loadingSteps, simulateProgress]);
+    fetchEmbeddings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isClient, updateStepStatus, simulateProgress]);
 
   if (!isClient) {
     return null;
   }
-
-  const isLoading = loadingSteps.some(step => 
-    step.status === 'loading' || step.status === 'pending'
-  );
 
   if (error) {
     return (
@@ -129,7 +140,7 @@ export default function ClientVisualization() {
 
   return (
     <div className="w-full h-screen relative">
-      {isLoading ? (
+      {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
           <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
             <h2 className="text-xl font-semibold mb-4 text-center">Preparing Visualization</h2>
@@ -167,7 +178,7 @@ export default function ClientVisualization() {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
       
       <Suspense fallback={null}>
         <ThreeComponents embeddings={embeddings} />
