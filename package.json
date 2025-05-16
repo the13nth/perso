@@ -55,6 +55,7 @@
     "zod-to-json-schema": "^3.23.2"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^4.41.3",
     "@next/bundle-analyzer": "^14.1.0",
     "autoprefixer": "10.4.14",
     "eslint": "8.46.0",

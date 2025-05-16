@@ -3,8 +3,8 @@
   publish = ".next"
 
 [functions]
-  external_node_modules = ["styled-jsx"]
-  included_files = ["node_modules/styled-jsx/**/*"]
+  external_node_modules = ["styled-jsx", "next/dist/compiled/find-up"]
+  included_files = ["node_modules/styled-jsx/**/*", "node_modules/next/dist/compiled/find-up/**/*"]
 
 [[plugins]]
   package = "@netlify/plugin-nextjs" 
