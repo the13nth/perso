@@ -7,4 +7,10 @@
   included_files = ["node_modules/styled-jsx/**/*", "node_modules/next/dist/compiled/find-up/**/*"]
 
 [[plugins]]
-  package = "@netlify/plugin-nextjs" 
+  package = "@netlify/plugin-nextjs"
+
+# Environment variables that must be set on Netlify
+[template.environment]
+  GOOGLE_API_KEY = "Google API key for Gemini models"
+  PINECONE_API_KEY = "Pinecone API key"
+  PINECONE_INDEX = "Name of your Pinecone index" 
