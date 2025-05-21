@@ -1,9 +1,5 @@
 import "./globals.css";
 import { Public_Sans } from "next/font/google";
-import { ActiveLink } from "@/components/Navbar";
-import { Button } from "@/components/ui/button";
-import { GithubIcon } from "lucide-react";
-import { Toaster } from "@/components/ui/sonner";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -72,7 +68,7 @@ export default function RootLayout({
         <body className={inter.className}>
           <div className="relative flex min-h-screen flex-col">
             <Navbar />
-            <main className="flex-1">
+            <main className="flex-1 pt-16 md:pt-0">
               <NuqsAdapter>{children}</NuqsAdapter>
             </main>
           </div>

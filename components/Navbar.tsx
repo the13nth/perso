@@ -2,7 +2,7 @@
 
 import { cn } from "@/utils/cn";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import { UserButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { Menu, MessageSquare, Database, Bot, Layout, Radio, Sparkles, Github } from "lucide-react";
@@ -34,7 +34,7 @@ export function Navbar() {
     { href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
     { href: "/structured_output", label: "Structured Output", icon: <Layout className="h-4 w-4" /> },
     { href: "/streaming", label: "Streaming", icon: <Radio className="h-4 w-4" /> },
-    { href: "/visualize", label: "Visualize", icon: <Sparkles className="h-4 w-4" /> },
+    { href: "/embeddings", label: "Embeddings", icon: <Sparkles className="h-4 w-4" /> },
   ];
 
   return (
@@ -44,12 +44,14 @@ export function Navbar() {
           <Link href="/" className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-accent/50 transition-colors">
             <div className="relative w-8 h-8">
               <svg viewBox="0 0 24 24" className="w-full h-full fill-current">
+                <title>Ubumuntu AI Logo</title>
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" className="animate-pulse" />
               </svg>
             </div>
             <span className="font-bold text-lg">Ubumuntu AI</span>
           </Link>
           <button
+            type="button"
             className="md:hidden p-2 hover:bg-accent/50 rounded-md"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
