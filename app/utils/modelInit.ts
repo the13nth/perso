@@ -33,7 +33,6 @@ export async function initializeGeminiModel(options: {
         console.warn(`Failed to initialize ${modelVersion} with unknown error:`, error);
         lastError = new Error(String(error));
       }
-      continue;
     }
   }
   

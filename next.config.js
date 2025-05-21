@@ -1,21 +1,19 @@
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
+import withBundleAnalyzer from '@next/bundle-analyzer';
+
+const bundleAnalyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
-})
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    turbotrace: {
-      enabled: true,
-    },
-    serverComponentsExternalPackages: ['styled-jsx']
   },
-  swcMinify: true,
+  serverExternalPackages: ['styled-jsx'],
   output: 'standalone',
   distDir: '.next',
   images: {
     domains: [],
   },
-}
+};
 
-module.exports = withBundleAnalyzer(nextConfig)
+export default bundleAnalyzer(nextConfig); 

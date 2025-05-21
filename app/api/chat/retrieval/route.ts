@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { Message as VercelChatMessage } from "ai";
+import { StreamingTextResponse } from "ai";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { Document } from "@langchain/core/documents";
@@ -9,7 +11,14 @@ import {
   BytesOutputParser,
   StringOutputParser,
 } from "@langchain/core/output_parsers";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { Pinecone, type Index, type ScoredPineconeRecord, type RecordMetadata } from "@pinecone-database/pinecone";
+
+interface PineconeMatch {
+  id: string;
+  score: number;
+  values: number[];
+  metadata: { [key: string]: unknown };
+}
 
 const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
 
@@ -25,7 +34,7 @@ const condenseQuestionPrompt = PromptTemplate.fromTemplate(
 );
 
 const ANSWER_TEMPLATE = `You are an AI assistant for African business growth. Answer the question based only on the following context and chat history.
-If you don't know the answer, just say you don't know. DO NOT try to make up an answer.
+If you don't know the answer, just say you don't know. DO NOT try to make up an answer. Give a detailed answer always.
 
 <context>
   {context}
@@ -40,7 +49,12 @@ Answer:`;
 
 const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
 
-async function searchPinecone(pineconeIndex: any, embeddings: GoogleGenerativeAIEmbeddings, query: string, topK: number = 5) {
+async function searchPinecone(
+  pineconeIndex: Index,
+  embeddings: GoogleGenerativeAIEmbeddings,
+  query: string,
+  topK = 5
+) {
   // Get the embedding for the query
   const queryEmbedding = await embeddings.embedQuery(query);
 
@@ -52,13 +66,16 @@ async function searchPinecone(pineconeIndex: any, embeddings: GoogleGenerativeAI
   });
 
   // Convert the matches to Document objects
-  return results.matches.map((match: any) => new Document({
-    pageContent: match.metadata.text,
-    metadata: {
-      ...match.metadata,
-      similarity: match.score
-    }
-  }));
+  return results.matches.map((match: ScoredPineconeRecord<RecordMetadata>) => {
+    const metadata = match.metadata ?? {};
+    return new Document({
+      pageContent: typeof (metadata as { text?: unknown }).text === "string" ? (metadata as { text?: unknown }).text as string : "",
+      metadata: {
+        ...metadata,
+        similarity: match.score ?? 0
+      }
+    });
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -125,7 +142,7 @@ export async function POST(req: NextRequest) {
     const serializedSources = Buffer.from(
       JSON.stringify(
         documents.map((doc) => ({
-          pageContent: doc.pageContent.slice(0, 50) + "...",
+          pageContent: `${doc.pageContent.slice(0, 50)}...`,
           metadata: doc.metadata,
         })),
       ),
@@ -137,11 +154,22 @@ export async function POST(req: NextRequest) {
         "x-sources": serializedSources,
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("Error during retrieval:", e);
     return NextResponse.json(
-      { error: e.message, details: e.stack },
-      { status: e.status ?? 500 }
+      {
+        error: e instanceof Error ? e.message : "Unknown error",
+        details: e instanceof Error ? e.stack : undefined
+      },
+      {
+        status:
+          typeof e === "object" &&
+          e !== null &&
+          "status" in e &&
+          typeof (e as { status?: unknown }).status === "number"
+            ? (e as { status: number }).status
+            : 500
+      }
     );
   }
 }
