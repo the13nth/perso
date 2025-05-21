@@ -1981,6 +1981,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@pdf-lib/standard-fonts@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "@pdf-lib/standard-fonts@npm:1.0.0"
+  dependencies:
+    pako: ^1.0.6
+  checksum: 7dc629b83862424a64b10c7ae34d789e0045a1a589f34a66a7f8e197f177cdb410969424e5d90f67b35c848db8b045cfa0a664941bdfb2d9b5413dbf44232981
+  languageName: node
+  linkType: hard
+
+"@pdf-lib/upng@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "@pdf-lib/upng@npm:1.0.1"
+  dependencies:
+    pako: ^1.0.10
+  checksum: acd8ac0974a3c2ed12c4e21d6340c4f77f8dde6727a74075b2faf69fb9dc4051b9e576479caf8e870f67d1bb37b953dfe50c4784892b466f01a29b55272d5e1f
+  languageName: node
+  linkType: hard
+
 "@pinecone-database/pinecone@npm:^6.0.0":
   version: 6.0.1
   resolution: "@pinecone-database/pinecone@npm:6.0.1"
@@ -2294,6 +2312,25 @@ __metadata:
     "@types/react":
       optional: true
   checksum: 8d68e200778eb3038906870fc869b3d881f4a46715fb20cddd9c76cba42fdaaa4810a3365b6ec2daf0f185b9201fc99d009167f59c7921bc3a139722c2e976db
+  languageName: node
+  linkType: hard
+
+"@radix-ui/react-label@npm:^2.1.7":
+  version: 2.1.7
+  resolution: "@radix-ui/react-label@npm:2.1.7"
+  dependencies:
+    "@radix-ui/react-primitive": 2.1.3
+  peerDependencies:
+    "@types/react": "*"
+    "@types/react-dom": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: 6fe47ff695ac127a87a3ee77489fb345a89515edc8df4b2b290c801a9ae14ad934cc64ddad7638cddb71b064ff898bd1c2ac88c16dd1b8236a0939d7fea95e3b
   languageName: node
   linkType: hard
 
@@ -3440,6 +3477,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"adler-32@npm:~1.3.0":
+  version: 1.3.1
+  resolution: "adler-32@npm:1.3.1"
+  checksum: c7f6b02df64a4392fcf1591862344f56733716a558e97a8b06a553dadeeaec792054512389000f42f371b13d2be5370e056e18db3b573944b595c4cb7742c5c6
+  languageName: node
+  linkType: hard
+
 "agent-base@npm:^7.1.0, agent-base@npm:^7.1.2":
   version: 7.1.3
   resolution: "agent-base@npm:7.1.3"
@@ -4119,6 +4163,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cfb@npm:~1.2.1":
+  version: 1.2.2
+  resolution: "cfb@npm:1.2.2"
+  dependencies:
+    adler-32: ~1.3.0
+    crc-32: ~1.2.0
+  checksum: cfb63a7d630a7fa415c1b25655dca66666584f29c95fb0ee90866ada1a28090857827f2ba70a9a50df28bdce05728ae58d495bce417249f305ef7b3c85840024
+  languageName: node
+  linkType: hard
+
 "chalk@npm:^4.0.0, chalk@npm:^4.1.2":
   version: 4.1.2
   resolution: "chalk@npm:4.1.2"
@@ -4230,6 +4284,13 @@ __metadata:
   version: 1.1.2
   resolution: "cluster-key-slot@npm:1.1.2"
   checksum: be0ad2d262502adc998597e83f9ded1b80f827f0452127c5a37b22dfca36bab8edf393f7b25bb626006fb9fb2436106939ede6d2d6ecf4229b96a47f27edd681
+  languageName: node
+  linkType: hard
+
+"codepage@npm:~1.15.0":
+  version: 1.15.0
+  resolution: "codepage@npm:1.15.0"
+  checksum: 86bdfd8f8fd4d78ace6ddab02a1621cbb4a833686fe886984b4155d99cd0287581d69495774b816ab2f571c4dc851c1595e1dbb8d69bd6dbb5a631ebf317fab0
   languageName: node
   linkType: hard
 
@@ -4475,6 +4536,15 @@ __metadata:
   version: 1.1.0
   resolution: "country-regex@npm:1.1.0"
   checksum: e9be62b811166632799abaee80cd1926febe04993641241965be4fc619ff15bbfb913cb63fb1b457627925531de3247647d4c53eda8b456a253d9ab1db7259d8
+  languageName: node
+  linkType: hard
+
+"crc-32@npm:~1.2.0, crc-32@npm:~1.2.1":
+  version: 1.2.2
+  resolution: "crc-32@npm:1.2.2"
+  bin:
+    crc32: bin/crc32.njs
+  checksum: ad2d0ad0cbd465b75dcaeeff0600f8195b686816ab5f3ba4c6e052a07f728c3e70df2e3ca9fd3d4484dc4ba70586e161ca5a2334ec8bf5a41bf022a6103ff243
   languageName: node
   linkType: hard
 
@@ -6076,6 +6146,13 @@ __metadata:
     node-domexception: 1.0.0
     web-streams-polyfill: 4.0.0-beta.3
   checksum: d91d4f667cfed74827fc281594102c0dabddd03c9f8b426fc97123eedbf73f5060ee43205d89284d6854e2fc5827e030cd352ef68b93beda8decc2d72128c576
+  languageName: node
+  linkType: hard
+
+"frac@npm:~1.1.2":
+  version: 1.1.2
+  resolution: "frac@npm:1.1.2"
+  checksum: fbfbb28003bb84506dd35e7aad8543c5a358bdc95451d0065b6127d40d2c45106f14221575c3e9ce3ea4bf0bbf1225b73c5d655965c9f4ce44332cbe1b34667d
   languageName: node
   linkType: hard
 
@@ -8983,6 +9060,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pako@npm:^1.0.10, pako@npm:^1.0.11, pako@npm:^1.0.6":
+  version: 1.0.11
+  resolution: "pako@npm:1.0.11"
+  checksum: 1be2bfa1f807608c7538afa15d6f25baa523c30ec870a3228a89579e474a4d992f4293859524e46d5d87fd30fa17c5edf34dbef0671251d9749820b488660b16
+  languageName: node
+  linkType: hard
+
 "parent-module@npm:^1.0.0":
   version: 1.0.1
   resolution: "parent-module@npm:1.0.1"
@@ -9097,6 +9181,18 @@ __metadata:
   bin:
     pbf: bin/pbf
   checksum: bb5ad5e40c0c3a72d23453b03064a040c76363ba76fe086bb7789501c3f8c1565ecba72f62ab608d02b2645d21ff74ff6494413a39aba2aa0c4157886a2a658c
+  languageName: node
+  linkType: hard
+
+"pdf-lib@npm:^1.17.1":
+  version: 1.17.1
+  resolution: "pdf-lib@npm:1.17.1"
+  dependencies:
+    "@pdf-lib/standard-fonts": ^1.0.0
+    "@pdf-lib/upng": ^1.0.1
+    pako: ^1.0.11
+    tslib: ^1.11.1
+  checksum: 0dae766f23de60ff071368073990cca0d30fb5d104c50a17fee00f0659a491f66e45ce80b1bbfe254e6915a5bc9079f42501dfff2e37f8f76a8807d3e321b19a
   languageName: node
   linkType: hard
 
@@ -10530,6 +10626,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ssf@npm:~0.11.2":
+  version: 0.11.2
+  resolution: "ssf@npm:0.11.2"
+  dependencies:
+    frac: ~1.1.2
+  checksum: 6ecef6ae0a90e67dc4b05bc3cca883e2dffad9773b41124af36ee308884e4a29f98bde66d6c8d2bd1ccf5f860ea4f6c49338bd8d733007fc42ebe02dd5295dcf
+  languageName: node
+  linkType: hard
+
 "ssri@npm:^12.0.0":
   version: 12.0.0
   resolution: "ssri@npm:12.0.0"
@@ -11399,6 +11504,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"tslib@npm:^1.11.1":
+  version: 1.14.1
+  resolution: "tslib@npm:1.14.1"
+  checksum: dbe628ef87f66691d5d2959b3e41b9ca0045c3ee3c7c7b906cc1e328b39f199bb1ad9e671c39025bd56122ac57dfbf7385a94843b1cc07c60a4db74795829acd
+  languageName: node
+  linkType: hard
+
 "tunnel-agent@npm:^0.6.0":
   version: 0.6.0
   resolution: "tunnel-agent@npm:0.6.0"
@@ -11546,6 +11658,7 @@ __metadata:
     "@pinecone-database/pinecone": ^6.0.0
     "@radix-ui/react-checkbox": ^1.1.3
     "@radix-ui/react-dialog": ^1.1.4
+    "@radix-ui/react-label": ^2.1.7
     "@radix-ui/react-popover": ^1.1.4
     "@radix-ui/react-slot": ^1.1.1
     "@radix-ui/react-tabs": ^1.1.12
@@ -11572,6 +11685,7 @@ __metadata:
     next: latest
     next-themes: ^0.4.4
     nuqs: ^2.3.2
+    pdf-lib: ^1.17.1
     plotly.js: ^3.0.1
     postcss: 8.4.27
     prettier: ^3.4.2
@@ -11588,6 +11702,7 @@ __metadata:
     typescript: latest
     use-stick-to-bottom: ^1.0.44
     vaul: ^1.1.2
+    xlsx: ^0.18.5
     zod: ^3.23.8
     zod-to-json-schema: ^3.23.2
   languageName: unknown
@@ -12121,10 +12236,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"wmf@npm:~1.0.1":
+  version: 1.0.2
+  resolution: "wmf@npm:1.0.2"
+  checksum: d336acb2c76fa868ef006fbb06c4e64c7c1ed5ff77d16c48a273cf1f4d0a44e35df209b8fde28d93dd4a924d652a9c4fc8a92ad57885a5e437df0b0900769e3b
+  languageName: node
+  linkType: hard
+
 "word-wrap@npm:^1.2.5":
   version: 1.2.5
   resolution: "word-wrap@npm:1.2.5"
   checksum: f93ba3586fc181f94afdaff3a6fef27920b4b6d9eaefed0f428f8e07adea2a7f54a5f2830ce59406c8416f033f86902b91eb824072354645eea687dff3691ccb
+  languageName: node
+  linkType: hard
+
+"word@npm:~0.3.0":
+  version: 0.3.0
+  resolution: "word@npm:0.3.0"
+  checksum: f84e7061883380c1bcb0d98bd183b7f2b281688011924af7a96d3ed3ee20aeb12cc59a0451b66e5e57520338a056725ff8e0c07b358c0afecf5488a9557c19fe
   languageName: node
   linkType: hard
 
@@ -12193,6 +12322,23 @@ __metadata:
     utf-8-validate:
       optional: true
   checksum: e38beae19ba4d68577ec24eb34fbfab376333fedd10f99b07511a8e842e22dbc102de39adac333a18e4c58868d0703cd5f239b04b345e22402d0ed8c34ea0aa0
+  languageName: node
+  linkType: hard
+
+"xlsx@npm:^0.18.5":
+  version: 0.18.5
+  resolution: "xlsx@npm:0.18.5"
+  dependencies:
+    adler-32: ~1.3.0
+    cfb: ~1.2.1
+    codepage: ~1.15.0
+    crc-32: ~1.2.1
+    ssf: ~0.11.2
+    wmf: ~1.0.1
+    word: ~0.3.0
+  bin:
+    xlsx: bin/xlsx.njs
+  checksum: c5774d3c6abdf2db24f33a7b786e305255dac0e41a4e6bf6167c3f8517bfb5bfcb98e8207c39d5105f8304aa7416758da0400a993fb79aaf8e2ea4cfa8801f2e
   languageName: node
   linkType: hard
 

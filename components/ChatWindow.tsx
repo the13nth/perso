@@ -10,7 +10,7 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { ChatMessageBubble } from "@/components/ChatMessageBubble";
 import { IntermediateStep } from "./IntermediateStep";
 import { Button } from "./ui/button";
-import { ArrowDown, LoaderCircle, Paperclip } from "lucide-react";
+import { ArrowDown, LoaderCircle, Paperclip, FileText } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
 import { UploadDocumentsForm } from "./UploadDocumentsForm";
 import {
@@ -312,27 +312,51 @@ export function ChatWindow(props: {
           placeholder={props.placeholder ?? "What's it like to be a pirate?"}
         >
           {props.showIngestForm && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="pl-2 pr-3 -ml-2"
-                  disabled={chat.messages.length !== 0}
-                >
-                  <Paperclip className="size-4" />
-                  <span>Upload document</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Upload document</DialogTitle>
-                  <DialogDescription>
-                    Upload a document to use for the chat.
-                  </DialogDescription>
-                </DialogHeader>
-                <UploadDocumentsForm />
-              </DialogContent>
-            </Dialog>
+            <>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="pl-2 pr-3 -ml-2"
+                    disabled={chat.messages.length !== 0}
+                  >
+                    <Paperclip className="size-4" />
+                    <span>Upload text</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Upload text</DialogTitle>
+                    <DialogDescription>
+                      Upload a text file to use for the chat.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <UploadDocumentsForm />
+                </DialogContent>
+              </Dialog>
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="pl-2 pr-3"
+                    disabled={chat.messages.length !== 0}
+                  >
+                    <FileText className="size-4" />
+                    <span>Upload document</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Upload document</DialogTitle>
+                    <DialogDescription>
+                      Upload a document (.txt, .pdf, .xlsx) to extract text for the chat.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <UploadDocumentsForm fileTypes=".txt,.pdf,.xlsx" extractText={true} />
+                </DialogContent>
+              </Dialog>
+            </>
           )}
 
           {props.showIntermediateStepsToggle && (

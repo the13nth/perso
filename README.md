@@ -47,6 +47,40 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 Backend logic lives in `app/api/chat/route.ts`. From here, you can change the prompt and model, or add other modules and logic.
 
+## ⚠️ Important Configuration Note
+
+This project uses ES Modules (`"type": "module"` in package.json). If you're experiencing the following error:
+
+```
+ReferenceError: module is not defined in ES module scope
+```
+
+Make sure to:
+
+1. Rename any CommonJS files (like `postcss.config.js`) to use the `.cjs` extension:
+   ```bash
+   mv postcss.config.js postcss.config.cjs
+   ```
+
+2. In `tsconfig.json`, ensure the module resolution is set correctly:
+   ```json
+   "module": "esnext",
+   "moduleResolution": "bundler",
+   ```
+
+3. Update `next.config.js` to use current Next.js configurations:
+   ```js
+   const nextConfig = {
+     experimental: {},
+     serverExternalPackages: ['styled-jsx'], // Updated from serverComponentsExternalPackages
+     output: 'standalone',
+     distDir: '.next',
+     images: {
+       domains: [],
+     },
+   };
+   ```
+
 ## 🧱 Structured Output
 
 The second example shows how to have a model return output according to a specific schema using OpenAI Functions.

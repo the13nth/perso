@@ -5,24 +5,65 @@ import DEFAULT_RETRIEVAL_TEXT from "@/data/DefaultRetrievalText";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { useUser } from "@clerk/nextjs";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
-export function UploadDocumentsForm() {
+export interface UploadDocumentsFormProps {
+  fileTypes?: string;
+  extractText?: boolean;
+}
+
+export function UploadDocumentsForm({ fileTypes, extractText = false }: UploadDocumentsFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [document, setDocument] = useState(DEFAULT_RETRIEVAL_TEXT);
+  const [file, setFile] = useState<File | null>(null);
   const { user } = useUser();
 
   const ingest = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    
+    let textContent = document;
+    
+    if (extractText && file) {
+      // Create a FormData object to send the file
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', user?.id || '');
+      
+      try {
+        const response = await fetch("/api/retrieval/extract", {
+          method: "POST",
+          body: formData,
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          textContent = data.text;
+        } else {
+          const error = await response.json();
+          setDocument(error.message || "Error extracting text from document");
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        setDocument("Error extracting text from document");
+        setIsLoading(false);
+        return;
+      }
+    }
+    
     const response = await fetch("/api/retrieval/ingest", {
       method: "POST",
       body: JSON.stringify({
-        text: document,
+        text: textContent,
         userId: user?.id,
       }),
     });
+    
     if (response.status === 200) {
       setDocument("Uploaded!");
+      setFile(null);
     } else {
       const json = await response.json();
       if (json.error) {
@@ -31,14 +72,35 @@ export function UploadDocumentsForm() {
     }
     setIsLoading(false);
   };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
   return (
     <form onSubmit={ingest} className="flex flex-col gap-4 w-full">
-      <Textarea
-        className="grow p-4 rounded bg-transparent min-h-[512px]"
-        value={document}
-        onChange={(e) => setDocument(e.target.value)}
-      />
-      <Button type="submit" disabled={!user}>
+      {extractText ? (
+        <div className="space-y-2">
+          <Label htmlFor="document-upload">Upload document</Label>
+          <Input 
+            id="document-upload" 
+            type="file" 
+            accept={fileTypes} 
+            onChange={handleFileChange}
+            required
+          />
+          {file && <p className="text-sm text-muted-foreground">Selected file: {file.name}</p>}
+        </div>
+      ) : (
+        <Textarea
+          className="grow p-4 rounded bg-transparent min-h-[512px]"
+          value={document}
+          onChange={(e) => setDocument(e.target.value)}
+        />
+      )}
+      <Button type="submit" disabled={!user || (extractText && !file)}>
         <div
           role="status"
           className={`${isLoading ? "" : "hidden"} flex justify-center`}

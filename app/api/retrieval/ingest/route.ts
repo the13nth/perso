@@ -67,25 +67,57 @@ export async function POST(req: NextRequest) {
 
     // Generate embeddings and upsert to Pinecone
     console.log("Generating embeddings and upserting to Pinecone...");
-    const vectors = await Promise.all(
-      chunks.map(async (chunk: string, i: number) => {
-        const embedding = await embeddings.embedQuery(chunk);
-        return {
-          id: `${userId}-${Date.now()}-${i}`,
-          values: embedding,
-          metadata: {
-            text: chunk,
-            userId,
-          },
-        };
-      })
-    );
+    
+    // Add rate limiting to avoid hitting API limits
+    const vectors = [];
+    const chunkBatchSize = 50; // Process in smaller batches
+    
+    for (let i = 0; i < chunks.length; i += chunkBatchSize) {
+      console.log(`Processing batch ${Math.floor(i/chunkBatchSize) + 1} of ${Math.ceil(chunks.length/chunkBatchSize)}`);
+      const batchChunks = chunks.slice(i, i + chunkBatchSize);
+      
+      // Process each chunk with some delay between each one
+      for (let j = 0; j < batchChunks.length; j++) {
+        try {
+          const embedding = await embeddings.embedQuery(batchChunks[j]);
+          vectors.push({
+            id: `${userId}-${Date.now()}-${i+j}`,
+            values: embedding,
+            metadata: {
+              text: batchChunks[j],
+              userId,
+            },
+          });
+          
+          // Add a small delay between each API call
+          if (j < batchChunks.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
+          }
+        } catch (error) {
+          console.error("Error generating embedding, retrying with backoff:", error);
+          // Simple exponential backoff
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1s delay on error
+          j--; // Retry this item
+        }
+      }
+      
+      // Add a delay between batches
+      if (i + chunkBatchSize < chunks.length) {
+        console.log("Pausing between batches to avoid rate limits...");
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2s pause between batches
+      }
+    }
 
     // Upsert vectors in batches
-    const batchSize = 100;
-    for (let i = 0; i < vectors.length; i += batchSize) {
-      const batch = vectors.slice(i, i + batchSize);
+    const upsertBatchSize = 100;
+    for (let i = 0; i < vectors.length; i += upsertBatchSize) {
+      const batch = vectors.slice(i, i + upsertBatchSize);
       await index.upsert(batch);
+      
+      // Add a small delay between Pinecone batches if needed
+      if (i + upsertBatchSize < vectors.length) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
     }
 
     console.log("Successfully ingested document");
