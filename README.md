@@ -106,18 +106,16 @@ This example uses a [prebuilt LangGraph agent](https://langchain-ai.github.io/la
 
 ## 🐶 Retrieval
 
-The retrieval examples both use Supabase as a vector store. However, you can swap in
+The retrieval examples use Pinecone as a vector store. You can swap in
 [another supported vector store](https://js.langchain.com/docs/integrations/vectorstores) if preferred by changing
 the code under `app/api/retrieval/ingest/route.ts`, `app/api/chat/retrieval/route.ts`, and `app/api/chat/retrieval_agents/route.ts`.
 
-For Supabase, follow [these instructions](https://js.langchain.com/docs/integrations/vectorstores/supabase) to set up your
-database, then get your database URL and private key and paste them into `.env.local`.
+For Pinecone, sign up for a free account at [pinecone.io](https://www.pinecone.io/) and create an index with dimensions that match your embeddings model. Set the `PINECONE_API_KEY` and `PINECONE_INDEX` environment variables in your `.env.local` file.
 
 You can then switch to the `Retrieval` and `Retrieval Agent` examples. The default document text is pulled from the LangChain.js retrieval
 use case docs, but you can change them to whatever text you'd like.
 
 For a given text, you'll only need to press `Upload` once. Pressing it again will re-ingest the docs, resulting in duplicates.
-You can clear your Supabase vector store by navigating to the console and running `DELETE FROM documents;`.
 
 After splitting, embedding, and uploading some text, you're ready to ask questions!
 
@@ -156,6 +154,25 @@ To learn more about what you can do with LangChain.js, check out the docs here:
 When ready, you can deploy your app on the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme).
 
 Check out the [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+## 🌐 Deploy on Netlify
+
+You can also deploy your app on Netlify. This project includes a `netlify.toml` configuration file that sets up the necessary settings.
+
+### Environment Variables for Netlify
+
+This application requires the following environment variables to be set in your Netlify deployment:
+
+1. `GOOGLE_API_KEY` - Your Google API key for Gemini AI models
+2. `PINECONE_API_KEY` - Your Pinecone API key
+3. `PINECONE_INDEX` - The name of your Pinecone index
+
+To set these up:
+1. Go to your Netlify site dashboard
+2. Navigate to Site settings > Build & deploy > Environment variables
+3. Add each required variable with its corresponding value
+
+Without these environment variables properly configured, the application will work locally but fail when deployed to Netlify.
 
 ## Thank You!
 

@@ -32,7 +32,6 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@react-three/drei": "^10.0.7",
     "@react-three/fiber": "^9.1.2",
-    "@supabase/supabase-js": "^2.32.0",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.5",
     "@types/react-dom": "^19.1.5",

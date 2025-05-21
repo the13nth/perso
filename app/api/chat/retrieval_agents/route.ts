@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
 
-import { createClient } from "@supabase/supabase-js";
+import { Pinecone, type Index } from "@pinecone-database/pinecone";
 
-import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import {
   AIMessage,
   BaseMessage,
@@ -15,6 +14,8 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { createRetrieverTool } from "langchain/tools/retriever";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { Document } from "@langchain/core/documents";
+import { BaseRetriever } from "@langchain/core/retrievers";
 
 export const runtime = "edge";
 
@@ -41,6 +42,35 @@ const convertLangChainMessageToVercelMessage = (message: BaseMessage) => {
     return { content: message.content, role: message._getType() };
   }
 };
+
+async function searchPinecone(
+  pineconeIndex: Index,
+  embeddings: GoogleGenerativeAIEmbeddings,
+  query: string,
+  topK = 5
+) {
+  // Get the embedding for the query
+  const queryEmbedding = await embeddings.embedQuery(query);
+
+  // Search for similar documents in Pinecone
+  const results = await pineconeIndex.query({
+    vector: queryEmbedding,
+    topK,
+    includeMetadata: true
+  });
+
+  // Convert the matches to Document objects
+  return results.matches.map((match: any) => {
+    const metadata = match.metadata ?? {};
+    return new Document({
+      pageContent: typeof metadata.text === "string" ? metadata.text : "",
+      metadata: {
+        ...metadata,
+        similarity: match.score ?? 0
+      }
+    });
+  });
+}
 
 const AGENT_SYSTEM_TEMPLATE = `You are a stereotypical robot named Robbie and must answer all questions like a stereotypical robot. Use lots of interjections like "BEEP" and "BOOP".
 
@@ -69,22 +99,39 @@ export async function POST(req: NextRequest) {
     const returnIntermediateSteps = body.show_intermediate_steps;
 
     const chatModel = new ChatGoogleGenerativeAI({
-      model: "gemini-1.0-pro",
+      model: "gemini-2.5-flash",
       maxOutputTokens: 2048,
       temperature: 0.2,
     });
 
-    const client = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_PRIVATE_KEY!,
-    );
-    const vectorstore = new SupabaseVectorStore(new GoogleGenerativeAIEmbeddings(), {
-      client,
-      tableName: "documents",
-      queryName: "match_documents",
+    const pinecone = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY || "",
     });
 
-    const retriever = vectorstore.asRetriever();
+    const embeddings = new GoogleGenerativeAIEmbeddings({
+      apiKey: process.env.GOOGLE_API_KEY || "",
+      modelName: "embedding-001",
+    });
+
+    const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX || "");
+
+    // Create a custom retriever that implements BaseRetriever
+    class PineconeRetriever extends BaseRetriever {
+      lc_namespace = ["langchain", "retrievers", "pinecone"];
+      
+      constructor(
+        private pineconeIndex: Index,
+        private embeddings: GoogleGenerativeAIEmbeddings
+      ) {
+        super();
+      }
+
+      async _getRelevantDocuments(query: string) {
+        return await searchPinecone(this.pineconeIndex, this.embeddings, query);
+      }
+    }
+
+    const retriever = new PineconeRetriever(pineconeIndex, embeddings);
 
     /**
      * Wrap the retriever in a tool to present it to the agent in a

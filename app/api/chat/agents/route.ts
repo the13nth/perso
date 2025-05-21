@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     // You can remove this or use a different tool instead.
     const tools = [new Calculator(), new SerpAPI()];
     const chat = new ChatGoogleGenerativeAI({
-      model: "gemini-1.0-pro",
+      model: "gemini-2.5-flash",
       maxOutputTokens: 2048,
       temperature: 0,
     });
