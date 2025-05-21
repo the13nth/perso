@@ -7,13 +7,19 @@ import { Textarea } from "./ui/textarea";
 import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { toast } from "sonner";
 
 export interface UploadDocumentsFormProps {
   fileTypes?: string;
   extractText?: boolean;
+  onSuccess?: () => void;
 }
 
-export function UploadDocumentsForm({ fileTypes, extractText = false }: UploadDocumentsFormProps) {
+export function UploadDocumentsForm({ 
+  fileTypes, 
+  extractText = false,
+  onSuccess 
+}: UploadDocumentsFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [document, setDocument] = useState(DEFAULT_RETRIEVAL_TEXT);
   const [file, setFile] = useState<File | null>(null);
@@ -44,11 +50,13 @@ export function UploadDocumentsForm({ fileTypes, extractText = false }: UploadDo
           const error = await response.json();
           setDocument(error.message || "Error extracting text from document");
           setIsLoading(false);
+          toast.error("Failed to extract text from document");
           return;
         }
       } catch (error) {
         setDocument("Error extracting text from document");
         setIsLoading(false);
+        toast.error("Failed to extract text from document");
         return;
       }
     }
@@ -64,10 +72,17 @@ export function UploadDocumentsForm({ fileTypes, extractText = false }: UploadDo
     if (response.status === 200) {
       setDocument("Uploaded!");
       setFile(null);
+      toast.success(extractText ? "Document uploaded successfully!" : "Text uploaded successfully!");
+      
+      // Close the modal
+      if (onSuccess) {
+        onSuccess();
+      }
     } else {
       const json = await response.json();
       if (json.error) {
         setDocument(json.error);
+        toast.error("Failed to upload: " + json.error);
       }
     }
     setIsLoading(false);

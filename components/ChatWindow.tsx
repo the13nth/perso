@@ -182,6 +182,9 @@ export function ChatWindow(props: {
   const [sourcesForMessages, setSourcesForMessages] = useState<
     Record<string, any>
   >({});
+  
+  const [textDialogOpen, setTextDialogOpen] = useState(false);
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
 
   const chat = useChat({
     api: props.endpoint,
@@ -313,12 +316,13 @@ export function ChatWindow(props: {
         >
           {props.showIngestForm && (
             <>
-              <Dialog>
+              <Dialog open={textDialogOpen} onOpenChange={setTextDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
                     variant="ghost"
                     className="pl-2 pr-3 -ml-2"
                     disabled={chat.messages.length !== 0}
+                    onClick={() => setTextDialogOpen(true)}
                   >
                     <Paperclip className="size-4" />
                     <span>Upload text</span>
@@ -331,16 +335,17 @@ export function ChatWindow(props: {
                       Upload a text file to use for the chat.
                     </DialogDescription>
                   </DialogHeader>
-                  <UploadDocumentsForm />
+                  <UploadDocumentsForm onSuccess={() => setTextDialogOpen(false)} />
                 </DialogContent>
               </Dialog>
 
-              <Dialog>
+              <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
                     variant="ghost"
                     className="pl-2 pr-3"
                     disabled={chat.messages.length !== 0}
+                    onClick={() => setDocumentDialogOpen(true)}
                   >
                     <FileText className="size-4" />
                     <span>Upload document</span>
@@ -353,7 +358,11 @@ export function ChatWindow(props: {
                       Upload a document (.txt, .pdf, .xlsx) to extract text for the chat.
                     </DialogDescription>
                   </DialogHeader>
-                  <UploadDocumentsForm fileTypes=".txt,.pdf,.xlsx" extractText={true} />
+                  <UploadDocumentsForm 
+                    fileTypes=".txt,.pdf,.xlsx" 
+                    extractText={true} 
+                    onSuccess={() => setDocumentDialogOpen(false)} 
+                  />
                 </DialogContent>
               </Dialog>
             </>
