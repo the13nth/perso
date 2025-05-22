@@ -8,15 +8,9 @@ import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, UserCircle, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock, Upload, FileText, AlertTriangle } from "lucide-react";
+import { CheckCircle2, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock, Upload, FileText, AlertTriangle } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 
@@ -198,36 +192,36 @@ export function UploadDocumentsForm({
     }
     
     try {
-      const response = await fetch("/api/retrieval/ingest", {
-        method: "POST",
-        body: JSON.stringify({
-          text: textContent,
-          userId: user?.id,
-          categories: selectedCategories,
-          access: accessLevel,
-        }),
-      });
+    const response = await fetch("/api/retrieval/ingest", {
+      method: "POST",
+      body: JSON.stringify({
+        text: textContent,
+        userId: user?.id,
+        categories: selectedCategories,
+        access: accessLevel,
+      }),
+    });
       
       const data = await response.json();
+    
+    if (response.status === 200) {
+      setDocument("Uploaded!");
+      setFile(null);
+      setUploadSuccess(true);
       
-      if (response.status === 200) {
-        setDocument("Uploaded!");
-        setFile(null);
-        setUploadSuccess(true);
-        
-        toast.success(
-          extractText ? "Document uploaded successfully!" : "Text uploaded successfully!", 
-          {
-            duration: 5000,
-            position: "top-center",
-            icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
-            description: "Your content has been added to the knowledge base and is ready to use."
-          }
-        );
-        
-        if (onSuccess) {
-          setTimeout(() => onSuccess(), 2000);
+      toast.success(
+        extractText ? "Document uploaded successfully!" : "Text uploaded successfully!", 
+        {
+          duration: 5000,
+          position: "top-center",
+          icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+          description: "Your content has been added to the knowledge base and is ready to use."
         }
+      );
+      
+      if (onSuccess) {
+        setTimeout(() => onSuccess(), 2000);
+      }
       } else if (response.status === 202) {
         // Large document is being processed asynchronously
         setAsyncProcessing(true);
@@ -244,7 +238,7 @@ export function UploadDocumentsForm({
         );
         
         // Don't call onSuccess yet since document is still processing
-      } else {
+    } else {
         setDocument(data.error || "Error uploading document");
         toast.error("Failed to upload: " + (data.error || "Unknown error"));
       }
@@ -252,7 +246,7 @@ export function UploadDocumentsForm({
       console.error("Error during document ingestion:", error);
       toast.error("Failed to upload document due to a network error. Please try again.");
     } finally {
-      setIsLoading(false);
+    setIsLoading(false);
     }
   };
 

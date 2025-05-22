@@ -111,7 +111,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         const categoriesText = categories.join(", ");
         const truncatedText = embedding.metadata.text?.substring(0, 50) + "..." || "";
         const hoverText = `ID: ${embedding.id}<br>Categories: ${categoriesText}<br>Text: ${truncatedText}`;
-        
+      
         // Create or update data for this category
         if (!categoryMap[primaryCategory]) {
           categoryMap[primaryCategory] = {
@@ -179,7 +179,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       if (plotRef.current) {
         PlotlyJS.purge(plotRef.current);
       }
-    };
+      };
   }, [embeddings]);
 
   return (

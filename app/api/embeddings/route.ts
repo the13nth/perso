@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const limit = parseInt(url.searchParams.get('limit') || '100', 10);
     const category = url.searchParams.get('category');
-    
+
     // Remove any protocol prefix from the host if it exists
     const cleanHost = host.replace(/^https?:\/\//, '');
     
@@ -128,8 +128,8 @@ export async function GET(req: NextRequest) {
       };
       
       return {
-        id: match.id,
-        vector: match.values,
+      id: match.id,
+      vector: match.values,
         metadata
       };
     });
