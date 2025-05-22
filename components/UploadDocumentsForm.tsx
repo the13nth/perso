@@ -8,7 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, UserCircle, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock } from "lucide-react";
+import { CheckCircle2, UserCircle, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock, Upload, FileText } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
 import {
   Select,
@@ -163,10 +163,10 @@ export function UploadDocumentsForm({
   };
 
   return (
-    <form onSubmit={ingest} className="flex flex-col gap-6 w-full">
+    <form onSubmit={ingest} className="grid grid-cols-1 gap-6 w-full">
       {uploadSuccess && (
-        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-md border border-green-200 dark:border-green-800 mb-4 flex items-center gap-3">
-          <CheckCircle2 className="h-6 w-6 text-green-500" />
+        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-md border border-green-200 dark:border-green-800 flex items-center gap-3">
+          <CheckCircle2 className="h-6 w-6 text-green-500 flex-shrink-0" />
           <div>
             <h3 className="font-medium text-green-900 dark:text-green-300">Success!</h3>
             <p className="text-green-700 dark:text-green-400 text-sm">
@@ -178,55 +178,74 @@ export function UploadDocumentsForm({
       
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "document" | "settings")} className="w-full">
         <TabsList className="grid grid-cols-2 mb-6">
-          <TabsTrigger value="document">Document</TabsTrigger>
-          <TabsTrigger value="settings">Categories & Access</TabsTrigger>
+          <TabsTrigger value="document" className="text-sm sm:text-base">Document</TabsTrigger>
+          <TabsTrigger value="settings" className="text-sm sm:text-base">Categories & Access</TabsTrigger>
         </TabsList>
         
         <TabsContent value="document" className="space-y-6">
-      {extractText ? (
-            <div className="space-y-4">
-              <div className="p-6 border-2 border-dashed rounded-lg text-center bg-background/50">
+          {extractText ? (
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-4 sm:p-6 border-2 border-dashed border-border rounded-lg text-center bg-background/50">
                 <Label 
                   htmlFor="document-upload"
-                  className="text-lg font-medium block mb-2"
+                  className="text-base sm:text-lg font-medium block mb-2"
                 >
                   Upload Document
                 </Label>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-muted-foreground mb-4 text-sm sm:text-base">
                   Drag and drop your document here or click to browse
                 </p>
-          <Input 
-            id="document-upload" 
-            type="file" 
-            accept={fileTypes} 
-            onChange={handleFileChange}
-            required
-                  className="mx-auto max-w-md"
-          />
-                {file && (
-                  <div className="mt-4 p-3 bg-secondary/50 rounded-md inline-block">
-                    <p className="text-sm text-muted-foreground">
-                      Selected file: <span className="font-medium">{file.name}</span>
-                    </p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                  <div className="flex flex-col items-center p-3 bg-blue-100/50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                    <FileText className="h-8 w-8 text-blue-500 dark:text-blue-400 mb-2" />
+                    <span className="text-xs sm:text-sm text-blue-700 dark:text-blue-300">.pdf</span>
                   </div>
-                )}
+                  <div className="flex flex-col items-center p-3 bg-green-100/50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
+                    <FileText className="h-8 w-8 text-green-500 dark:text-green-400 mb-2" />
+                    <span className="text-xs sm:text-sm text-green-700 dark:text-green-300">.txt</span>
+                  </div>
+                  <div className="flex flex-col items-center p-3 bg-purple-100/50 dark:bg-purple-900/20 rounded-md border border-purple-200 dark:border-purple-800">
+                    <FileText className="h-8 w-8 text-purple-500 dark:text-purple-400 mb-2" />
+                    <span className="text-xs sm:text-sm text-purple-700 dark:text-purple-300">.xlsx</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col items-center">
+                  <Input 
+                    id="document-upload" 
+                    type="file" 
+                    accept={fileTypes} 
+                    onChange={handleFileChange}
+                    required
+                    className="max-w-xs sm:max-w-md"
+                  />
+                  {file && (
+                    <div className="mt-4 p-3 bg-muted rounded-md inline-block">
+                      <p className="text-sm text-muted-foreground flex items-center">
+                        <FileText className="h-4 w-4 mr-2" />
+                        <span className="font-medium truncate max-w-[200px] sm:max-w-xs">{file.name}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-        </div>
-      ) : (
-            <div className="space-y-4">
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
               <Label htmlFor="document-text" className="text-lg font-medium">Enter Text</Label>
-        <Textarea
+              <Textarea
                 id="document-text"
                 className="min-h-[300px] md:min-h-[400px] p-4 rounded"
-          value={document}
-          onChange={(e) => {
-            setDocument(e.target.value);
-            setUploadSuccess(false);
-          }}
+                value={document}
+                onChange={(e) => {
+                  setDocument(e.target.value);
+                  setUploadSuccess(false);
+                }}
                 placeholder="Paste or type your text here..."
-        />
+              />
             </div>
-      )}
+          )}
         </TabsContent>
         
         <TabsContent value="settings" className="space-y-8">
@@ -234,12 +253,12 @@ export function UploadDocumentsForm({
             <h3 className="text-xl font-medium">Categories</h3>
             <p className="text-muted-foreground">Select all categories that apply to this document</p>
             
-            <div className="space-y-6">
-              <div className="bg-secondary/30 p-4 rounded-lg">
+            <div className="grid grid-cols-1 gap-6">
+              <div className="bg-muted/30 p-4 rounded-lg">
                 <h4 className="text-lg font-medium mb-3">General</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {categoryGroups.general.map((category) => (
-                    <div key={category.value} className="flex items-center space-x-2 bg-background/80 p-2 rounded">
+                    <div key={category.value} className="flex items-center space-x-2 bg-background p-2 rounded">
                       <Checkbox 
                         id={`category-${category.value}`} 
                         checked={selectedCategories.includes(category.value)}
@@ -259,11 +278,11 @@ export function UploadDocumentsForm({
                 </div>
               </div>
               
-              <div className="bg-secondary/30 p-4 rounded-lg">
+              <div className="bg-muted/30 p-4 rounded-lg">
                 <h4 className="text-lg font-medium mb-3">Personal</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {categoryGroups.personal.map((category) => (
-                    <div key={category.value} className="flex items-center space-x-2 bg-background/80 p-2 rounded">
+                    <div key={category.value} className="flex items-center space-x-2 bg-background p-2 rounded">
                       <Checkbox 
                         id={`category-${category.value}`} 
                         checked={selectedCategories.includes(category.value)}
@@ -283,11 +302,11 @@ export function UploadDocumentsForm({
                 </div>
               </div>
               
-              <div className="bg-secondary/30 p-4 rounded-lg">
+              <div className="bg-muted/30 p-4 rounded-lg">
                 <h4 className="text-lg font-medium mb-3">Domains</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {categoryGroups.domains.map((category) => (
-                    <div key={category.value} className="flex items-center space-x-2 bg-background/80 p-2 rounded">
+                    <div key={category.value} className="flex items-center space-x-2 bg-background p-2 rounded">
                       <Checkbox 
                         id={`category-${category.value}`} 
                         checked={selectedCategories.includes(category.value)}
@@ -309,13 +328,13 @@ export function UploadDocumentsForm({
             </div>
           </div>
           
-          <div className="space-y-4 pt-4 border-t">
+          <div className="grid grid-cols-1 gap-4 pt-4 border-t">
             <h3 className="text-xl font-medium">Access Level</h3>
             <p className="text-muted-foreground mb-4">Choose who can access this document</p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div 
-                className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "personal" ? "bg-primary/10 border-primary" : "bg-background hover:bg-secondary/50"}`}
+                className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "personal" ? "bg-primary/10 border-primary" : "bg-background hover:bg-muted"}`}
                 onClick={() => setAccessLevel("personal")}
               >
                 <div className="flex items-center gap-3 mb-2">
@@ -328,7 +347,7 @@ export function UploadDocumentsForm({
               </div>
               
               <div 
-                className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "public" ? "bg-primary/10 border-primary" : "bg-background hover:bg-secondary/50"}`}
+                className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "public" ? "bg-primary/10 border-primary" : "bg-background hover:bg-muted"}`}
                 onClick={() => setAccessLevel("public")}
               >
                 <div className="flex items-center gap-3 mb-2">
@@ -344,12 +363,12 @@ export function UploadDocumentsForm({
         </TabsContent>
       </Tabs>
 
-      <div className="flex flex-col sm:flex-row gap-3 justify-end pt-6 border-t">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-6 border-t">
         {activeTab === "document" ? (
           <Button 
             type="button" 
             variant="outline" 
-            className="w-full sm:w-auto"
+            className="w-full order-2 sm:order-1"
             onClick={() => setActiveTab("settings")}
           >
             Next: Categories & Access
@@ -358,44 +377,49 @@ export function UploadDocumentsForm({
           <Button 
             type="button" 
             variant="outline" 
-            className="w-full sm:w-auto"
+            className="w-full order-2 sm:order-1"
             onClick={() => setActiveTab("document")}
           >
             Back to Document
           </Button>
         )}
         
-      <Button 
-        type="submit" 
-        disabled={!user || (extractText && !file) || isLoading}
-          className={`w-full sm:w-auto ${uploadSuccess ? "bg-green-600 hover:bg-green-700" : ""}`}
-      >
-        <div
-          role="status"
-          className={`${isLoading ? "" : "hidden"} flex justify-center`}
+        <Button 
+          type="submit" 
+          disabled={!user || (extractText && !file) || isLoading}
+          className={`w-full order-1 sm:order-2 ${uploadSuccess ? "bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800" : ""}`}
         >
-          <svg
-            aria-hidden="true"
-              className="w-5 h-5 text-white animate-spin dark:text-white fill-sky-800"
-            viewBox="0 0 100 101"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-              fill="currentColor"
-            />
-            <path
-              d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-              fill="currentFill"
-            />
-          </svg>
-          <span className="sr-only">Loading...</span>
-        </div>
-        <span className={isLoading ? "hidden" : ""}>
-            {uploadSuccess ? "Uploaded Successfully" : "Upload Document"}
-        </span>
-      </Button>
+          {isLoading ? (
+            <div role="status" className="flex justify-center items-center">
+              <svg
+                aria-hidden="true"
+                className="w-5 h-5 text-primary-foreground animate-spin fill-primary/30 mr-2"
+                viewBox="0 0 100 101"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                  fill="currentFill"
+                />
+              </svg>
+              <span>Processing...</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center">
+              {uploadSuccess ? (
+                <CheckCircle2 className="h-5 w-5 mr-2" />
+              ) : (
+                <Upload className="h-5 w-5 mr-2" />
+              )}
+              <span>{uploadSuccess ? "Uploaded Successfully" : "Upload Document"}</span>
+            </div>
+          )}
+        </Button>
       </div>
     </form>
   );

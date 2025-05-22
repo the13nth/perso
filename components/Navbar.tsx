@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import { UserButton, SignedIn, SignedOut } from "@clerk/nextjs";
-import { Menu, MessageSquare, Database, Bot, Layout, Radio, Sparkles, Github } from "lucide-react";
+import { Menu, X, MessageSquare, Database, Bot, Layout, Radio, Sparkles, Github } from "lucide-react";
 
 export const ActiveLink = (props: { href: string; children: ReactNode; icon?: ReactNode }) => {
   const pathname = usePathname();
@@ -27,6 +27,7 @@ export const ActiveLink = (props: { href: string; children: ReactNode; icon?: Re
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
   
   const navLinks = [
     { href: "/chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
@@ -39,9 +40,14 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Link href="/" className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-accent/50 transition-colors">
+      <div className="container grid grid-cols-12 h-16 items-center">
+        {/* Logo and mobile menu button */}
+        <div className="col-span-8 sm:col-span-4 lg:col-span-3 flex items-center gap-2">
+          <Link 
+            href="/" 
+            className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-accent/50 transition-colors"
+            onClick={() => mobileMenuOpen && setMobileMenuOpen(false)}
+          >
             <div className="relative w-8 h-8">
               <svg viewBox="0 0 24 24" className="w-full h-full fill-current">
                 <title>Ubumuntu AI Logo</title>
@@ -52,18 +58,22 @@ export function Navbar() {
           </Link>
           <button
             type="button"
-            className="md:hidden p-2 hover:bg-accent/50 rounded-md"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="ml-auto md:hidden p-2 hover:bg-accent/50 rounded-md"
+            onClick={toggleMobileMenu}
+            aria-expanded={mobileMenuOpen}
+            aria-label="Toggle navigation menu"
           >
-            <Menu className="h-6 w-6" />
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
           </button>
         </div>
         
-        <div className={cn(
-          "absolute top-16 left-0 w-full bg-background md:static md:w-auto transition-all duration-300 ease-in-out",
-          mobileMenuOpen ? "block" : "hidden md:block"
-        )}>
-          <div className="container md:container-none flex flex-col md:flex-row items-start md:items-center gap-1 py-4 md:py-0">
+        {/* Desktop navigation links - hidden on mobile */}
+        <div className="hidden md:flex md:col-span-6 lg:col-span-7 items-center justify-center">
+          <div className="flex items-center gap-1 overflow-x-auto py-2 px-4 scrollbar-hide">
             {navLinks.map((link) => (
               <ActiveLink key={link.href} href={link.href} icon={link.icon}>
                 {link.label}
@@ -75,23 +85,50 @@ export function Navbar() {
               target="_blank"
             >
               <Github className="h-4 w-4" />
-              GitHub
+              <span className="hidden lg:inline">GitHub</span>
             </Link>
           </div>
         </div>
         
-        <div className="hidden md:flex items-center gap-4">
+        {/* User account section */}
+        <div className="col-span-4 sm:col-span-4 lg:col-span-2 flex items-center justify-end gap-2">
           <SignedIn>
             <UserButton afterSignOutUrl="/" />
           </SignedIn>
           <SignedOut>
             <Link
               href="/sign-in"
-              className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors whitespace-nowrap"
             >
               Sign In
             </Link>
           </SignedOut>
+        </div>
+      </div>
+      
+      {/* Mobile menu - shown when toggled */}
+      <div 
+        className={cn(
+          "md:hidden grid grid-cols-1 border-t border-border/50 transition-all duration-300 ease-in-out",
+          mobileMenuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"
+        )}
+      >
+        <div className="bg-background py-3 px-4 grid grid-cols-1 gap-2">
+          {navLinks.map((link) => (
+            <div key={link.href} onClick={toggleMobileMenu}>
+              <ActiveLink href={link.href} icon={link.icon}>
+                {link.label}
+              </ActiveLink>
+            </div>
+          ))}
+          <Link
+            href="https://github.com/yourusername/ubumuntu-ai"
+            className="flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:text-foreground/80 text-foreground/60 hover:bg-accent/50"
+            target="_blank"
+          >
+            <Github className="h-4 w-4" />
+            GitHub
+          </Link>
         </div>
       </div>
     </nav>
