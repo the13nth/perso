@@ -1,212 +1,191 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useMemo } from "react";
-import * as PCA from "ml-pca";
-// If you get a type error for react-plotly.js, try: yarn add -D @types/react-plotly.js
-// or add a .d.ts file with: declare module 'react-plotly.js';
+import { useEffect, useRef } from "react";
+import * as PlotlyJS from 'plotly.js-dist-min';
+import { PCA } from 'ml-pca';
 
-// @ts-ignore
-const Plot = dynamic<Record<string, unknown>>(() => import("react-plotly.js"), { ssr: false });
+interface NormalizedEmbedding {
+  id: string;
+  vector: number[];
+  metadata: {
+    text: string;
+    categories: string[];
+    [key: string]: any;
+  };
+}
 
 interface Embedding {
   id: string;
   vector: number[];
   metadata: {
     text: string;
-    categories?: string[];
+    categories?: string[] | string;
+    category?: string;
     [key: string]: any;
   };
 }
 
-interface Props {
-  embeddings: Embedding[];
+interface PlotProps {
+  embeddings: NormalizedEmbedding[] | Embedding[];
 }
 
-// Predefined color palette for categories
-const COLOR_PALETTE = [
-  "#1f77b4", // blue
-  "#ff7f0e", // orange
-  "#2ca02c", // green
-  "#d62728", // red
-  "#9467bd", // purple
-  "#8c564b", // brown
-  "#e377c2", // pink
-  "#7f7f7f", // gray
-  "#bcbd22", // olive
-  "#17becf", // teal
-  "#aec7e8", // light blue
-  "#ffbb78", // light orange
-  "#98df8a", // light green
-  "#ff9896", // light red
-  "#c5b0d5", // light purple
-  "#c49c94", // light brown
-  "#f7b6d2", // light pink
-  "#c7c7c7", // light gray
-  "#dbdb8d", // light olive
-  "#9edae5", // light teal
-];
+// Function to normalize categories for any embedding type
+function getNormalizedCategories(embedding: Embedding | NormalizedEmbedding): string[] {
+  if ('categories' in embedding.metadata) {
+    const categories = embedding.metadata.categories;
+    if (Array.isArray(categories)) {
+      return categories;
+    } else if (typeof categories === 'string') {
+      try {
+        const parsed = JSON.parse(categories);
+        return Array.isArray(parsed) ? parsed : [categories];
+      } catch {
+        return [categories];
+      }
+    }
+  }
+  
+  if ('category' in embedding.metadata && embedding.metadata.category) {
+    return [embedding.metadata.category as string];
+  }
+  
+  return ["Uncategorized"];
+}
 
-export default function Embeddings3DPlot({ embeddings }: Props) {
-  // Compute PCA and prepare plot data
-  const { x, y, z, texts, colors, categories, categoryColors } = useMemo(() => {
-    if (!embeddings.length) return { 
-      x: [], 
-      y: [], 
-      z: [], 
-      texts: [], 
-      colors: [],
-      categories: [],
-      categoryColors: {}
-    };
+// Function to get a color based on category
+function getCategoryColor(category: string): string {
+  // Simple hash function to generate a consistent color from a string
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = category.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  // Convert hash to RGB with good saturation and lightness
+  const h = Math.abs(hash) % 360;
+  return `hsl(${h}, 80%, 60%)`;
+}
+
+export default function Embeddings3DPlot({ embeddings }: PlotProps) {
+  const plotRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!plotRef.current || embeddings.length === 0) return;
+
+    // Extract vectors for PCA
+    const vectors = embeddings.map(e => e.vector);
     
-    // Sort embeddings by ID for deterministic PCA
-    const sortedEmbeddings = [...embeddings].sort((a, b) => a.id.localeCompare(b.id));
-    const vectors = sortedEmbeddings.map(e => e.vector);
-    
-    // Check if we have enough data and dimensions for PCA
-    if (vectors.length === 0) {
-      return { 
-        x: [], 
-        y: [], 
-        z: [], 
-        texts: [], 
-        colors: [],
-        categories: [],
-        categoryColors: {}
-      };
-    }
-    
-    // Get the dimension of the vectors
-    const dimension = vectors[0].length;
-    
-    // Determine the number of components we can use
-    // We can't have more components than samples or dimensions
-    const maxComponents = Math.min(3, vectors.length, dimension);
-    
+    // Use PCA to reduce dimensionality to 3D
     try {
-      // Run PCA to reduce dimensions
-      const pca = new PCA.PCA(vectors);
-      const reduced = pca.predict(vectors, { nComponents: maxComponents });
+      // Check if vectors have at least 3 dimensions
+      if (vectors[0].length < 3) {
+        console.error("Vectors need at least 3 dimensions for PCA");
+        return;
+      }
       
-      // Convert to arrays
-      const result = reduced.to2DArray();
+      const pca = new PCA(vectors);
+      const reducedVectors = pca.predict(vectors, { nComponents: 3 }).to2DArray();
       
-      // Extract all unique categories from embeddings
-      const allCategories = new Set<string>();
-      sortedEmbeddings.forEach(e => {
-        if (e.metadata.categories && Array.isArray(e.metadata.categories)) {
-          e.metadata.categories.forEach(cat => allCategories.add(cat));
+      // Create data points for each category
+      const categoryMap: Record<string, {
+        x: number[],
+        y: number[],
+        z: number[],
+        text: string[],
+        ids: string[],
+        type: 'scatter3d',
+        mode: 'markers',
+        name: string,
+        marker: {
+          size: number,
+          color: string,
+          opacity: number,
         }
-      });
+      }> = {};
       
-      // Create a mapping of category to color
-      const uniqueCategories = Array.from(allCategories);
-      const categoryColors: Record<string, string> = {};
-      uniqueCategories.forEach((category, index) => {
-        categoryColors[category] = COLOR_PALETTE[index % COLOR_PALETTE.length];
-      });
-      
-      // Assign colors based on categories
-      const colors = sortedEmbeddings.map(e => {
-        // If the embedding has categories, use the first one for color
-        if (e.metadata.categories && Array.isArray(e.metadata.categories) && e.metadata.categories.length > 0) {
-          const primaryCategory = e.metadata.categories[0];
-          return categoryColors[primaryCategory];
+      // Process each embedding
+      embeddings.forEach((embedding, i) => {
+        const categories = getNormalizedCategories(embedding);
+        const primaryCategory = categories[0] || "Uncategorized"; // Use first category as primary
+        
+        // Prepare hover text with all categories
+        const categoriesText = categories.join(", ");
+        const truncatedText = embedding.metadata.text?.substring(0, 50) + "..." || "";
+        const hoverText = `ID: ${embedding.id}<br>Categories: ${categoriesText}<br>Text: ${truncatedText}`;
+        
+        // Create or update data for this category
+        if (!categoryMap[primaryCategory]) {
+          categoryMap[primaryCategory] = {
+            x: [],
+            y: [],
+            z: [],
+            text: [],
+            ids: [],
+            type: 'scatter3d',
+            mode: 'markers',
+            name: primaryCategory,
+            marker: {
+              size: 6,
+              color: getCategoryColor(primaryCategory),
+              opacity: 0.8,
+            }
+          };
         }
-        // Default color for items without categories
-        return "#38bdf8"; // Default blue
+        
+        // Add this point to the category's data
+        categoryMap[primaryCategory].x.push(reducedVectors[i][0]);
+        categoryMap[primaryCategory].y.push(reducedVectors[i][1]);
+        categoryMap[primaryCategory].z.push(reducedVectors[i][2]);
+        categoryMap[primaryCategory].text.push(hoverText);
+        categoryMap[primaryCategory].ids.push(embedding.id);
       });
       
-      // Prepare coordinates, padding with zeros if we have fewer than 3 dimensions
-      return {
-        x: result.map((row: number[]) => row[0] || 0),
-        y: result.map((row: number[]) => (maxComponents > 1 ? row[1] || 0 : 0)),
-        z: result.map((row: number[]) => (maxComponents > 2 ? row[2] || 0 : 0)),
-        texts: sortedEmbeddings.map(e => {
-          const text = typeof e.metadata.text === 'string' ? e.metadata.text.slice(0, 100) : '';
-          const categories = e.metadata.categories && Array.isArray(e.metadata.categories) 
-            ? `<br>Categories: ${e.metadata.categories.join(", ")}` 
-            : '';
-          return `${text}${categories}`;
-        }),
-        colors,
-        categories: uniqueCategories,
-        categoryColors
+      // Convert map to array of traces
+      const data = Object.values(categoryMap);
+      
+      // Configure the plot
+      const layout = {
+        title: '3D Embedding Visualization',
+        paper_bgcolor: 'rgba(13,18,30,0.95)',  // Lighter dark blue to match app background
+        plot_bgcolor: 'rgba(13,18,30,0)',     // Transparent plot background
+        scene: {
+          xaxis: { title: 'PC1', gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' },
+          yaxis: { title: 'PC2', gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' },
+          zaxis: { title: 'PC3', gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' },
+          bgcolor: 'rgba(13,18,30,0.95)',      // Dark navy blue background for the 3D scene to match app
+        },
+        margin: { l: 0, r: 0, b: 0, t: 30 },
+        legend: {
+          x: 1,
+          y: 0.5,
+          font: { size: 10, color: 'rgba(255,255,255,0.8)' }, 
+          bgcolor: 'rgba(13,18,30,0.7)'       // Semi-transparent navy background for legend
+        },
+        font: {
+          color: 'rgba(255,255,255,0.8)'   
+        }
       };
+      
+      // Create the plot
+      PlotlyJS.newPlot(plotRef.current, data, layout, {
+        responsive: true,
+        displayModeBar: true,
+      });
     } catch (error) {
-      console.error("PCA calculation error:", error);
-      // Fallback to a simple 1D visualization
-      return {
-        x: vectors.map(v => v[0] || 0),
-        y: vectors.map(v => v[1] || 0),
-        z: vectors.map(v => v[2] || 0),
-        texts: sortedEmbeddings.map(e => (typeof e.metadata.text === 'string' ? e.metadata.text.slice(0, 100) : '')),
-        colors: sortedEmbeddings.map(() => "#38bdf8"),
-        categories: [],
-        categoryColors: {}
-      };
+      console.error("Error creating 3D plot:", error);
     }
+    
+    // Cleanup function
+    return () => {
+      if (plotRef.current) {
+        PlotlyJS.purge(plotRef.current);
+      }
+    };
   }, [embeddings]);
 
   return (
-    <div className="w-full h-[500px] bg-background mb-8 rounded-lg shadow">
-      {/* @ts-ignore */}
-      {(
-        // @ts-ignore
-        <Plot
-          data={[
-            {
-              x,
-              y,
-              z,
-              text: texts,
-              type: "scatter3d",
-              mode: "markers",
-              marker: {
-                size: 5,
-                color: colors,
-                opacity: 0.8,
-              },
-              hovertemplate: "%{text}<extra></extra>",
-            },
-          ]}
-          layout={{
-            autosize: true,
-            height: 500,
-            margin: { l: 0, r: 0, b: 0, t: 30 },
-            paper_bgcolor: "#18181b",
-            plot_bgcolor: "#18181b",
-            font: { color: "#f1f5f9" },
-            title: "3D Embedding Visualization (PCA)",
-            scene: {
-              xaxis: { title: 'Component 1' },
-              yaxis: { title: 'Component 2' },
-              zaxis: { title: 'Component 3' },
-            },
-          }}
-          config={{ responsive: true }}
-          style={{ width: "100%", height: "100%" }}
-        />
-      )}
-      
-      {/* Category Legend */}
-      {categories.length > 0 && (
-        <div className="mt-4 p-3 bg-secondary/20 rounded-md">
-          <h3 className="text-sm font-medium mb-2">Categories:</h3>
-          <div className="flex flex-wrap gap-2">
-            {categories.map(category => (
-              <div key={category} className="flex items-center gap-1.5">
-                <div 
-                  className="w-3 h-3 rounded-full" 
-                  style={{ backgroundColor: categoryColors[category] }}
-                ></div>
-                <span className="text-xs">{category}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    <div 
+      ref={plotRef} 
+      className="w-full h-[500px] border border-muted-foreground/20 rounded-md mb-8"
+    />
   );
 } 

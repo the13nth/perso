@@ -8,7 +8,18 @@ interface Embedding {
   vector: number[];
   metadata: {
     text: string;
-    categories?: string[];
+    categories?: string[] | string;
+    category?: string;
+    [key: string]: any;
+  };
+}
+
+interface NormalizedEmbedding {
+  id: string;
+  vector: number[];
+  metadata: {
+    text: string;
+    categories: string[];
     [key: string]: any;
   };
 }
@@ -23,16 +34,50 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Normalize embeddings to ensure categories is always a string array
+  const normalizedEmbeddings = useMemo<NormalizedEmbedding[]>(() => {
+    return embeddings.map(emb => {
+      let categories: string[] = [];
+      
+      // Handle different category formats
+      if (emb.metadata.categories) {
+        if (Array.isArray(emb.metadata.categories)) {
+          categories = emb.metadata.categories;
+        } else if (typeof emb.metadata.categories === 'string') {
+          try {
+            // Try to parse JSON string
+            const parsed = JSON.parse(emb.metadata.categories);
+            categories = Array.isArray(parsed) ? parsed : [emb.metadata.categories];
+          } catch {
+            categories = [emb.metadata.categories];
+          }
+        }
+      } else if (emb.metadata.category && typeof emb.metadata.category === 'string') {
+        categories = [emb.metadata.category];
+      } else {
+        categories = ["Uncategorized"];
+      }
+      
+      return {
+        ...emb,
+        metadata: {
+          ...emb.metadata,
+          categories
+        }
+      };
+    });
+  }, [embeddings]);
+
   // Extract all unique categories
   const allCategories = useMemo(() => {
     const categorySet = new Set<string>();
-    embeddings.forEach(e => {
+    normalizedEmbeddings.forEach(e => {
       if (e.metadata.categories && Array.isArray(e.metadata.categories)) {
         e.metadata.categories.forEach(cat => categorySet.add(cat));
       }
     });
     return Array.from(categorySet).sort();
-  }, [embeddings]);
+  }, [normalizedEmbeddings]);
 
   // Toggle category selection
   const toggleCategory = (category: string) => {
@@ -44,18 +89,29 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   };
 
   // Summary statistics
-  const totalEmbeddings = embeddings.length;
+  const totalEmbeddings = normalizedEmbeddings.length;
   const avgVectorLength =
     totalEmbeddings > 0
       ? (
-          embeddings.reduce((sum, e) => sum + e.vector.length, 0) /
+          normalizedEmbeddings.reduce((sum, e) => sum + e.vector.length, 0) /
           totalEmbeddings
         ).toFixed(2)
       : 0;
+  
+  // Category statistics
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, number> = {};
+    normalizedEmbeddings.forEach(e => {
+      e.metadata.categories.forEach(cat => {
+        stats[cat] = (stats[cat] || 0) + 1;
+      });
+    });
+    return Object.entries(stats).sort((a, b) => b[1] - a[1]);
+  }, [normalizedEmbeddings]);
 
   // Filtered embeddings for analysis
   const filtered = useMemo(() => {
-    return embeddings.filter(e => {
+    return normalizedEmbeddings.filter(e => {
       // Filter by text search
       const matchesSearch = !search || 
         (e.metadata.text && typeof e.metadata.text === 'string' && 
@@ -64,12 +120,11 @@ export default function Dashboard({ embeddings }: DashboardProps) {
       // Filter by selected categories
       const matchesCategories = selectedCategories.length === 0 || 
         (e.metadata.categories && 
-         Array.isArray(e.metadata.categories) && 
-         selectedCategories.some(cat => e.metadata.categories!.includes(cat)));
+         selectedCategories.some(cat => e.metadata.categories.includes(cat)));
       
       return matchesSearch && matchesCategories;
     });
-  }, [embeddings, search, selectedCategories]);
+  }, [normalizedEmbeddings, search, selectedCategories]);
 
   // Embedding analysis calculations
   function vectorNorm(vec: number[]): number {
@@ -134,7 +189,7 @@ export default function Dashboard({ embeddings }: DashboardProps) {
             {allCategories.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium mb-2">Filter by Category:</h3>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-2">
                   {allCategories.map(category => (
                     <button
                       key={category}
@@ -149,9 +204,32 @@ export default function Dashboard({ embeddings }: DashboardProps) {
                     </button>
                   ))}
                 </div>
+                <div className="text-xs text-muted-foreground italic">
+                  {allCategories.length} categories found. Click to toggle selection.
+                </div>
               </div>
             )}
           </div>
+
+          {/* Category Distribution */}
+          {categoryStats.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium mb-2">Category Distribution:</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                {categoryStats.map(([category, count]) => (
+                  <div 
+                    key={category}
+                    className="bg-muted/40 rounded p-2 text-xs flex justify-between items-center"
+                    onClick={() => toggleCategory(category)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="truncate mr-2">{category}</span>
+                    <span className="bg-muted rounded-full px-2 py-0.5">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 3D Plot */}
           {filtered.length > 0 && <Embeddings3DPlot embeddings={filtered} />}

@@ -56,6 +56,8 @@ function sanitizeText(text: string): string {
 /**
  * This handler takes input text, splits it into chunks, and embeds those chunks
  * into Pinecone using Gemini embeddings for retrieval.
+ * 
+ * For large documents, it processes in smaller batches to avoid timeouts.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -76,8 +78,9 @@ export async function POST(req: NextRequest) {
 
     // Sanitize the input text to ensure it's clean UTF-8
     const sanitizedText = sanitizeText(text);
+    const textLength = sanitizedText.length;
     
-    console.log(`Received document with ${sanitizedText.length} characters`);
+    console.log(`Received document with ${textLength} characters`);
     
     // Handle both single category (legacy) and multiple categories
     let documentCategories: string[] = [];
@@ -93,149 +96,54 @@ export async function POST(req: NextRequest) {
     // Set access level (default to personal if not specified)
     const accessLevel = access === "public" ? "public" : "personal";
 
-    // Initialize text splitter with appropriate configuration for better chunking
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
-      separators: ["\n\n", "\n", ". ", "! ", "? ", ";", ":", " ", ""],
-    });
-
-    // Split text into chunks
-    console.log("Splitting text into chunks...");
-    const chunks = await splitter.splitText(sanitizedText);
-    console.log(`Created ${chunks.length} chunks from document`);
-
-    // Initialize embeddings model with dimension matching Pinecone index
-    console.log("Initializing embeddings model...");
-    const embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: process.env.GOOGLE_API_KEY || "",
-      modelName: "embedding-001"
-    });
-
-    // Get the Pinecone index
-    const index = pinecone.index(process.env.PINECONE_INDEX || "");
-
-    // Generate embeddings and upsert to Pinecone
-    console.log("Generating embeddings and upserting to Pinecone...");
-    
-    // Add rate limiting to avoid hitting API limits
-    const vectors = [];
-    const chunkBatchSize = 20; // Smaller batch size for more reliable processing
-    
     // Create a unique document ID to group all chunks
     const documentId = `doc-${userId}-${Date.now()}`;
     const createdAt = new Date().toISOString();
-    
-    // Store original document text in first chunk's metadata
-    let originalTextSample = "";
-    if (sanitizedText.length > 1000) {
-      originalTextSample = sanitizedText.substring(0, 997) + "...";
-    } else {
-      originalTextSample = sanitizedText;
-    }
-    
-    for (let i = 0; i < chunks.length; i += chunkBatchSize) {
-      console.log(`Processing batch ${Math.floor(i/chunkBatchSize) + 1} of ${Math.ceil(chunks.length/chunkBatchSize)}`);
-      const batchChunks = chunks.slice(i, i + chunkBatchSize);
-      
-      // Process each chunk with some delay between each one
-      for (let j = 0; j < batchChunks.length; j++) {
-        const chunkIndex = i + j;
-        let chunkText = batchChunks[j];
-        
-        // Final verification of chunk text - sanitize again if needed
-        if (typeof chunkText !== 'string') {
-          console.warn(`Invalid chunk text at index ${chunkIndex}, converting to string`);
-          chunkText = String(chunkText);
-        }
-        
-        // Double-check for clean text
-        chunkText = sanitizeText(chunkText);
-        
-        try {
-          console.log(`Generating embedding for chunk ${chunkIndex+1}/${chunks.length} (${chunkText.length} chars)`);
-          
-          const embedding = await embeddings.embedQuery(chunkText);
-          
-          // Create vector with detailed metadata
-          vectors.push({
-            id: `${documentId}-chunk-${chunkIndex}`,
-            values: embedding,
-            metadata: {
-              text: chunkText,
-              userId,
-              categories: documentCategories,
-              access: accessLevel,
-              documentId, // Add document ID to link chunks
-              chunkIndex, // Add chunk index for ordering
-              totalChunks: chunks.length,
-              createdAt,
-              ...(chunkIndex === 0 ? { 
-                originalTextSample,
-                title: extractTitle(sanitizedText)
-              } : {})
-            },
-          });
-          
-          // Add a small delay between each API call
-          if (j < batchChunks.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
-          }
-        } catch (error) {
-          console.error(`Error generating embedding for chunk ${chunkIndex+1}:`, error);
-          // Simple exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay on error
-          j--; // Retry this item
-        }
-      }
-      
-      // Add a delay between batches
-      if (i + chunkBatchSize < chunks.length) {
-        console.log("Pausing between batches to avoid rate limits...");
-        await new Promise(resolve => setTimeout(resolve, 3000)); // 3s pause between batches
-      }
-    }
 
-    console.log(`Successfully generated ${vectors.length} vectors for document`);
+    // For large documents (>50KB), return early with a 202 Accepted response
+    // and process asynchronously to avoid timeout
+    const isLargeDocument = textLength > 50000; // 50KB threshold
     
-    // Upsert vectors in smaller batches for reliability
-    const upsertBatchSize = 50;
-    for (let i = 0; i < vectors.length; i += upsertBatchSize) {
-      const batch = vectors.slice(i, i + upsertBatchSize);
-      console.log(`Upserting batch ${Math.floor(i/upsertBatchSize) + 1} of ${Math.ceil(vectors.length/upsertBatchSize)}`);
+    if (isLargeDocument) {
+      console.log("Large document detected, returning 202 Accepted");
       
-      try {
-        await index.upsert(batch);
-        console.log(`Successfully upserted batch of ${batch.length} vectors`);
-      } catch (error) {
-        console.error(`Error upserting batch to Pinecone:`, error);
-        // Retry with smaller batch if there's an error
-        if (batch.length > 10) {
-          console.log("Retrying with smaller batches...");
-          for (let j = 0; j < batch.length; j += 10) {
-            const smallerBatch = batch.slice(j, j + 10);
-            try {
-              await index.upsert(smallerBatch);
-              console.log(`Successfully upserted smaller batch of ${smallerBatch.length} vectors`);
-            } catch (smallerError) {
-              console.error(`Error upserting smaller batch:`, smallerError);
-            }
-            // Add delay between smaller batch upserts
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-      }
+      // Start processing in the background without awaiting completion
+      processDocumentAsync(
+        sanitizedText,
+        userId,
+        documentCategories,
+        accessLevel,
+        documentId,
+        createdAt
+      ).catch(error => {
+        console.error("Background processing error:", error);
+      });
       
-      // Add a small delay between Pinecone batches
-      if (i + upsertBatchSize < vectors.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+      // Return immediately with a 202 Accepted status
+      return new NextResponse(JSON.stringify({ 
+        success: true,
+        processing: true,
+        message: "Large document accepted for processing. This may take a few minutes.",
+        documentId
+      }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      });
     }
-
-    console.log(`Successfully ingested document with ${chunks.length} chunks`);
+    
+    // For smaller documents, process synchronously
+    const result = await processDocument(
+      sanitizedText, 
+      userId,
+      documentCategories,
+      accessLevel,
+      documentId,
+      createdAt
+    );
+    
     return new NextResponse(JSON.stringify({ 
       success: true,
-      message: `Document processed successfully. Created ${chunks.length} chunks.`,
+      message: `Document processed successfully. Created ${result.chunkCount} chunks.`,
       documentId
     }), {
       status: 200,
@@ -252,6 +160,172 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
     });
   }
+}
+
+/**
+ * Process document asynchronously (for large documents)
+ */
+async function processDocumentAsync(
+  text: string,
+  userId: string,
+  categories: string[],
+  access: string,
+  documentId: string,
+  createdAt: string
+): Promise<void> {
+  try {
+    await processDocument(text, userId, categories, access, documentId, createdAt);
+    console.log(`Background processing completed for document: ${documentId}`);
+  } catch (error) {
+    console.error(`Background processing failed for document: ${documentId}`, error);
+  }
+}
+
+/**
+ * Core document processing function
+ */
+async function processDocument(
+  text: string,
+  userId: string,
+  categories: string[],
+  access: string,
+  documentId: string,
+  createdAt: string
+): Promise<{ chunkCount: number }> {
+  // Initialize text splitter with smaller chunk size for more reliable processing
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 800,
+    chunkOverlap: 150,
+    separators: ["\n\n", "\n", ". ", "! ", "? ", ";", ":", " ", ""],
+  });
+
+  // Split text into chunks
+  console.log("Splitting text into chunks...");
+  const chunks = await splitter.splitText(text);
+  console.log(`Created ${chunks.length} chunks from document`);
+
+  // Initialize embeddings model
+  console.log("Initializing embeddings model...");
+  const embeddings = new GoogleGenerativeAIEmbeddings({
+    apiKey: process.env.GOOGLE_API_KEY || "",
+    modelName: "embedding-001"
+  });
+
+  // Get the Pinecone index
+  const index = pinecone.index(process.env.PINECONE_INDEX || "");
+
+  // Process in very small batches to avoid timeouts
+  const vectors = [];
+  const chunkBatchSize = 5; // Much smaller batch for more reliable processing
+  
+  // Store original document text in first chunk's metadata
+  let originalTextSample = "";
+  if (text.length > 1000) {
+    originalTextSample = text.substring(0, 997) + "...";
+  } else {
+    originalTextSample = text;
+  }
+  
+  for (let i = 0; i < chunks.length; i += chunkBatchSize) {
+    console.log(`Processing batch ${Math.floor(i/chunkBatchSize) + 1} of ${Math.ceil(chunks.length/chunkBatchSize)}`);
+    const batchChunks = chunks.slice(i, i + chunkBatchSize);
+    
+    // Process each chunk with significant delay between each one
+    for (let j = 0; j < batchChunks.length; j++) {
+      const chunkIndex = i + j;
+      let chunkText = batchChunks[j];
+      
+      // Final verification of chunk text - sanitize again if needed
+      if (typeof chunkText !== 'string') {
+        console.warn(`Invalid chunk text at index ${chunkIndex}, converting to string`);
+        chunkText = String(chunkText);
+      }
+      
+      // Double-check for clean text
+      chunkText = sanitizeText(chunkText);
+      
+      try {
+        console.log(`Generating embedding for chunk ${chunkIndex+1}/${chunks.length} (${chunkText.length} chars)`);
+        
+        const embedding = await embeddings.embedQuery(chunkText);
+        
+        // Create vector with detailed metadata
+        vectors.push({
+          id: `${documentId}-chunk-${chunkIndex}`,
+          values: embedding,
+          metadata: {
+            text: chunkText,
+            userId,
+            categories,
+            access,
+            documentId,
+            chunkIndex,
+            totalChunks: chunks.length,
+            createdAt,
+            ...(chunkIndex === 0 ? { 
+              originalTextSample,
+              title: extractTitle(text)
+            } : {})
+          },
+        });
+        
+        // Add a small delay between each API call
+        if (j < batchChunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
+        }
+      } catch (error) {
+        console.error(`Error generating embedding for chunk ${chunkIndex+1}:`, error);
+        // Simple exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 3000)); // 3s delay on error
+        j--; // Retry this item
+      }
+    }
+    
+    // Add a significant delay between batches
+    if (i + chunkBatchSize < chunks.length) {
+      console.log("Pausing between batches to avoid rate limits...");
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5s pause between batches
+    }
+  }
+
+  console.log(`Successfully generated ${vectors.length} vectors for document`);
+  
+  // Upsert vectors in smaller batches for reliability
+  const upsertBatchSize = 10; // Even smaller batch size for upserting
+  for (let i = 0; i < vectors.length; i += upsertBatchSize) {
+    const batch = vectors.slice(i, i + upsertBatchSize);
+    console.log(`Upserting batch ${Math.floor(i/upsertBatchSize) + 1} of ${Math.ceil(vectors.length/upsertBatchSize)}`);
+    
+    try {
+      await index.upsert(batch);
+      console.log(`Successfully upserted batch of ${batch.length} vectors`);
+    } catch (error) {
+      console.error(`Error upserting batch to Pinecone:`, error);
+      // Retry with smaller batch if there's an error
+      if (batch.length > 5) {
+        console.log("Retrying with smaller batches...");
+        for (let j = 0; j < batch.length; j += 5) {
+          const smallerBatch = batch.slice(j, j + 5);
+          try {
+            await index.upsert(smallerBatch);
+            console.log(`Successfully upserted smaller batch of ${smallerBatch.length} vectors`);
+          } catch (smallerError) {
+            console.error(`Error upserting smaller batch:`, smallerError);
+          }
+          // Add delay between smaller batch upserts
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+    }
+    
+    // Add a significant delay between Pinecone batches
+    if (i + upsertBatchSize < vectors.length) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+
+  console.log(`Successfully ingested document with ${chunks.length} chunks`);
+  return { chunkCount: chunks.length };
 }
 
 /**
