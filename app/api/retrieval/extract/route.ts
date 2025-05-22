@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { join } from "path";
-import { writeFile, readFile, unlink } from "fs/promises";
+import { writeFile, unlink } from "fs/promises";
 import * as XLSX from 'xlsx';
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { PDFDocument } from 'pdf-lib';
-import path from 'path';
-import fs from 'fs';
+
 // Use dynamic import for pdf-parse to support both ES Module and CommonJS environments
 // import pdf-parse will be handled dynamically inside the PDF handling case
 
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
     
     // Process based on file type
     switch (fileExt) {
-      case 'txt':
+      case 'txt': {
         // Extract text from .txt
         const fileStream = createReadStream(tempFilePath);
         const rl = createInterface({
@@ -58,6 +57,7 @@ export async function POST(req: NextRequest) {
           extractedText += line + "\n";
         }
         break;
+      }
         
       case 'pdf':
         try {
@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
           // Use the CJS helper for PDF parsing - this is designed to work on Netlify
           try {
             // With commonjs as default, we can safely use require
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
             const pdfParse = require('pdf-parse/lib/pdf-parse');
             const pdfData = await pdfParse(buffer);
             extractedText += `Content:\n${pdfData.text}`;
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
         }
         break;
         
-      case 'xlsx':
+      case 'xlsx': {
         // Extract text from Excel
         const workbook = XLSX.read(buffer);
         const sheetNames = workbook.SheetNames;
@@ -132,12 +133,14 @@ export async function POST(req: NextRequest) {
           const json = XLSX.utils.sheet_to_json(worksheet);
           
           extractedText += `Sheet: ${sheetName}\n`;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           json.forEach((row: any) => {
             extractedText += JSON.stringify(row) + "\n";
           });
           extractedText += "\n";
         }
         break;
+      }
         
       default:
         return NextResponse.json(
@@ -175,6 +178,7 @@ export async function POST(req: NextRequest) {
  */
 function sanitizeText(text: string): string {
   // Replace null characters and other control characters
+  // eslint-disable-next-line no-control-regex
   let sanitized = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   
   // Replace non-printable characters outside standard ASCII
