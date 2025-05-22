@@ -8,7 +8,7 @@ const bundleAnalyzer = withBundleAnalyzer({
 const nextConfig = {
   experimental: {
   },
-  serverExternalPackages: ['styled-jsx'],
+  serverExternalPackages: ['styled-jsx', 'pdf-parse'],
   output: 'standalone',
   distDir: '.next',
   images: {
@@ -23,6 +23,12 @@ const nextConfig = {
         tls: false,
       };
     }
+
+    // Ensure pdf-parse is bundled correctly for the server
+    if (isServer) {
+      config.externals = [...config.externals, 'canvas', 'pdf-parse'];
+    }
+    
     return config;
   },
 };
