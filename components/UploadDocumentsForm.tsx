@@ -8,6 +8,16 @@ import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
+import { CheckCircle2, UserCircle, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock } from "lucide-react";
+import { Checkbox } from "./ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 export interface UploadDocumentsFormProps {
   fileTypes?: string;
@@ -23,11 +33,55 @@ export function UploadDocumentsForm({
   const [isLoading, setIsLoading] = useState(false);
   const [document, setDocument] = useState(DEFAULT_RETRIEVAL_TEXT);
   const [file, setFile] = useState<File | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(["general"]);
+  const [accessLevel, setAccessLevel] = useState<"public" | "personal">("personal");
+  const [activeTab, setActiveTab] = useState<"document" | "settings">("document");
   const { user } = useUser();
+
+  const categoryGroups = {
+    general: [
+      { value: "general", label: "General", icon: <Star className="h-4 w-4" /> },
+      { value: "misc", label: "Miscellaneous", icon: <HelpCircle className="h-4 w-4" /> },
+    ],
+    personal: [
+      { value: "goals", label: "Goals", icon: <Star className="h-4 w-4" /> },
+      { value: "plans", label: "Plans", icon: <Star className="h-4 w-4" /> },
+      { value: "thoughts", label: "Thoughts", icon: <Star className="h-4 w-4" /> },
+      { value: "routines", label: "Routines", icon: <Star className="h-4 w-4" /> },
+      { value: "journal", label: "Journal", icon: <Star className="h-4 w-4" /> },
+      { value: "notes", label: "Notes", icon: <Star className="h-4 w-4" /> },
+      { value: "finances", label: "Finances", icon: <DollarSign className="h-4 w-4" /> },
+      { value: "health", label: "Health", icon: <HeartPulse className="h-4 w-4" /> },
+    ],
+    domains: [
+      { value: "science", label: "Science", icon: <BookOpen className="h-4 w-4" /> },
+      { value: "technology", label: "Technology", icon: <BookOpen className="h-4 w-4" /> },
+      { value: "business", label: "Business", icon: <Briefcase className="h-4 w-4" /> },
+      { value: "education", label: "Education", icon: <GraduationCap className="h-4 w-4" /> },
+      { value: "entertainment", label: "Entertainment", icon: <Film className="h-4 w-4" /> },
+      { value: "sports", label: "Sports", icon: <Medal className="h-4 w-4" /> },
+      { value: "politics", label: "Politics", icon: <Vote className="h-4 w-4" /> },
+      { value: "arts", label: "Arts", icon: <Paintbrush className="h-4 w-4" /> },
+    ]
+  };
+
+  const toggleCategory = (value: string) => {
+    setSelectedCategories(current => {
+      // If it's already selected, remove it (unless it's the last one)
+      if (current.includes(value)) {
+        const filtered = current.filter(c => c !== value);
+        return filtered.length ? filtered : current; // Don't allow empty selection
+      }
+      // Otherwise add it
+      return [...current, value];
+    });
+  };
 
   const ingest = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    setUploadSuccess(false);
     
     let textContent = document;
     
@@ -66,17 +120,30 @@ export function UploadDocumentsForm({
       body: JSON.stringify({
         text: textContent,
         userId: user?.id,
+        categories: selectedCategories,
+        access: accessLevel,
       }),
     });
     
     if (response.status === 200) {
       setDocument("Uploaded!");
       setFile(null);
-      toast.success(extractText ? "Document uploaded successfully!" : "Text uploaded successfully!");
+      setUploadSuccess(true);
       
-      // Close the modal
+      // Show a more prominent toast
+      toast.success(
+        extractText ? "Document uploaded successfully!" : "Text uploaded successfully!", 
+        {
+          duration: 5000,
+          position: "top-center",
+          icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+          description: "Your content has been added to the knowledge base and is ready to use."
+        }
+      );
+      
+      // Don't automatically close the modal - let user close it manually
       if (onSuccess) {
-        onSuccess();
+        setTimeout(() => onSuccess(), 2000);
       }
     } else {
       const json = await response.json();
@@ -91,38 +158,225 @@ export function UploadDocumentsForm({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
+      setUploadSuccess(false);
     }
   };
 
   return (
-    <form onSubmit={ingest} className="flex flex-col gap-4 w-full">
+    <form onSubmit={ingest} className="flex flex-col gap-6 w-full">
+      {uploadSuccess && (
+        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-md border border-green-200 dark:border-green-800 mb-4 flex items-center gap-3">
+          <CheckCircle2 className="h-6 w-6 text-green-500" />
+          <div>
+            <h3 className="font-medium text-green-900 dark:text-green-300">Success!</h3>
+            <p className="text-green-700 dark:text-green-400 text-sm">
+              {extractText ? "Document" : "Text"} has been uploaded and processed successfully.
+            </p>
+          </div>
+        </div>
+      )}
+      
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "document" | "settings")} className="w-full">
+        <TabsList className="grid grid-cols-2 mb-6">
+          <TabsTrigger value="document">Document</TabsTrigger>
+          <TabsTrigger value="settings">Categories & Access</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="document" className="space-y-6">
       {extractText ? (
-        <div className="space-y-2">
-          <Label htmlFor="document-upload">Upload document</Label>
+            <div className="space-y-4">
+              <div className="p-6 border-2 border-dashed rounded-lg text-center bg-background/50">
+                <Label 
+                  htmlFor="document-upload"
+                  className="text-lg font-medium block mb-2"
+                >
+                  Upload Document
+                </Label>
+                <p className="text-muted-foreground mb-4">
+                  Drag and drop your document here or click to browse
+                </p>
           <Input 
             id="document-upload" 
             type="file" 
             accept={fileTypes} 
             onChange={handleFileChange}
             required
+                  className="mx-auto max-w-md"
           />
-          {file && <p className="text-sm text-muted-foreground">Selected file: {file.name}</p>}
+                {file && (
+                  <div className="mt-4 p-3 bg-secondary/50 rounded-md inline-block">
+                    <p className="text-sm text-muted-foreground">
+                      Selected file: <span className="font-medium">{file.name}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
         </div>
       ) : (
+            <div className="space-y-4">
+              <Label htmlFor="document-text" className="text-lg font-medium">Enter Text</Label>
         <Textarea
-          className="grow p-4 rounded bg-transparent min-h-[512px]"
+                id="document-text"
+                className="min-h-[300px] md:min-h-[400px] p-4 rounded"
           value={document}
-          onChange={(e) => setDocument(e.target.value)}
+          onChange={(e) => {
+            setDocument(e.target.value);
+            setUploadSuccess(false);
+          }}
+                placeholder="Paste or type your text here..."
         />
+            </div>
       )}
-      <Button type="submit" disabled={!user || (extractText && !file)}>
+        </TabsContent>
+        
+        <TabsContent value="settings" className="space-y-8">
+          <div className="space-y-6">
+            <h3 className="text-xl font-medium">Categories</h3>
+            <p className="text-muted-foreground">Select all categories that apply to this document</p>
+            
+            <div className="space-y-6">
+              <div className="bg-secondary/30 p-4 rounded-lg">
+                <h4 className="text-lg font-medium mb-3">General</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {categoryGroups.general.map((category) => (
+                    <div key={category.value} className="flex items-center space-x-2 bg-background/80 p-2 rounded">
+                      <Checkbox 
+                        id={`category-${category.value}`} 
+                        checked={selectedCategories.includes(category.value)}
+                        onCheckedChange={() => toggleCategory(category.value)}
+                      />
+                      <Label 
+                        htmlFor={`category-${category.value}`}
+                        className="flex items-center cursor-pointer text-sm"
+                      >
+                        <span className="flex items-center">
+                          {category.icon}
+                          <span className="ml-1">{category.label}</span>
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="bg-secondary/30 p-4 rounded-lg">
+                <h4 className="text-lg font-medium mb-3">Personal</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {categoryGroups.personal.map((category) => (
+                    <div key={category.value} className="flex items-center space-x-2 bg-background/80 p-2 rounded">
+                      <Checkbox 
+                        id={`category-${category.value}`} 
+                        checked={selectedCategories.includes(category.value)}
+                        onCheckedChange={() => toggleCategory(category.value)}
+                      />
+                      <Label 
+                        htmlFor={`category-${category.value}`}
+                        className="flex items-center cursor-pointer text-sm"
+                      >
+                        <span className="flex items-center">
+                          {category.icon}
+                          <span className="ml-1">{category.label}</span>
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="bg-secondary/30 p-4 rounded-lg">
+                <h4 className="text-lg font-medium mb-3">Domains</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {categoryGroups.domains.map((category) => (
+                    <div key={category.value} className="flex items-center space-x-2 bg-background/80 p-2 rounded">
+                      <Checkbox 
+                        id={`category-${category.value}`} 
+                        checked={selectedCategories.includes(category.value)}
+                        onCheckedChange={() => toggleCategory(category.value)}
+                      />
+                      <Label 
+                        htmlFor={`category-${category.value}`}
+                        className="flex items-center cursor-pointer text-sm"
+                      >
+                        <span className="flex items-center">
+                          {category.icon}
+                          <span className="ml-1">{category.label}</span>
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="text-xl font-medium">Access Level</h3>
+            <p className="text-muted-foreground mb-4">Choose who can access this document</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div 
+                className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "personal" ? "bg-primary/10 border-primary" : "bg-background hover:bg-secondary/50"}`}
+                onClick={() => setAccessLevel("personal")}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <Lock className="h-5 w-5 text-primary" />
+                  <h4 className="font-medium">Personal</h4>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Only you can access this document
+                </p>
+              </div>
+              
+              <div 
+                className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "public" ? "bg-primary/10 border-primary" : "bg-background hover:bg-secondary/50"}`}
+                onClick={() => setAccessLevel("public")}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <Globe className="h-5 w-5 text-primary" />
+                  <h4 className="font-medium">Public</h4>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Everyone can access this document
+                </p>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex flex-col sm:flex-row gap-3 justify-end pt-6 border-t">
+        {activeTab === "document" ? (
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full sm:w-auto"
+            onClick={() => setActiveTab("settings")}
+          >
+            Next: Categories & Access
+          </Button>
+        ) : (
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full sm:w-auto"
+            onClick={() => setActiveTab("document")}
+          >
+            Back to Document
+          </Button>
+        )}
+        
+      <Button 
+        type="submit" 
+        disabled={!user || (extractText && !file) || isLoading}
+          className={`w-full sm:w-auto ${uploadSuccess ? "bg-green-600 hover:bg-green-700" : ""}`}
+      >
         <div
           role="status"
           className={`${isLoading ? "" : "hidden"} flex justify-center`}
         >
           <svg
             aria-hidden="true"
-            className="w-6 h-6 text-white animate-spin dark:text-white fill-sky-800"
+              className="w-5 h-5 text-white animate-spin dark:text-white fill-sky-800"
             viewBox="0 0 100 101"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -138,8 +392,11 @@ export function UploadDocumentsForm({
           </svg>
           <span className="sr-only">Loading...</span>
         </div>
-        <span className={isLoading ? "hidden" : ""}>Upload</span>
+        <span className={isLoading ? "hidden" : ""}>
+            {uploadSuccess ? "Uploaded Successfully" : "Upload Document"}
+        </span>
       </Button>
+      </div>
     </form>
   );
 }

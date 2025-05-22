@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Embeddings3DPlot from "./Embeddings3DPlot";
 
 interface Embedding {
@@ -8,32 +8,40 @@ interface Embedding {
   vector: number[];
   metadata: {
     text: string;
-    [key: string]: string | number | boolean;
+    categories?: string[];
+    [key: string]: any;
   };
 }
 
-export default function Dashboard() {
-  const [embeddings, setEmbeddings] = useState<Embedding[]>([]);
-  const [search, setSearch] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+interface DashboardProps {
+  embeddings: Embedding[];
+}
 
-  useEffect(() => {
-    async function fetchEmbeddings() {
-      setLoading(true);
-      try {
-        const response = await fetch("/api/embeddings");
-        if (!response.ok) throw new Error("Failed to fetch embeddings");
-        const data = await response.json();
-        setEmbeddings(data.embeddings);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
+export default function Dashboard({ embeddings }: DashboardProps) {
+  const [search, setSearch] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Extract all unique categories
+  const allCategories = useMemo(() => {
+    const categorySet = new Set<string>();
+    embeddings.forEach(e => {
+      if (e.metadata.categories && Array.isArray(e.metadata.categories)) {
+        e.metadata.categories.forEach(cat => categorySet.add(cat));
       }
-    }
-    fetchEmbeddings();
-  }, []);
+    });
+    return Array.from(categorySet).sort();
+  }, [embeddings]);
+
+  // Toggle category selection
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+  };
 
   // Summary statistics
   const totalEmbeddings = embeddings.length;
@@ -46,11 +54,22 @@ export default function Dashboard() {
       : 0;
 
   // Filtered embeddings for analysis
-  const filtered = search
-    ? embeddings.filter((e) =>
-        e.metadata.text?.toLowerCase().includes(search.toLowerCase())
-      )
-    : embeddings;
+  const filtered = useMemo(() => {
+    return embeddings.filter(e => {
+      // Filter by text search
+      const matchesSearch = !search || 
+        (e.metadata.text && typeof e.metadata.text === 'string' && 
+         e.metadata.text.toLowerCase().includes(search.toLowerCase()));
+      
+      // Filter by selected categories
+      const matchesCategories = selectedCategories.length === 0 || 
+        (e.metadata.categories && 
+         Array.isArray(e.metadata.categories) && 
+         selectedCategories.some(cat => e.metadata.categories!.includes(cat)));
+      
+      return matchesSearch && matchesCategories;
+    });
+  }, [embeddings, search, selectedCategories]);
 
   // Embedding analysis calculations
   function vectorNorm(vec: number[]): number {
@@ -94,21 +113,48 @@ export default function Dashboard() {
               <div className="text-lg font-semibold">Avg. Vector Length</div>
               <div className="text-2xl">{avgVectorLength}</div>
             </div>
+            <div>
+              <div className="text-lg font-semibold">Filtered Embeddings</div>
+              <div className="text-2xl">{filtered.length}</div>
+            </div>
           </div>
 
-          {/* Search */}
-          <div className="mb-4">
-            <input
-              type="text"
-              placeholder="Search text..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border rounded px-3 py-2 w-full max-w-md"
-            />
+          {/* Search & Filter Controls */}
+          <div className="mb-6 space-y-4">
+            <div>
+              <input
+                type="text"
+                placeholder="Search text..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="border rounded px-3 py-2 w-full max-w-md"
+              />
+            </div>
+            
+            {allCategories.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium mb-2">Filter by Category:</h3>
+                <div className="flex flex-wrap gap-2">
+                  {allCategories.map(category => (
+                    <button
+                      key={category}
+                      onClick={() => toggleCategory(category)}
+                      className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                        selectedCategories.includes(category)
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 3D Plot */}
-          {embeddings.length > 0 && <Embeddings3DPlot embeddings={embeddings} />}
+          {filtered.length > 0 && <Embeddings3DPlot embeddings={filtered} />}
 
           {/* Embedding Analysis Dashboard */}
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">

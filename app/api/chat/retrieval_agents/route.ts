@@ -13,6 +13,7 @@ import { DynamicTool } from "langchain/tools";
 import { formatDocumentsAsString } from "langchain/util/document";
 import { Document } from "@langchain/core/documents";
 import { BaseRetriever } from "@langchain/core/retrievers";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 export const runtime = "edge";
@@ -38,7 +39,7 @@ const convertLangChainMessageToVercelMessage = (message: BaseMessage) => {
 };
 
 // Custom Pinecone retriever using fetch API instead of Node.js SDK
-async function searchPineconeViaAPI(query: string, topK = 5) {
+async function searchPineconeViaAPI(query: string, userId: string, topK = 5) {
   // Get embedding for the query
   const embeddings = new GoogleGenerativeAIEmbeddings({
     apiKey: process.env.GOOGLE_API_KEY || "",
@@ -46,7 +47,7 @@ async function searchPineconeViaAPI(query: string, topK = 5) {
   });
   
   const queryEmbedding = await embeddings.embedQuery(query);
-  
+
   // Query Pinecone via REST API
   const pineconeEndpoint = `https://${process.env.PINECONE_INDEX}-${process.env.PINECONE_PROJECT}.svc.${process.env.PINECONE_ENVIRONMENT}.pinecone.io/query`;
   
@@ -60,6 +61,14 @@ async function searchPineconeViaAPI(query: string, topK = 5) {
       vector: queryEmbedding,
       topK,
       includeMetadata: true,
+      filter: {
+        $or: [
+          // Documents owned by the user
+          { userId },
+          // Public documents from other users
+          { access: "public" }
+        ]
+      }
     }),
   });
 
@@ -68,14 +77,50 @@ async function searchPineconeViaAPI(query: string, topK = 5) {
   }
 
   const data = await response.json();
-  
+
   // Convert Pinecone response to Document objects
   return data.matches.map((match: any) => {
+    // Extract full metadata
+    const metadata = match.metadata || {};
+    
+    // Check if text is valid and sanitize if needed
+    let text = "No content available";
+    if (metadata.text) {
+      text = typeof metadata.text === 'string' 
+        ? metadata.text 
+        : JSON.stringify(metadata.text).slice(0, 1000);
+    }
+    
+    // Prepare source information
+    let source = "Unknown source";
+    if (metadata.documentId) {
+      source = `Document ID: ${metadata.documentId}`;
+      if (metadata.title) {
+        source = `${metadata.title} (${source})`;
+      }
+      if (metadata.chunkIndex !== undefined && metadata.totalChunks !== undefined) {
+        source += ` (Chunk ${metadata.chunkIndex + 1} of ${metadata.totalChunks})`;
+      }
+    }
+    
+    // Add categories if available
+    let categories = "";
+    if (metadata.categories && Array.isArray(metadata.categories) && metadata.categories.length > 0) {
+      categories = `Categories: ${metadata.categories.join(", ")}`;
+    }
+    
+    // Create the document with enhanced metadata
     return new Document({
-      pageContent: match.metadata.text || "No content available",
+      pageContent: text,
       metadata: {
-        source: match.metadata.source || "unknown",
+        source,
         score: match.score,
+        categories,
+        access: metadata.access || "personal",
+        createdAt: metadata.createdAt || "Unknown date",
+        owner: metadata.userId === userId ? "You" : "Other user",
+        documentId: metadata.documentId,
+        title: metadata.title || "Untitled document",
       },
     });
   });
@@ -85,6 +130,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const messages = body.messages ?? [];
+    
+    // Get the user ID from auth
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: You must be logged in to use this feature" },
+        { status: 401 }
+      );
+    }
+    
     const formattedPreviousMessages = messages
       .slice(0, -1)
       .filter(
@@ -109,16 +164,16 @@ export async function POST(req: NextRequest) {
     class CustomPineconeRetriever extends BaseRetriever {
       lc_namespace = ["langchain", "retrievers", "pinecone"];
       
-      constructor() {
+      constructor(private userId: string) {
         super();
       }
 
       async _getRelevantDocuments(query: string) {
-        return await searchPineconeViaAPI(query);
+        return await searchPineconeViaAPI(query, this.userId);
       }
     }
 
-    const retriever = new CustomPineconeRetriever();
+    const retriever = new CustomPineconeRetriever(userId);
 
     class SearchTool extends StructuredTool {
       name = "search";
@@ -163,12 +218,12 @@ export async function POST(req: NextRequest) {
     const currentMessageContent = messages[messages.length - 1].content;
     const stream = await chain.stream({
       question: currentMessageContent,
-    });
+      });
 
     return new StreamingTextResponse(stream);
   } catch (error) {
     console.error("Error in retrieval agent:", error);
-    return NextResponse.json(
+      return NextResponse.json(
       { error: "Error processing your request" },
       { status: 500 }
     );

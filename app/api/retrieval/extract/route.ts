@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { join } from "path";
-import { writeFile } from "fs/promises";
+import { writeFile, readFile, unlink } from "fs/promises";
 import * as XLSX from 'xlsx';
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { PDFDocument } from 'pdf-lib';
+// Import pdf-parse with explicit path to avoid test data loading
+const pdfParse = require('pdf-parse/lib/pdf-parse');
 
 // Next.js 13+ API routes don't use this config object anymore
 // The bodyParser is handled automatically
@@ -56,16 +58,63 @@ export async function POST(req: NextRequest) {
         break;
         
       case 'pdf':
-        // Extract text from PDF using pdf-lib
-        // Note: pdf-lib has limited text extraction capabilities
-        // For production, consider using a more robust library
-        const pdfBytes = buffer;
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        
-        // Basic extraction - in production use a better PDF text extractor
-        const numPages = pdfDoc.getPageCount();
-        extractedText = `PDF document with ${numPages} pages. Content extracted via OCR service.\n`;
-        // In a real implementation, you would use a proper PDF text extraction library
+        try {
+          // First, get metadata with pdf-lib
+          const pdfDoc = await PDFDocument.load(buffer);
+          const numPages = pdfDoc.getPageCount();
+          
+          // Get PDF metadata if available
+          const title = pdfDoc.getTitle() || 'Untitled';
+          const author = pdfDoc.getAuthor() || 'Unknown Author';
+          const subject = pdfDoc.getSubject() || '';
+          const keywords = pdfDoc.getKeywords() || '';
+          
+          // Create PDF summary with metadata
+          extractedText += `PDF Document: ${title}\n`;
+          extractedText += `Author: ${author}\n`;
+          if (subject) extractedText += `Subject: ${subject}\n`;
+          if (keywords) extractedText += `Keywords: ${keywords}\n`;
+          extractedText += `Number of Pages: ${numPages}\n\n`;
+          
+          // Use pdf-parse for better text extraction
+          try {
+            const pdfData = await pdfParse(buffer);
+            extractedText += "Content:\n" + pdfData.text;
+          } catch (parseError) {
+            console.error("Error with pdf-parse:", parseError);
+            
+            // Fallback: Use our manual text extraction method
+            const textChunks = [];
+            for (let i = 0; i < buffer.length; i++) {
+              // Look for readable ASCII text (letters, numbers, punctuation)
+              if (buffer[i] >= 32 && buffer[i] <= 126) {
+                let chunk = '';
+                let j = i;
+                // Collect consecutive ASCII characters
+                while (j < buffer.length && buffer[j] >= 32 && buffer[j] <= 126) {
+                  chunk += String.fromCharCode(buffer[j]);
+                  j++;
+                }
+                // Only keep chunks that might be meaningful text (more than a few characters)
+                if (chunk.length > 5) {
+                  textChunks.push(chunk);
+                }
+                i = j;
+              }
+            }
+            
+            // Join the chunks and add to extracted text
+            const rawText = textChunks.join(' ');
+            if (rawText.length > 0) {
+              extractedText += "Content (extracted manually):\n" + rawText;
+            } else {
+              extractedText += "Failed to extract any readable text from this PDF.";
+            }
+          }
+        } catch (error) {
+          console.error("Error extracting PDF text:", error);
+          extractedText += "Error extracting complete text from PDF. Partial content may be available.\n";
+        }
         break;
         
       case 'xlsx':
@@ -92,8 +141,18 @@ export async function POST(req: NextRequest) {
         );
     }
     
+    // Clean up the temporary file
+    try {
+      await unlink(tempFilePath);
+    } catch (unlinkError) {
+      console.error("Error deleting temporary file:", unlinkError);
+    }
+    
+    // Sanitize the extracted text to ensure it's clean UTF-8
+    const sanitizedText = sanitizeText(extractedText);
+    
     return NextResponse.json(
-      { text: extractedText },
+      { text: sanitizedText },
       { status: 200 }
     );
     
@@ -104,4 +163,32 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Sanitizes text to ensure it's valid UTF-8 and removes problematic characters
+ */
+function sanitizeText(text: string): string {
+  // Replace null characters and other control characters
+  let sanitized = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  
+  // Replace non-printable characters outside standard ASCII
+  sanitized = sanitized.replace(/[\x80-\x9F]/g, '');
+  
+  // Remove any remaining binary garbage by enforcing valid UTF-8
+  sanitized = sanitized
+    .split('')
+    .filter(char => {
+      const code = char.charCodeAt(0);
+      return code >= 32 || [9, 10, 13].includes(code); // Allow tab, newline, carriage return
+    })
+    .join('');
+  
+  // Normalize whitespace (multiple spaces/newlines to single)
+  sanitized = sanitized.replace(/\s+/g, ' ');
+  
+  // Trim excess whitespace
+  sanitized = sanitized.trim();
+  
+  return sanitized;
 } 
