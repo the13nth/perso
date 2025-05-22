@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import { UserButton, SignedIn, SignedOut } from "@clerk/nextjs";
-import { Menu, X, MessageSquare, Database, Bot, Layout, Radio, Sparkles, Github } from "lucide-react";
+import { Menu, X, Database,Sparkles, Github, Lightbulb } from "lucide-react";
 
 export const ActiveLink = (props: { href: string; children: ReactNode; icon?: ReactNode }) => {
   const pathname = usePathname();
@@ -36,6 +36,7 @@ export function Navbar() {
     //{ href: "/structured_output", label: "Structured Output", icon: <Layout className="h-4 w-4" /> },
     //{ href: "/streaming", label: "Streaming", icon: <Radio className="h-4 w-4" /> },
     { href: "/embeddings", label: "Embeddings", icon: <Sparkles className="h-4 w-4" /> },
+    { href: "/insights", label: "Insights", icon: <Lightbulb className="h-4 w-4" /> },
   ];
 
   return (

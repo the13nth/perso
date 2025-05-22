@@ -34,8 +34,8 @@ export default function ClientVisualization() {
           const processedEmb: Embedding = {
             id: emb.id,
             vector: emb.vector,
-            metadata: {
-              ...emb.metadata,
+              metadata: {
+                ...emb.metadata,
               text: emb.metadata.text || "",
             }
           };

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Brain, Building2, Users, Globe2, Heart, BarChart3, Database, PieChart, BookOpen, Sparkles } from "lucide-react";
+import { Brain, Building2, Users, Globe2, Heart, BarChart3, Database, PieChart, BookOpen, Sparkles, Lightbulb } from "lucide-react";
 
 // Imigongo-inspired pattern SVG component
 function ImigongoPattern() {
@@ -74,6 +74,13 @@ export default function HomePage() {
           href="/embeddings"
           icon={<PieChart className="w-6 h-6" />}
           delay={6}
+        />
+        <FeatureCard
+          title="Category Insights"
+          description="Generate AI-powered insights from your document embeddings organized by category"
+          href="/insights"
+          icon={<Lightbulb className="w-6 h-6" />}
+          delay={7}
         />
       </div>
 
