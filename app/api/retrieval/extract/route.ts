@@ -80,9 +80,23 @@ export async function POST(req: NextRequest) {
           
           // Use the CJS helper for PDF parsing - this is designed to work on Netlify
           try {
+            // Create a file URL for more reliable ES module imports
             const pdfParserPath = path.join(process.cwd(), 'app/api/retrieval/extract/pdfparser.cjs');
-            // @ts-ignore - Using require with dynamic path
-            const pdfParserCjs = require(pdfParserPath);
+            const pdfParserUrl = `file://${pdfParserPath}`;
+            
+            // Try multiple import methods to ensure compatibility
+            let pdfParserCjs;
+            try {
+              // Method 1: Try URL-based import with file protocol
+              const pdfParserModule = await import(/* webpackIgnore: true */ pdfParserUrl);
+              pdfParserCjs = pdfParserModule.default || pdfParserModule;
+            } catch (importError) {
+              console.log("URL import failed, trying direct path import:", importError);
+              // Method 2: Try direct path import
+              const pdfParserModule = await import(/* webpackIgnore: true */ pdfParserPath);
+              pdfParserCjs = pdfParserModule.default || pdfParserModule;
+            }
+            
             const pdfData = await pdfParserCjs.parsePdf(buffer);
             extractedText += `Content:\n${pdfData.text}`;
           } catch (parseError) {

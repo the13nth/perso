@@ -15,6 +15,10 @@ async function parsePdf(buffer) {
   }
 }
 
+// Export using module.exports for CommonJS
 module.exports = {
   parsePdf
-}; 
+};
+
+// Also make it compatible with ES Module imports
+module.exports.default = module.exports; 
