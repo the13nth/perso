@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Brain, Building2, Users, Globe2, Heart, BarChart3 } from "lucide-react";
+import { Brain, Building2, Users, Globe2, Heart, BarChart3, Database, PieChart, BookOpen, Sparkles } from "lucide-react";
 
 // Imigongo-inspired pattern SVG component
 function ImigongoPattern() {
@@ -28,64 +28,64 @@ export default function HomePage() {
           Welcome to Ubumuntu AI
         </h1>
         <p className="text-xl md:text-2xl mb-12 max-w-2xl text-muted-foreground">
-          Your context-aware personal and business assistant, designed specifically for the African context
+          Your context-aware personal and business assistant, integrating diverse knowledge sources with advanced visualization
         </p>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl w-full mb-12">
         <FeatureCard
-          title="Cultural Understanding"
-          description="Built with deep understanding of African cultures, languages, and business practices"
-          href="/chat"
-          icon={<Brain className="w-6 h-6" />}
+          title="Interactive Visualization"
+          description="Explore document embeddings through our interactive 3D visualization with multi-category filtering"
+          href="/embeddings"
+          icon={<BarChart3 className="w-6 h-6" />}
           delay={1}
         />
         <FeatureCard
-          title="Business Assistant"
-          description="Tailored support for African businesses, from market analysis to local regulations"
-          href="/agents"
-          icon={<Building2 className="w-6 h-6" />}
+          title="Contextual Intelligence"
+          description="Personalized assistance that adapts to your unique context and needs"
+          href="/chat"
+          icon={<Sparkles className="w-6 h-6" />}
           delay={2}
         />
         <FeatureCard
-          title="Personal Growth"
-          description="Personalized guidance aligned with African values and community development"
-          href="/chat"
+          title="Community Knowledge"
+          description="Tap into collective intelligence from diverse communities and cultural perspectives"
+          href="/retrieval"
           icon={<Users className="w-6 h-6" />}
           delay={3}
         />
         <FeatureCard
-          title="Local Context"
-          description="Region-specific insights and recommendations for better decision making"
-          href="/retrieval"
-          icon={<Globe2 className="w-6 h-6" />}
+          title="Traditional Wisdom"
+          description="Access oral traditions and indigenous knowledge systems previously excluded from digital platforms"
+          href="/chat"
+          icon={<BookOpen className="w-6 h-6" />}
           delay={4}
         />
         <FeatureCard
-          title="Community Focus"
-          description="Built on the principle of Ubuntu - &apos;I am because we are&apos;"
+          title="Cultural Understanding"
+          description="Built on Ubuntu philosophy - 'I am because we are' - for deeper cultural relevance"
           href="/structured_output"
           icon={<Heart className="w-6 h-6" />}
           delay={5}
         />
         <FeatureCard
-          title="Data Visualization"
-          description="Understand patterns and insights in your data with interactive 3D visualization"
-          href="/visualize"
-          icon={<BarChart3 className="w-6 h-6" />}
+          title="Multi-Category Analysis"
+          description="Analyze documents across business, education, health, technology and more with advanced filtering"
+          href="/embeddings"
+          icon={<PieChart className="w-6 h-6" />}
           delay={6}
         />
       </div>
 
       <div className="flex flex-col items-center space-y-4 animate-fade-in-up">
         <p className="text-lg text-muted-foreground max-w-xl">
-          Ubumuntu means &apos;humanity towards others&apos; in Kinyarwanda. We&apos;re building AI that understands and serves the African context.
+          Ubumuntu means 'humanity towards others' in Kinyarwanda. We're building AI that bridges traditional wisdom with modern technology to serve the global community.
         </p>
         <Link
-          href="/chat"
+          href="/embeddings"
           className="group bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105"
         >
-          Get Started
+          Explore Embeddings
           <span className="inline-block transition-transform group-hover:translate-x-1 ml-2">
             →
           </span>

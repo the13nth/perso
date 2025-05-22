@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useEffect } from "react";
 import DEFAULT_RETRIEVAL_TEXT from "@/data/DefaultRetrievalText";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -8,7 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, UserCircle, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock, Upload, FileText } from "lucide-react";
+import { CheckCircle2, UserCircle, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock, Upload, FileText, AlertTriangle } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
 import {
   Select,
@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Progress } from "./ui/progress";
 
 export interface UploadDocumentsFormProps {
   fileTypes?: string;
@@ -34,10 +35,88 @@ export function UploadDocumentsForm({
   const [document, setDocument] = useState(DEFAULT_RETRIEVAL_TEXT);
   const [file, setFile] = useState<File | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [asyncProcessing, setAsyncProcessing] = useState(false);
+  const [documentId, setDocumentId] = useState<string | null>(null);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(["general"]);
   const [accessLevel, setAccessLevel] = useState<"public" | "personal">("personal");
   const [activeTab, setActiveTab] = useState<"document" | "settings">("document");
   const { user } = useUser();
+
+  // Poll for document processing status when in async processing mode
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    
+    const checkDocumentStatus = async () => {
+      if (!documentId || !asyncProcessing) return;
+      
+      try {
+        const response = await fetch(`/api/retrieval/status?documentId=${documentId}`);
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.status === "complete") {
+            // Document processing completed
+            setAsyncProcessing(false);
+            setUploadSuccess(true);
+            setProcessingProgress(100);
+            
+            toast.success("Document processing completed successfully!", {
+              duration: 5000,
+              position: "top-center",
+              icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+              description: "Your document has been processed and is now available in the knowledge base."
+            });
+            
+            // Call onSuccess after document is fully processed
+            if (onSuccess) {
+              setTimeout(() => onSuccess(), 2000);
+            }
+            
+            // Clear the interval
+            if (intervalId) {
+              clearInterval(intervalId);
+            }
+          } else if (data.status === "processing") {
+            // Update progress
+            setProcessingProgress(data.progress || 0);
+          } else if (data.status === "not_found") {
+            // Document not found or processing failed
+            toast.error("Document processing failed or was not found", {
+              duration: 5000,
+              position: "top-center",
+            });
+            setAsyncProcessing(false);
+            
+            // Clear the interval
+            if (intervalId) {
+              clearInterval(intervalId);
+            }
+          }
+        } else {
+          console.error("Error checking document status:", response.statusText);
+        }
+      } catch (error) {
+        console.error("Error checking document status:", error);
+      }
+    };
+    
+    // If we have a documentId and we're in async processing mode, poll for status
+    if (documentId && asyncProcessing) {
+      // Check immediately
+      checkDocumentStatus();
+      
+      // Then check every 5 seconds
+      intervalId = setInterval(checkDocumentStatus, 5000);
+    }
+    
+    // Cleanup
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [documentId, asyncProcessing, onSuccess]);
 
   const categoryGroups = {
     general: [
@@ -82,6 +161,9 @@ export function UploadDocumentsForm({
     e.preventDefault();
     setIsLoading(true);
     setUploadSuccess(false);
+    setAsyncProcessing(false);
+    setDocumentId(null);
+    setProcessingProgress(0);
     
     let textContent = document;
     
@@ -115,50 +197,71 @@ export function UploadDocumentsForm({
       }
     }
     
-    const response = await fetch("/api/retrieval/ingest", {
-      method: "POST",
-      body: JSON.stringify({
-        text: textContent,
-        userId: user?.id,
-        categories: selectedCategories,
-        access: accessLevel,
-      }),
-    });
-    
-    if (response.status === 200) {
-      setDocument("Uploaded!");
-      setFile(null);
-      setUploadSuccess(true);
+    try {
+      const response = await fetch("/api/retrieval/ingest", {
+        method: "POST",
+        body: JSON.stringify({
+          text: textContent,
+          userId: user?.id,
+          categories: selectedCategories,
+          access: accessLevel,
+        }),
+      });
       
-      // Show a more prominent toast
-      toast.success(
-        extractText ? "Document uploaded successfully!" : "Text uploaded successfully!", 
-        {
-          duration: 5000,
-          position: "top-center",
-          icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
-          description: "Your content has been added to the knowledge base and is ready to use."
+      const data = await response.json();
+      
+      if (response.status === 200) {
+        setDocument("Uploaded!");
+        setFile(null);
+        setUploadSuccess(true);
+        
+        toast.success(
+          extractText ? "Document uploaded successfully!" : "Text uploaded successfully!", 
+          {
+            duration: 5000,
+            position: "top-center",
+            icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+            description: "Your content has been added to the knowledge base and is ready to use."
+          }
+        );
+        
+        if (onSuccess) {
+          setTimeout(() => onSuccess(), 2000);
         }
-      );
-      
-      // Don't automatically close the modal - let user close it manually
-      if (onSuccess) {
-        setTimeout(() => onSuccess(), 2000);
+      } else if (response.status === 202) {
+        // Large document is being processed asynchronously
+        setAsyncProcessing(true);
+        setDocumentId(data.documentId);
+        
+        toast.info(
+          "Processing large document in the background", 
+          {
+            duration: 10000,
+            position: "top-center",
+            icon: <AlertTriangle className="h-5 w-5 text-amber-500" />,
+            description: "Your document is being processed. This may take a few minutes. You can close this window and continue using the app."
+          }
+        );
+        
+        // Don't call onSuccess yet since document is still processing
+      } else {
+        setDocument(data.error || "Error uploading document");
+        toast.error("Failed to upload: " + (data.error || "Unknown error"));
       }
-    } else {
-      const json = await response.json();
-      if (json.error) {
-        setDocument(json.error);
-        toast.error("Failed to upload: " + json.error);
-      }
+    } catch (error) {
+      console.error("Error during document ingestion:", error);
+      toast.error("Failed to upload document due to a network error. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setUploadSuccess(false);
+      setAsyncProcessing(false);
+      setProcessingProgress(0);
     }
   };
 
@@ -172,6 +275,28 @@ export function UploadDocumentsForm({
             <p className="text-green-700 dark:text-green-400 text-sm">
               {extractText ? "Document" : "Text"} has been uploaded and processed successfully.
             </p>
+          </div>
+        </div>
+      )}
+      
+      {asyncProcessing && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-md border border-amber-200 dark:border-amber-800">
+          <div className="flex items-center gap-3 mb-3">
+            <AlertTriangle className="h-6 w-6 text-amber-500 flex-shrink-0" />
+            <div>
+              <h3 className="font-medium text-amber-900 dark:text-amber-300">Processing Large Document</h3>
+              <p className="text-amber-700 dark:text-amber-400 text-sm">
+                Your document is being processed in the background. This may take a few minutes.
+                You can close this window and continue using the app.
+              </p>
+            </div>
+          </div>
+          
+          <div className="mt-3">
+            <div className="flex justify-between mb-1 text-sm">
+              <span className="text-amber-800 dark:text-amber-300">Processing: {processingProgress}%</span>
+            </div>
+            <Progress value={processingProgress} className="h-2 bg-amber-200 dark:bg-amber-950" indicatorClassName="bg-amber-500" />
           </div>
         </div>
       )}
@@ -241,6 +366,8 @@ export function UploadDocumentsForm({
                 onChange={(e) => {
                   setDocument(e.target.value);
                   setUploadSuccess(false);
+                  setAsyncProcessing(false);
+                  setProcessingProgress(0);
                 }}
                 placeholder="Paste or type your text here..."
               />
@@ -386,8 +513,14 @@ export function UploadDocumentsForm({
         
         <Button 
           type="submit" 
-          disabled={!user || (extractText && !file) || isLoading}
-          className={`w-full order-1 sm:order-2 ${uploadSuccess ? "bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800" : ""}`}
+          disabled={!user || (extractText && !file) || isLoading || asyncProcessing}
+          className={`w-full order-1 sm:order-2 ${
+            uploadSuccess 
+              ? "bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800" 
+              : asyncProcessing 
+                ? "bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800"
+                : ""
+          }`}
         >
           {isLoading ? (
             <div role="status" className="flex justify-center items-center">
@@ -413,10 +546,19 @@ export function UploadDocumentsForm({
             <div className="flex items-center justify-center">
               {uploadSuccess ? (
                 <CheckCircle2 className="h-5 w-5 mr-2" />
+              ) : asyncProcessing ? (
+                <AlertTriangle className="h-5 w-5 mr-2" />
               ) : (
                 <Upload className="h-5 w-5 mr-2" />
               )}
-              <span>{uploadSuccess ? "Uploaded Successfully" : "Upload Document"}</span>
+              <span>
+                {uploadSuccess 
+                  ? "Uploaded Successfully" 
+                  : asyncProcessing 
+                    ? "Processing in Background" 
+                    : "Upload Document"
+                }
+              </span>
             </div>
           )}
         </Button>

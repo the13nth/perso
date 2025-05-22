@@ -5,6 +5,25 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@clerk/nextjs/server';
 
+interface EmbeddingMetadata {
+  text?: string;
+  categories?: string[] | string;
+  category?: string;
+  docType?: string;
+  userId?: string;
+  [key: string]: any;
+}
+
+interface NormalizedEmbeddingMetadata extends Omit<EmbeddingMetadata, 'categories'> {
+  categories: string[];
+}
+
+interface Embedding {
+  id: string;
+  vector: number[];
+  metadata: NormalizedEmbeddingMetadata;
+}
+
 export async function GET(req: NextRequest) {
   try {
     // Check authentication
@@ -27,8 +46,21 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Parse query parameters
+    const url = new URL(req.url);
+    const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+    const category = url.searchParams.get('category');
+    
     // Remove any protocol prefix from the host if it exists
     const cleanHost = host.replace(/^https?:\/\//, '');
+    
+    // Prepare filter with user ID
+    const filter: Record<string, any> = { userId };
+    
+    // Add category filter if specified
+    if (category && category !== 'all') {
+      filter.categories = { $in: [category] };
+    }
     
     // Query the index directly using the host
     const queryResponse = await fetch(
@@ -41,12 +73,10 @@ export async function GET(req: NextRequest) {
         },
         body: JSON.stringify({
           vector: new Array(768).fill(0), // Match index dimension of 768
-          topK: 100,
+          topK: limit,
           includeMetadata: true,
           includeValues: true,
-          filter: {
-            userId: userId
-          }
+          filter
         }),
       }
     );
@@ -62,14 +92,58 @@ export async function GET(req: NextRequest) {
 
     const data = await queryResponse.json();
 
-    // Extract vectors and metadata
-    const embeddings = (data.matches || []).map((match: any) => ({
-      id: match.id,
-      vector: match.values,
-      metadata: match.metadata
-    }));
+    // Extract vectors and metadata, ensuring proper category format
+    const embeddings: Embedding[] = (data.matches || []).map((match: any) => {
+      // Normalize the metadata to handle categories consistently
+      const rawMetadata: EmbeddingMetadata = { ...match.metadata };
+      let normalizedCategories: string[] = [];
+      
+      // Handle different category formats
+      if (!rawMetadata.categories) {
+        // Check if we have a single category field
+        if (rawMetadata.category) {
+          normalizedCategories = [rawMetadata.category];
+        } else if (rawMetadata.docType) {
+          normalizedCategories = [rawMetadata.docType];
+        } else {
+          normalizedCategories = ["Uncategorized"];
+        }
+      } else if (typeof rawMetadata.categories === 'string') {
+        // If categories is a string, try to parse it as JSON first
+        try {
+          const parsed = JSON.parse(rawMetadata.categories);
+          normalizedCategories = Array.isArray(parsed) ? parsed : [rawMetadata.categories];
+        } catch {
+          // If parsing fails, treat it as a single category
+          normalizedCategories = [rawMetadata.categories];
+        }
+      } else if (Array.isArray(rawMetadata.categories)) {
+        normalizedCategories = rawMetadata.categories;
+      }
+      
+      // Create a normalized metadata object with categories as string[]
+      const metadata: NormalizedEmbeddingMetadata = {
+        ...rawMetadata,
+        categories: normalizedCategories
+      };
+      
+      return {
+        id: match.id,
+        vector: match.values,
+        metadata
+      };
+    });
 
-    return NextResponse.json({ embeddings });
+    // Extract all unique categories for filtering
+    const allCategories = new Set<string>();
+    embeddings.forEach((emb: Embedding) => {
+      emb.metadata.categories.forEach((cat: string) => allCategories.add(cat));
+    });
+
+    return NextResponse.json({ 
+      embeddings,
+      categories: Array.from(allCategories).sort()
+    });
   } catch (error) {
     console.error("Error fetching embeddings:", error);
     return NextResponse.json(

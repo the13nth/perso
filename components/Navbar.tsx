@@ -30,11 +30,11 @@ export function Navbar() {
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
   
   const navLinks = [
-    { href: "/chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
-    { href: "/retrieval", label: "Retrieval", icon: <Database className="h-4 w-4" /> },
-    { href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
-    { href: "/structured_output", label: "Structured Output", icon: <Layout className="h-4 w-4" /> },
-    { href: "/streaming", label: "Streaming", icon: <Radio className="h-4 w-4" /> },
+    //{ href: "/chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
+    { href: "/retrieval", label: "Chat", icon: <Database className="h-4 w-4" /> },
+    //{ href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
+    //{ href: "/structured_output", label: "Structured Output", icon: <Layout className="h-4 w-4" /> },
+    //{ href: "/streaming", label: "Streaming", icon: <Radio className="h-4 w-4" /> },
     { href: "/embeddings", label: "Embeddings", icon: <Sparkles className="h-4 w-4" /> },
   ];
 
@@ -79,14 +79,7 @@ export function Navbar() {
                 {link.label}
               </ActiveLink>
             ))}
-            <Link
-              href="https://github.com/yourusername/ubumuntu-ai"
-              className="flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:text-foreground/80 text-foreground/60 hover:bg-accent/50"
-              target="_blank"
-            >
-              <Github className="h-4 w-4" />
-              <span className="hidden lg:inline">GitHub</span>
-            </Link>
+            
           </div>
         </div>
         
