@@ -9,7 +9,8 @@ interface Embedding {
   vector: number[];
   metadata: {
     text: string;
-    [key: string]: string | number | boolean;
+    categories?: string[];
+    [key: string]: any;
   };
 }
 
@@ -25,7 +26,46 @@ export default function ClientVisualization() {
         const response = await fetch("/api/embeddings");
         if (!response.ok) throw new Error("Failed to fetch embeddings");
         const data = await response.json();
-        setEmbeddings(data.embeddings);
+        
+        // Ensure each embedding has a categories array if missing
+        const processedEmbeddings = data.embeddings.map((emb: Embedding) => {
+          // If embedding doesn't have categories, try to extract them from metadata
+          if (!emb.metadata.categories) {
+            // Create categories based on available metadata
+            const extractedCategories = [];
+            
+            // Use document type if available
+            if (emb.metadata.docType) {
+              extractedCategories.push(emb.metadata.docType);
+            }
+            
+            // Use file type if available
+            if (emb.metadata.fileType) {
+              extractedCategories.push(emb.metadata.fileType);
+            }
+            
+            // Use source if available
+            if (emb.metadata.source) {
+              extractedCategories.push(emb.metadata.source);
+            }
+            
+            // If no categories could be extracted, use "Uncategorized"
+            if (extractedCategories.length === 0) {
+              extractedCategories.push("Uncategorized");
+            }
+            
+            return {
+              ...emb,
+              metadata: {
+                ...emb.metadata,
+                categories: extractedCategories
+              }
+            };
+          }
+          return emb;
+        });
+        
+        setEmbeddings(processedEmbeddings);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -50,7 +90,7 @@ export default function ClientVisualization() {
       {loading ? (
         <div className="flex items-center justify-center h-full">Loading embeddings...</div>
       ) : (
-        <Dashboard />
+        <Dashboard embeddings={embeddings} />
       )}
     </div>
   );

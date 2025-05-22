@@ -335,7 +335,17 @@ export function ChatWindow(props: {
                       Upload a text file to use for the chat.
                     </DialogDescription>
                   </DialogHeader>
-                  <UploadDocumentsForm onSuccess={() => setTextDialogOpen(false)} />
+                  <UploadDocumentsForm 
+                    onSuccess={() => {
+                      setTextDialogOpen(false);
+                      toast.success("Text uploaded successfully!");
+                    }}
+                  />
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={() => setTextDialogOpen(false)}>
+                      Close
+                    </Button>
+                  </div>
                 </DialogContent>
               </Dialog>
 
@@ -360,9 +370,17 @@ export function ChatWindow(props: {
                   </DialogHeader>
                   <UploadDocumentsForm 
                     fileTypes=".txt,.pdf,.xlsx" 
-                    extractText={true} 
-                    onSuccess={() => setDocumentDialogOpen(false)} 
+                    extractText={true}
+                    onSuccess={() => {
+                      setDocumentDialogOpen(false);
+                      toast.success("Document uploaded successfully!");
+                    }}
                   />
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={() => setDocumentDialogOpen(false)}>
+                      Close
+                    </Button>
+                  </div>
                 </DialogContent>
               </Dialog>
             </>
