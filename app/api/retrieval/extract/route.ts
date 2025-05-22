@@ -78,83 +78,15 @@ export async function POST(req: NextRequest) {
           if (keywords) extractedText += `Keywords: ${keywords}\n`;
           extractedText += `Number of Pages: ${numPages}\n\n`;
           
-          // Try multiple methods to parse PDF, particularly for Netlify deployment
-          let pdfText = "";
-          let parsingMethod = ""; // For debugging
-          
+          // Use the CJS helper for PDF parsing - this is designed to work on Netlify
           try {
-            // Try multiple ways to parse the PDF
-            const methods = [
-              // Method 1: Try dynamic ES module import 
-              async () => {
-                const module = await import('pdf-parse/lib/pdf-parse.js');
-                const pdfData = await module.default(buffer);
-                parsingMethod = "ES module dynamic import";
-                return pdfData.text;
-              },
-              
-              // Method 2: Try using the CJS helper file
-              async () => {
-                try {
-                  // @ts-ignore - We know this is a CommonJS module
-                  const pdfParserCjs = require('./pdfparser.cjs');
-                  const pdfData = await pdfParserCjs.parsePdf(buffer);
-                  parsingMethod = "CommonJS helper file";
-                  return pdfData.text;
-                } catch (err) {
-                  console.log("Error using CJS helper, trying Node.js path:", err);
-                  
-                  // Try finding the module directly in node_modules (Netlify specific)
-                  const nodeModulesPath = path.resolve(process.cwd(), 'node_modules/pdf-parse/lib/pdf-parse.js');
-                  if (fs.existsSync(nodeModulesPath)) {
-                    // @ts-ignore - Dynamic require
-                    const pdfParse = require(nodeModulesPath);
-                    const pdfData = await pdfParse(buffer);
-                    parsingMethod = "Direct node_modules path";
-                    return pdfData.text;
-                  }
-                  throw err;
-                }
-              },
-              
-              // Method 3: Try direct package import
-              async () => {
-                const module = await import('pdf-parse');
-                const pdfData = await module.default(buffer);
-                parsingMethod = "Direct package import";
-                return pdfData.text;
-              },
-              
-              // Method 4: Try CommonJS require directly
-              async () => {
-                // @ts-ignore - Using require in TypeScript
-                const pdfParse = require('pdf-parse/lib/pdf-parse');
-                const pdfData = await pdfParse(buffer);
-                parsingMethod = "CommonJS require";
-                return pdfData.text;
-              }
-            ];
-            
-            // Try each method in sequence until one works
-            for (const method of methods) {
-              try {
-                pdfText = await method();
-                // If we got here, method worked
-                break;
-              } catch (err: any) {
-                // Method failed, continue to next
-                console.log(`PDF parsing method failed: ${err.message}`);
-              }
-            }
-            
-            if (!pdfText) {
-              throw new Error("All PDF parsing methods failed");
-            }
-            
-            extractedText += `Content (parsed using ${parsingMethod}):\n${pdfText}`;
-            
+            const pdfParserPath = path.join(process.cwd(), 'app/api/retrieval/extract/pdfparser.cjs');
+            // @ts-ignore - Using require with dynamic path
+            const pdfParserCjs = require(pdfParserPath);
+            const pdfData = await pdfParserCjs.parsePdf(buffer);
+            extractedText += `Content:\n${pdfData.text}`;
           } catch (parseError) {
-            console.error("All PDF parsing methods failed:", parseError);
+            console.error("PDF parsing failed:", parseError);
             
             // Fallback: Use our manual text extraction method
             extractedText += "Using manual text extraction method due to parser error.\n\n";
