@@ -39,7 +39,15 @@ export async function GET(req: NextRequest) {
     // Get the Pinecone index
     const index = pinecone.index(process.env.PINECONE_INDEX || "");
 
-    let query: any = {
+    // Define a better typed query object
+    const query: {
+      filter: {
+        userId: string;
+        documentId?: string;
+      };
+      topK: number;
+      includeMetadata: boolean;
+    } = {
       filter: {
         userId
       },
@@ -60,7 +68,7 @@ export async function GET(req: NextRequest) {
 
     // Extract unique document IDs
     const documentIds = new Set<string>();
-    const documentInfo: Record<string, any> = {};
+    const documentInfo: Record<string, Record<string, unknown>> = {};
 
     // Process the matches
     queryResponse.matches.forEach(match => {
@@ -113,7 +121,7 @@ export async function GET(req: NextRequest) {
         
         // Extract full text from ordered chunks
         if (chunks.length > 0) {
-          let fullText = chunks.map(chunk => chunk.metadata?.text || "").join(" ");
+          const fullText = chunks.map(chunk => chunk.metadata?.text || "").join(" ");
           
           if (documentInfo[documentId]) {
             // Replace sample with full text
