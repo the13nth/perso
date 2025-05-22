@@ -4,7 +4,7 @@
   "private": true,
   "description": "A context-aware personal and business assistant for the African context",
   "packageManager": "yarn@3.5.1",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
