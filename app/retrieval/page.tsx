@@ -6,12 +6,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { UploadDocumentsForm } from "@/components/UploadDocumentsForm";
 import { UploadNoteForm } from "@/components/UploadNoteForm";
-import { ArrowLeft, Upload, Search, FileText, Database, Bot, StickyNote } from "lucide-react";
+import { UploadActivityForm } from "@/components/UploadActivityForm";
+import { ArrowLeft, Upload, Search, FileText, Database, Bot, StickyNote, Plus, X, Activity } from "lucide-react";
 import { AgentChatInterface } from "@/components/AgentChatInterface";
 
 export default function RetrievalPage() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [showNoteForm, setShowNoteForm] = useState(false);
+  const [showActivityForm, setShowActivityForm] = useState(false);
+  const [showUploadOptions, setShowUploadOptions] = useState(false);
   
   if (showUploadForm) {
     return (
@@ -138,6 +141,68 @@ export default function RetrievalPage() {
     );
   }
 
+  if (showActivityForm) {
+    return (
+      <div className="container py-4 px-4 sm:py-6 space-y-6 sm:space-y-8 max-w-7xl">
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex items-center">
+            <Button 
+              variant="ghost" 
+              onClick={() => setShowActivityForm(false)}
+              className="mr-3 sm:mr-4 p-2 sm:p-3"
+              size="sm"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="text-sm sm:text-base">Back</span>
+            </Button>
+            <h1 className="text-2xl sm:text-3xl font-bold">Log Activity</h1>
+          </div>
+          
+          <div className="bg-background shadow-md rounded-lg border border-border overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-border">
+              <div className="bg-muted/50 p-4 sm:p-6 order-2 lg:order-1">
+                <div className="flex flex-col h-full justify-between">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3">Activity Tracking</h2>
+                    <p className="text-muted-foreground mb-3 sm:mb-4 text-sm sm:text-base">
+                      Track your physical activities and workouts. Log details to build your personal fitness history.
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:gap-3 mb-4 sm:mb-6">
+                      <div className="flex items-center p-2 sm:p-3 bg-orange-100/50 dark:bg-orange-900/20 rounded-md border border-orange-200 dark:border-orange-800">
+                        <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500 dark:text-orange-400 mr-2" />
+                        <span className="text-xs sm:text-sm text-orange-700 dark:text-orange-300">Cardio Activities</span>
+                      </div>
+                      <div className="flex items-center p-2 sm:p-3 bg-red-100/50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-800">
+                        <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 dark:text-red-400 mr-2" />
+                        <span className="text-xs sm:text-sm text-red-700 dark:text-red-300">Strength Training</span>
+                      </div>
+                      <div className="flex items-center p-2 sm:p-3 bg-teal-100/50 dark:bg-teal-900/20 rounded-md border border-teal-200 dark:border-teal-800">
+                        <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-teal-500 dark:text-teal-400 mr-2" />
+                        <span className="text-xs sm:text-sm text-teal-700 dark:text-teal-300">Flexibility & Sports</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 sm:mt-4">
+                    <p className="text-xs text-muted-foreground">
+                      Activities are automatically categorized and searchable
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="col-span-1 lg:col-span-2 p-4 sm:p-6 order-1 lg:order-2">
+                <UploadActivityForm 
+                  onSuccess={() => setShowActivityForm(false)}
+                  onCancel={() => setShowActivityForm(false)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="container py-4 px-4 sm:py-6 space-y-6 sm:space-y-8">
       <div className="space-y-3 sm:space-y-4">
@@ -252,25 +317,70 @@ export default function RetrievalPage() {
                 placeholder={`I've got a nose for finding the right documents! Ask, "What is a document loader?"`}
                 emoji="🐶"
                 uploadButton={
-                  <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                    <Button 
-                      onClick={() => setShowUploadForm(true)}
-                      size="sm"
-                      variant="outline"
-                      className="w-full sm:flex-1 h-10 text-sm"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Document
-                    </Button>
-                    <Button 
-                      onClick={() => setShowNoteForm(true)}
-                      size="sm"
-                      variant="outline"
-                      className="w-full sm:flex-1 h-10 text-sm"
-                    >
-                      <StickyNote className="h-4 w-4 mr-2" />
-                      Upload Note
-                    </Button>
+                  <div className="mb-3">
+                    {!showUploadOptions ? (
+                      <Button 
+                        onClick={() => setShowUploadOptions(true)}
+                        size="sm"
+                        variant="outline"
+                        className="w-auto h-10 px-4 text-sm"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Content
+                      </Button>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Add Content</span>
+                          <Button 
+                            onClick={() => setShowUploadOptions(false)}
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <Button 
+                            onClick={() => {
+                              setShowUploadForm(true);
+                              setShowUploadOptions(false);
+                            }}
+                            size="sm"
+                            variant="outline"
+                            className="w-full h-10 text-sm"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Upload Document
+                          </Button>
+                          <Button 
+                            onClick={() => {
+                              setShowNoteForm(true);
+                              setShowUploadOptions(false);
+                            }}
+                            size="sm"
+                            variant="outline"
+                            className="w-full h-10 text-sm"
+                          >
+                            <StickyNote className="h-4 w-4 mr-2" />
+                            Upload Note
+                          </Button>
+                          <Button 
+                            onClick={() => {
+                              setShowActivityForm(true);
+                              setShowUploadOptions(false);
+                            }}
+                            size="sm"
+                            variant="outline"
+                            className="w-full h-10 text-sm"
+                          >
+                            <Activity className="h-4 w-4 mr-2" />
+                            Log Activity
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 }
               />
