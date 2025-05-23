@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { BarChart3, Lightbulb, ArrowRight, BookOpen, Building2, Heart, Users, Sparkles, Database, CheckCircle2, AlertCircle, Loader2, RefreshCw, FileText } from "lucide-react";
+import { BarChart3, Lightbulb, ArrowRight, BookOpen, Building2, Heart, Users, Sparkles, Database, CheckCircle2, AlertCircle, Loader2, RefreshCw, FileText, Bot, Brain, Filter } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Sample categories with icons
 const CATEGORY_ICONS: Record<string, any> = {
@@ -51,6 +52,14 @@ interface Embedding {
   };
 }
 
+// New interface for Agent
+interface Agent {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
 export default function InsightsPage() {
   const [categorySummaries, setCategorySummaries] = useState<CategorySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +71,42 @@ export default function InsightsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [savedInsightId, setSavedInsightId] = useState<string | null>(null);
+  
+  // New state for agent selection
+  const [agentSelectionOpen, setAgentSelectionOpen] = useState(false);
+  const [availableAgents, setAvailableAgents] = useState<Agent[]>([
+    {
+      id: "research-agent",
+      name: "Research Assistant",
+      description: "Finds and analyzes information from multiple sources",
+      icon: <BookOpen className="h-4 w-4" />
+    },
+    {
+      id: "data-agent",
+      name: "Data Analyst",
+      description: "Identifies patterns and trends in numerical data",
+      icon: <BarChart3 className="h-4 w-4" />
+    },
+    {
+      id: "knowledge-agent",
+      name: "Knowledge Base",
+      description: "Accesses and synthesizes information from your knowledge base",
+      icon: <Database className="h-4 w-4" />
+    },
+    {
+      id: "writing-agent",
+      name: "Writing Assistant",
+      description: "Helps craft clear and compelling narratives from data",
+      icon: <FileText className="h-4 w-4" />
+    },
+    {
+      id: "insight-agent",
+      name: "Insights Generator",
+      description: "Specializes in finding non-obvious connections between concepts",
+      icon: <Brain className="h-4 w-4" />
+    }
+  ]);
+  const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
 
   // Fetch real categories from Pinecone embeddings
   useEffect(() => {
@@ -175,6 +220,16 @@ export default function InsightsPage() {
 
   // Function to generate insights for a category
   async function generateInsight(category: CategorySummary) {
+    setSelectedCategory(category);
+    setSelectedAgents(["insight-agent"]); // Default selection
+    setAgentSelectionOpen(true);
+  }
+  
+  // New function to proceed with insight generation after agent selection
+  async function proceedWithInsightGeneration() {
+    if (!selectedCategory) return;
+    
+    setAgentSelectionOpen(false);
     setInsightLoading(true);
     setInsightError(null);
     setInsightData(null);
@@ -188,8 +243,9 @@ export default function InsightsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          category: category.name,
-          topWords: category.topWords,
+          category: selectedCategory.name,
+          topWords: selectedCategory.topWords,
+          agents: selectedAgents,
         }),
       });
       
@@ -345,10 +401,7 @@ export default function InsightsPage() {
                 </CardContent>
                 <CardFooter>
                   <Button 
-                    onClick={() => {
-                      setSelectedCategory(category);
-                      generateInsight(category);
-                    }}
+                    onClick={() => generateInsight(category)}
                     className="w-full gap-2 group"
                     disabled={category.count === 0}
                   >
@@ -362,6 +415,69 @@ export default function InsightsPage() {
           </div>
         )}
       </div>
+
+      {/* Agent Selection Dialog */}
+      <Dialog open={agentSelectionOpen} onOpenChange={setAgentSelectionOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-primary" />
+              Select Agents for Insight Generation
+            </DialogTitle>
+            <DialogDescription>
+              Choose which agents to use when analyzing {selectedCategory?.name} documents.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="space-y-4">
+              {availableAgents.map((agent) => (
+                <div key={agent.id} className="flex items-start space-x-3 border-b pb-3">
+                  <Checkbox 
+                    id={agent.id}
+                    checked={selectedAgents.includes(agent.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedAgents([...selectedAgents, agent.id]);
+                      } else {
+                        setSelectedAgents(selectedAgents.filter(id => id !== agent.id));
+                      }
+                    }}
+                  />
+                  <div className="grid gap-1.5">
+                    <label
+                      htmlFor={agent.id}
+                      className="font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2"
+                    >
+                      <div className="p-1 rounded-md bg-primary/10 text-primary">
+                        {agent.icon}
+                      </div>
+                      {agent.name}
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      {agent.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAgentSelectionOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={proceedWithInsightGeneration}
+              disabled={selectedAgents.length === 0}
+              className="gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Generate with {selectedAgents.length} Agent{selectedAgents.length !== 1 ? 's' : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Insight Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

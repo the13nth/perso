@@ -144,20 +144,41 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       
       // Configure the plot
       const layout = {
-        title: '3D Embedding Visualization',
+        title: {
+          text: '3D Embedding Visualization',
+          font: { size: window.innerWidth < 640 ? 14 : 16 }
+        },
         paper_bgcolor: 'rgba(13,18,30,0.95)',  // Lighter dark blue to match app background
         plot_bgcolor: 'rgba(13,18,30,0)',     // Transparent plot background
         scene: {
-          xaxis: { title: 'PC1', gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' },
-          yaxis: { title: 'PC2', gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' },
-          zaxis: { title: 'PC3', gridcolor: 'rgba(255,255,255,0.1)', zerolinecolor: 'rgba(255,255,255,0.2)' },
+          xaxis: { 
+            title: { text: 'PC1', font: { size: window.innerWidth < 640 ? 10 : 12 } },
+            gridcolor: 'rgba(255,255,255,0.1)', 
+            zerolinecolor: 'rgba(255,255,255,0.2)' 
+          },
+          yaxis: { 
+            title: { text: 'PC2', font: { size: window.innerWidth < 640 ? 10 : 12 } },
+            gridcolor: 'rgba(255,255,255,0.1)', 
+            zerolinecolor: 'rgba(255,255,255,0.2)' 
+          },
+          zaxis: { 
+            title: { text: 'PC3', font: { size: window.innerWidth < 640 ? 10 : 12 } },
+            gridcolor: 'rgba(255,255,255,0.1)', 
+            zerolinecolor: 'rgba(255,255,255,0.2)' 
+          },
           bgcolor: 'rgba(13,18,30,0.95)',      // Dark navy blue background for the 3D scene to match app
         },
-        margin: { l: 0, r: 0, b: 0, t: 30 },
+        margin: { 
+          l: window.innerWidth < 640 ? 10 : 0, 
+          r: window.innerWidth < 640 ? 10 : 0, 
+          b: window.innerWidth < 640 ? 20 : 0, 
+          t: window.innerWidth < 640 ? 40 : 30 
+        },
         legend: {
-          x: 1,
-          y: 0.5,
-          font: { size: 10, color: 'rgba(255,255,255,0.8)' }, 
+          x: window.innerWidth < 640 ? 0 : 1,
+          y: window.innerWidth < 640 ? 1 : 0.5,
+          orientation: window.innerWidth < 640 ? 'h' : 'v',
+          font: { size: window.innerWidth < 640 ? 8 : 10, color: 'rgba(255,255,255,0.8)' }, 
           bgcolor: 'rgba(13,18,30,0.7)'       // Semi-transparent navy background for legend
         },
         font: {
@@ -168,7 +189,11 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       // Create the plot
       PlotlyJS.newPlot(plotRef.current, data, layout, {
         responsive: true,
-        displayModeBar: true,
+        displayModeBar: window.innerWidth >= 640, // Hide toolbar on mobile
+        modeBarButtonsToRemove: window.innerWidth < 640 ? [] : ['pan2d', 'lasso2d', 'select2d'],
+        displaylogo: false,
+        scrollZoom: true,
+        doubleClick: 'reset+autosize',
       });
     } catch (error) {
       console.error("Error creating 3D plot:", error);
@@ -185,7 +210,8 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
   return (
     <div 
       ref={plotRef} 
-      className="w-full h-[500px] border border-muted-foreground/20 rounded-md mb-8"
+      className="w-full h-[300px] sm:h-[400px] lg:h-[500px] border border-muted-foreground/20 rounded-md mb-4 sm:mb-6 lg:mb-8 touch-manipulation"
+      style={{ minHeight: '300px' }}
     />
   );
 } 

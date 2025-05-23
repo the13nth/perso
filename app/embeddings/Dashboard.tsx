@@ -150,61 +150,65 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   const commonWords = getMostCommonWords(texts);
 
   return (
-    <div className="p-8 w-full h-full bg-background text-foreground overflow-auto">
-      <h1 className="text-2xl font-bold mb-4">Embeddings Dashboard</h1>
+    <div className="p-4 sm:p-6 lg:p-8 w-full h-full bg-background text-foreground overflow-auto">
+      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Embeddings Dashboard</h1>
       {loading ? (
-        <div>Loading embeddings...</div>
+        <div className="text-center py-8">
+          <div className="text-base sm:text-lg">Loading embeddings...</div>
+        </div>
       ) : error ? (
-        <div className="text-red-500">{error}</div>
+        <div className="text-red-500 text-center py-8">
+          <div className="text-sm sm:text-base">{error}</div>
+        </div>
       ) : (
         <>
           {/* Summary */}
-          <div className="mb-6 flex gap-8">
-            <div>
-              <div className="text-lg font-semibold">Total Embeddings</div>
-              <div className="text-2xl">{totalEmbeddings}</div>
+          <div className="mb-4 sm:mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+            <div className="bg-muted/50 rounded-lg p-3 sm:p-4">
+              <div className="text-sm sm:text-base font-semibold text-muted-foreground">Total Embeddings</div>
+              <div className="text-xl sm:text-2xl font-bold">{totalEmbeddings}</div>
             </div>
-            <div>
-              <div className="text-lg font-semibold">Avg. Vector Length</div>
-              <div className="text-2xl">{avgVectorLength}</div>
+            <div className="bg-muted/50 rounded-lg p-3 sm:p-4">
+              <div className="text-sm sm:text-base font-semibold text-muted-foreground">Avg. Vector Length</div>
+              <div className="text-xl sm:text-2xl font-bold">{avgVectorLength}</div>
             </div>
-            <div>
-              <div className="text-lg font-semibold">Filtered Embeddings</div>
-              <div className="text-2xl">{filtered.length}</div>
+            <div className="bg-muted/50 rounded-lg p-3 sm:p-4">
+              <div className="text-sm sm:text-base font-semibold text-muted-foreground">Filtered Embeddings</div>
+              <div className="text-xl sm:text-2xl font-bold">{filtered.length}</div>
             </div>
           </div>
 
           {/* Search & Filter Controls */}
-          <div className="mb-6 space-y-4">
+          <div className="mb-4 sm:mb-6 space-y-4">
             <div>
               <input
                 type="text"
                 placeholder="Search text..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="border rounded px-3 py-2 w-full max-w-md"
+                className="border rounded-md px-3 py-2.5 sm:py-2 w-full max-w-md text-sm bg-background border-input focus:ring-2 focus:ring-ring focus:border-transparent outline-none min-h-[44px] sm:min-h-[40px]"
               />
             </div>
             
             {allCategories.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium mb-2">Filter by Category:</h3>
-                <div className="flex flex-wrap gap-2 mb-2">
+                <h3 className="text-sm font-medium mb-2 sm:mb-3">Filter by Category:</h3>
+                <div className="flex flex-wrap gap-2 mb-2 sm:mb-3">
                   {allCategories.map(category => (
                     <button
                       key={category}
                       onClick={() => toggleCategory(category)}
-                      className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                      className={`px-3 py-2 text-sm rounded-md transition-colors min-h-[40px] touch-manipulation ${
                         selectedCategories.includes(category)
                           ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary text-secondary-foreground'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                       }`}
                     >
                       {category}
                     </button>
                   ))}
                 </div>
-                <div className="text-xs text-muted-foreground italic">
+                <div className="text-xs sm:text-sm text-muted-foreground italic">
                   {allCategories.length} categories found. Click to toggle selection.
                 </div>
               </div>
@@ -213,18 +217,17 @@ export default function Dashboard({ embeddings }: DashboardProps) {
 
           {/* Category Distribution */}
           {categoryStats.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-sm font-medium mb-2">Category Distribution:</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+            <div className="mb-4 sm:mb-6">
+              <h3 className="text-sm font-medium mb-2 sm:mb-3">Category Distribution:</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                 {categoryStats.map(([category, count]) => (
                   <div 
                     key={category}
-                    className="bg-muted/40 rounded p-2 text-xs flex justify-between items-center"
+                    className="bg-muted/40 rounded-md p-3 text-sm flex justify-between items-center cursor-pointer hover:bg-muted/60 transition-colors min-h-[48px] touch-manipulation"
                     onClick={() => toggleCategory(category)}
-                    style={{ cursor: 'pointer' }}
                   >
-                    <span className="truncate mr-2">{category}</span>
-                    <span className="bg-muted rounded-full px-2 py-0.5">{count}</span>
+                    <span className="truncate mr-2 text-sm">{category}</span>
+                    <span className="bg-muted rounded-full px-2 py-1 text-xs font-medium flex-shrink-0">{count}</span>
                   </div>
                 ))}
               </div>
@@ -232,31 +235,36 @@ export default function Dashboard({ embeddings }: DashboardProps) {
           )}
 
           {/* 3D Plot */}
-          {filtered.length > 0 && <Embeddings3DPlot embeddings={filtered} />}
+          {filtered.length > 0 && (
+            <div className="mb-6 sm:mb-8">
+              <Embeddings3DPlot embeddings={filtered} />
+            </div>
+          )}
 
           {/* Embedding Analysis Dashboard */}
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-muted rounded shadow p-4 flex flex-col items-start">
-              <div className="text-sm text-muted-foreground mb-1">Min Vector Norm</div>
-              <div className="text-2xl font-bold">{minNorm}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="bg-muted rounded-lg shadow p-4 flex flex-col items-start">
+              <div className="text-xs sm:text-sm text-muted-foreground mb-1">Min Vector Norm</div>
+              <div className="text-xl sm:text-2xl font-bold">{minNorm}</div>
             </div>
-            <div className="bg-muted rounded shadow p-4 flex flex-col items-start">
-              <div className="text-sm text-muted-foreground mb-1">Max Vector Norm</div>
-              <div className="text-2xl font-bold">{maxNorm}</div>
+            <div className="bg-muted rounded-lg shadow p-4 flex flex-col items-start">
+              <div className="text-xs sm:text-sm text-muted-foreground mb-1">Max Vector Norm</div>
+              <div className="text-xl sm:text-2xl font-bold">{maxNorm}</div>
             </div>
-            <div className="bg-muted rounded shadow p-4 flex flex-col items-start">
-              <div className="text-sm text-muted-foreground mb-1">Mean Vector Norm</div>
-              <div className="text-2xl font-bold">{meanNorm}</div>
+            <div className="bg-muted rounded-lg shadow p-4 flex flex-col items-start">
+              <div className="text-xs sm:text-sm text-muted-foreground mb-1">Mean Vector Norm</div>
+              <div className="text-xl sm:text-2xl font-bold">{meanNorm}</div>
             </div>
-            <div className="bg-muted rounded shadow p-4 col-span-1 md:col-span-3">
-              <div className="text-sm text-muted-foreground mb-1">Most Common Words</div>
-              <ul className="flex flex-wrap gap-4">
+            <div className="bg-muted rounded-lg shadow p-4 col-span-1 sm:col-span-2 lg:col-span-3">
+              <div className="text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3">Most Common Words</div>
+              <div className="flex flex-wrap gap-2">
                 {commonWords.map(([word, count]) => (
-                  <li key={word} className="bg-background px-2 py-1 rounded text-sm">
-                    {word} <span className="text-xs text-muted-foreground">({count})</span>
-                  </li>
+                  <div key={word} className="bg-background px-3 py-2 rounded-md text-sm border">
+                    <span className="font-medium">{word}</span>
+                    <span className="text-xs text-muted-foreground ml-1">({count})</span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           </div>
         </>
