@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import { UserButton, SignedIn, SignedOut } from "@clerk/nextjs";
-import { Menu, X, Database,Sparkles, Github, Lightbulb } from "lucide-react";
+import { Menu, X, Database,Sparkles, Github, Lightbulb, Bot } from "lucide-react";
 
 export const ActiveLink = (props: { href: string; children: ReactNode; icon?: ReactNode }) => {
   const pathname = usePathname();
@@ -32,7 +32,7 @@ export function Navbar() {
   const navLinks = [
     //{ href: "/chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
     { href: "/retrieval", label: "Chat", icon: <Database className="h-4 w-4" /> },
-    //{ href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
+    { href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
     //{ href: "/structured_output", label: "Structured Output", icon: <Layout className="h-4 w-4" /> },
     //{ href: "/streaming", label: "Streaming", icon: <Radio className="h-4 w-4" /> },
     { href: "/embeddings", label: "Embeddings", icon: <Sparkles className="h-4 w-4" /> },
@@ -115,14 +115,7 @@ export function Navbar() {
               </ActiveLink>
             </div>
           ))}
-          <Link
-            href="https://github.com/yourusername/ubumuntu-ai"
-            className="flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:text-foreground/80 text-foreground/60 hover:bg-accent/50"
-            target="_blank"
-          >
-            <Github className="h-4 w-4" />
-            GitHub
-          </Link>
+         
         </div>
       </div>
     </nav>

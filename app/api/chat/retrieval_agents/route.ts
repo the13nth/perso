@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
     const returnIntermediateSteps = body.show_intermediate_steps;
 
     const chatModel = new ChatGoogleGenerativeAI({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       maxOutputTokens: 2048,
       temperature: 0.2,
     });

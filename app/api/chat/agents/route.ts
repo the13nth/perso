@@ -13,6 +13,8 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 
+import { DocumentAnalysisTool, WeatherTool, DatabaseQueryTool, ImageGeneratorTool, CodeInterpreterTool } from "@/lib/tools";
+
 export const runtime = "edge";
 
 const convertVercelMessageToLangChainMessage = (message: VercelChatMessage) => {
@@ -39,7 +41,28 @@ const convertLangChainMessageToVercelMessage = (message: BaseMessage) => {
   }
 };
 
-const AGENT_SYSTEM_TEMPLATE = `You are a talking parrot named Polly. All final responses must be how a talking parrot would respond. Squawk often!`;
+const AGENT_SYSTEM_TEMPLATE = `You are an AI assistant with access to a variety of tools to help users.
+
+IMPORTANT TOOL SELECTION GUIDELINES:
+- For weather queries (forecast, temperature, conditions, etc.), ALWAYS use the "weather" tool first
+- For calculations and math problems, use the "calculator" tool
+- For document analysis and text processing, use the "document-analysis" tool
+- For database queries, use the "database-query" tool
+- For image generation, use the "image-generator" tool
+- For code execution, use the "code-interpreter" tool
+- Only use web search ("serpapi") if the information is not available through specialized tools
+
+You can use tools to:
+- Get real-time weather information for any location (use "weather" tool)
+- Perform mathematical calculations
+- Analyze document text and extract insights
+- Query databases with natural language
+- Generate images from descriptions
+- Execute code to solve problems
+- Search the web for information (as a last resort)
+
+Think through what tools would be most helpful for solving the user's request and use them appropriately.
+Always be helpful, accurate, and user-focused.`;
 
 /**
  * This handler initializes and calls an tool caling ReAct agent.
@@ -62,11 +85,23 @@ export async function POST(req: NextRequest) {
       )
       .map(convertVercelMessageToLangChainMessage);
 
-    // Requires process.env.SERPAPI_API_KEY to be set: https://serpapi.com/
-    // You can remove this or use a different tool instead.
-    const tools = [new Calculator(), new SerpAPI()];
+    // Initialize tools in priority order - specialized tools first
+    const tools = [
+      new WeatherTool(),              // Weather tool first for weather queries
+      new Calculator(),               // Calculator for math
+      new DocumentAnalysisTool(),     // Document analysis
+      new DatabaseQueryTool(),        // Database queries
+      new ImageGeneratorTool(),       // Image generation
+      new CodeInterpreterTool(),      // Code execution
+    ];
+    
+    // Add SerpAPI only if the key is available
+    if (process.env.SERPAPI_API_KEY) {
+      tools.push(new SerpAPI());
+    }
+
     const chat = new ChatGoogleGenerativeAI({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       maxOutputTokens: 2048,
       temperature: 0,
     });

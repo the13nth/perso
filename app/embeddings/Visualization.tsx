@@ -63,18 +63,22 @@ export default function ClientVisualization() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-red-500 p-4">
-        <XCircle className="w-12 h-12 mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Error Loading Embeddings</h2>
-        <p>{error}</p>
+      <div className="flex flex-col items-center justify-center min-h-screen text-red-500 p-4 sm:p-6">
+        <XCircle className="w-10 h-10 sm:w-12 sm:h-12 mb-3 sm:mb-4" />
+        <h2 className="text-lg sm:text-xl font-semibold mb-2 text-center">Error Loading Embeddings</h2>
+        <p className="text-sm sm:text-base text-center max-w-md">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-screen relative">
+    <div className="w-full min-h-screen relative">
       {loading ? (
-        <div className="flex items-center justify-center h-full">Loading embeddings...</div>
+        <div className="flex items-center justify-center h-screen px-4">
+          <div className="text-center">
+            <div className="text-base sm:text-lg">Loading embeddings...</div>
+          </div>
+        </div>
       ) : (
         <Dashboard embeddings={embeddings} />
       )}
