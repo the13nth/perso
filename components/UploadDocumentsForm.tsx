@@ -124,6 +124,8 @@ export function UploadDocumentsForm({
       { value: "routines", label: "Routines", icon: <Star className="h-4 w-4" /> },
       { value: "journal", label: "Journal", icon: <Star className="h-4 w-4" /> },
       { value: "notes", label: "Notes", icon: <Star className="h-4 w-4" /> },
+      { value: "work", label: "Work", icon: <Briefcase className="h-4 w-4" /> },
+      { value: "study", label: "Study", icon: <BookOpen className="h-4 w-4" /> },
       { value: "finances", label: "Finances", icon: <DollarSign className="h-4 w-4" /> },
       { value: "health", label: "Health", icon: <HeartPulse className="h-4 w-4" /> },
     ],

@@ -151,4 +151,105 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    // Check authentication
+    const { userId } = await auth();
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const apiKey = process.env.PINECONE_API_KEY;
+    const host = process.env.PINECONE_HOST;
+
+    if (!apiKey || !host) {
+      return NextResponse.json(
+        { error: "Missing Pinecone configuration" },
+        { status: 500 }
+      );
+    }
+
+    // Get the embedding ID from the request
+    const { embeddingId } = await req.json();
+    if (!embeddingId) {
+      return NextResponse.json(
+        { error: "Missing embeddingId" },
+        { status: 400 }
+      );
+    }
+
+    // Remove any protocol prefix from the host if it exists
+    const cleanHost = host.replace(/^https?:\/\//, '');
+    
+    // First, verify the embedding belongs to the user
+    const queryResponse = await fetch(
+      `https://${cleanHost}/query`,
+      {
+        method: 'POST',
+        headers: {
+          'Api-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: embeddingId,
+          topK: 1,
+          includeMetadata: true,
+          filter: { userId }
+        }),
+      }
+    );
+
+    if (!queryResponse.ok) {
+      return NextResponse.json(
+        { error: "Failed to verify embedding ownership" },
+        { status: queryResponse.status }
+      );
+    }
+
+    const queryData = await queryResponse.json();
+    if (!queryData.matches || queryData.matches.length === 0) {
+      return NextResponse.json(
+        { error: "Embedding not found or not owned by user" },
+        { status: 404 }
+      );
+    }
+
+    // Delete the embedding
+    const deleteResponse = await fetch(
+      `https://${cleanHost}/vectors/delete`,
+      {
+        method: 'POST',
+        headers: {
+          'Api-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ids: [embeddingId]
+        }),
+      }
+    );
+
+    if (!deleteResponse.ok) {
+      const errorData = await deleteResponse.text();
+      console.error("Pinecone delete failed:", errorData);
+      return NextResponse.json(
+        { error: "Failed to delete embedding" },
+        { status: deleteResponse.status }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Embedding deleted successfully"
+    });
+
+  } catch (error) {
+    console.error("Error deleting embedding:", error);
+    return NextResponse.json(
+      { error: "Failed to delete embedding" },
+      { status: 500 }
+    );
+  }
 } 

@@ -126,6 +126,62 @@ via header in addition to the streaming response.
 
 For more info on retrieval agents, [see this page](https://langchain-ai.github.io/langgraphjs/tutorials/rag/langgraph_agentic_rag/).
 
+## 📊 Comprehensive Activity Logging
+
+This application includes a powerful activity logging system that goes beyond simple physical activity tracking. It supports comprehensive activity logging across four main categories:
+
+### 🏃‍♂️ Physical Activities
+Track your exercise, sports, and physical activities with detailed metrics:
+- **Activity Types**: Running, cycling, swimming, weightlifting, yoga, team sports, and more
+- **Metrics**: Duration, distance, intensity level, location
+- **Tracking**: Goals, achievement levels, physical sensations
+- **Features**: Distance tracking with multiple units, intensity levels from light to maximum
+
+### 💼 Work Activities
+Log your professional tasks and projects with work-specific details:
+- **Activity Types**: Coding, meetings, planning, design, research, documentation, debugging
+- **Metrics**: Project names, collaborators, tools used, focus levels
+- **Tracking**: Tasks completed, productivity levels, work goals
+- **Features**: Multi-hour duration support, collaboration tracking, tool/technology logging
+
+### 📚 Study Activities
+Track your learning and educational activities with academic metrics:
+- **Activity Types**: Reading, online courses, lectures, practice, research, note-taking
+- **Metrics**: Subjects, study materials, comprehension levels
+- **Tracking**: Notes created, learning goals, understanding levels
+- **Features**: Subject categorization, material tracking, comprehension assessment
+
+### 🔄 Routine Activities
+Monitor your daily routines and habits with consistency tracking:
+- **Activity Types**: Morning/evening routines, meditation, meal prep, cleaning, relaxation
+- **Metrics**: Routine steps, consistency levels, mood before/after
+- **Tracking**: Habit formation, mood changes, routine adherence
+- **Features**: Mood tracking, consistency assessment, routine step documentation
+
+### 🔧 Key Features
+
+#### Comprehensive Tracking
+- **Multi-Category Support**: Physical, work, study, and routine activities in one unified system
+- **Rich Metadata**: Each activity type has specific fields relevant to that category
+- **Goal Tracking**: Set and track achievement of specific goals for any activity
+- **Productivity Metrics**: Track productivity levels and feelings across all activity types
+
+#### Smart Organization
+- **Automatic Categorization**: Activities are automatically categorized and tagged for easy searching
+- **Searchable History**: All activities are stored with embeddings for semantic search
+- **Visual Analytics**: 3D visualization of activity patterns and categories
+- **Contextual Insights**: AI-powered insights based on your activity patterns
+
+#### Usage
+1. Navigate to the **Retrieval** page
+2. Click **Log Activity** 
+3. Select your activity category (Physical, Work, Study, or Routine)
+4. Choose the specific activity type
+5. Fill in relevant details and metrics
+6. Save to add to your personal knowledge base
+
+The system automatically generates embeddings for each activity, making them searchable and enabling AI-powered insights about your patterns, productivity, and progress across all areas of life.
+
 ## 📦 Bundle size
 
 The bundle size for LangChain itself is quite small. After compression and chunk splitting, for the RAG use case LangChain uses 37.32 KB of code space (as of [@langchain/core 0.1.15](https://npmjs.com/package/@langchain/core)), which is less than 4% of the total Vercel free tier edge function alottment of 1 MB:

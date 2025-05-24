@@ -28,7 +28,7 @@ export default function VisualizePage() {
       <div className="flex justify-center items-center min-h-screen px-4">
         <div className="text-center">
           <div className="text-base sm:text-lg text-foreground">
-            Loading...
+          Loading...
           </div>
         </div>
       </div>
@@ -47,7 +47,7 @@ export default function VisualizePage() {
           <div className="flex justify-center items-center min-h-screen px-4">
             <div className="text-center">
               <div className="text-base sm:text-lg text-foreground">
-                Initializing 3D visualization...
+              Initializing 3D visualization...
               </div>
             </div>
           </div>

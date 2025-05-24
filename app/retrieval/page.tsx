@@ -6,8 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { UploadDocumentsForm } from "@/components/UploadDocumentsForm";
 import { UploadNoteForm } from "@/components/UploadNoteForm";
-import { UploadActivityForm } from "@/components/UploadActivityForm";
-import { ArrowLeft, Upload, Search, FileText, Database, Bot, StickyNote, Plus, X, Activity } from "lucide-react";
+import { UploadComprehensiveActivityForm } from "@/components/UploadComprehensiveActivityForm";
+import { ArrowLeft, Upload, Search, FileText, Database, Bot, StickyNote, Plus, X, Activity, Briefcase, BookOpen, Clock } from "lucide-react";
 import { AgentChatInterface } from "@/components/AgentChatInterface";
 
 export default function RetrievalPage() {
@@ -78,9 +78,9 @@ export default function RetrievalPage() {
       </div>
     );
   }
-
+  
   if (showNoteForm) {
-    return (
+  return (
       <div className="container py-4 px-4 sm:py-6 space-y-6 sm:space-y-8 max-w-7xl">
         <div className="space-y-3 sm:space-y-4">
           <div className="flex items-center">
@@ -146,15 +146,15 @@ export default function RetrievalPage() {
       <div className="container py-4 px-4 sm:py-6 space-y-6 sm:space-y-8 max-w-7xl">
         <div className="space-y-3 sm:space-y-4">
           <div className="flex items-center">
-            <Button 
+          <Button 
               variant="ghost" 
               onClick={() => setShowActivityForm(false)}
               className="mr-3 sm:mr-4 p-2 sm:p-3"
               size="sm"
-            >
+          >
               <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
               <span className="text-sm sm:text-base">Back</span>
-            </Button>
+          </Button>
             <h1 className="text-2xl sm:text-3xl font-bold">Log Activity</h1>
           </div>
           
@@ -163,35 +163,39 @@ export default function RetrievalPage() {
               <div className="bg-muted/50 p-4 sm:p-6 order-2 lg:order-1">
                 <div className="flex flex-col h-full justify-between">
                   <div>
-                    <h2 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3">Activity Tracking</h2>
+                    <h2 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3">Comprehensive Activity Tracking</h2>
                     <p className="text-muted-foreground mb-3 sm:mb-4 text-sm sm:text-base">
-                      Track your physical activities and workouts. Log details to build your personal fitness history.
+                      Track all types of activities including physical exercise, work tasks, study sessions, and daily routines with detailed metrics.
                     </p>
                     <div className="grid grid-cols-1 gap-2 sm:gap-3 mb-4 sm:mb-6">
                       <div className="flex items-center p-2 sm:p-3 bg-orange-100/50 dark:bg-orange-900/20 rounded-md border border-orange-200 dark:border-orange-800">
                         <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500 dark:text-orange-400 mr-2" />
-                        <span className="text-xs sm:text-sm text-orange-700 dark:text-orange-300">Cardio Activities</span>
+                        <span className="text-xs sm:text-sm text-orange-700 dark:text-orange-300">Physical Activities</span>
                       </div>
-                      <div className="flex items-center p-2 sm:p-3 bg-red-100/50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-800">
-                        <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 dark:text-red-400 mr-2" />
-                        <span className="text-xs sm:text-sm text-red-700 dark:text-red-300">Strength Training</span>
+                      <div className="flex items-center p-2 sm:p-3 bg-blue-100/50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                        <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 dark:text-blue-400 mr-2" />
+                        <span className="text-xs sm:text-sm text-blue-700 dark:text-blue-300">Work & Projects</span>
                       </div>
-                      <div className="flex items-center p-2 sm:p-3 bg-teal-100/50 dark:bg-teal-900/20 rounded-md border border-teal-200 dark:border-teal-800">
-                        <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-teal-500 dark:text-teal-400 mr-2" />
-                        <span className="text-xs sm:text-sm text-teal-700 dark:text-teal-300">Flexibility & Sports</span>
+                      <div className="flex items-center p-2 sm:p-3 bg-green-100/50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
+                        <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 dark:text-green-400 mr-2" />
+                        <span className="text-xs sm:text-sm text-green-700 dark:text-green-300">Study & Learning</span>
+                      </div>
+                      <div className="flex items-center p-2 sm:p-3 bg-purple-100/50 dark:bg-purple-900/20 rounded-md border border-purple-200 dark:border-purple-800">
+                        <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500 dark:text-purple-400 mr-2" />
+                        <span className="text-xs sm:text-sm text-purple-700 dark:text-purple-300">Daily Routines</span>
                       </div>
                     </div>
                   </div>
                   <div className="mt-3 sm:mt-4">
                     <p className="text-xs text-muted-foreground">
-                      Activities are automatically categorized and searchable
+                      Activities are automatically categorized and searchable with detailed insights
                     </p>
                   </div>
                 </div>
               </div>
               
               <div className="col-span-1 lg:col-span-2 p-4 sm:p-6 order-1 lg:order-2">
-                <UploadActivityForm 
+                <UploadComprehensiveActivityForm 
                   onSuccess={() => setShowActivityForm(false)}
                   onCancel={() => setShowActivityForm(false)}
                 />
@@ -214,14 +218,14 @@ export default function RetrievalPage() {
         <Tabs defaultValue="features" className="mt-4 sm:mt-6">
           <TabsList className="grid w-full grid-cols-2 sticky top-0 z-50 bg-background h-11 sm:h-12">
             <TabsTrigger value="features" className="text-sm sm:text-base">How It Works</TabsTrigger>
-            <TabsTrigger value="chat" className="text-sm sm:text-base">Chat with Documents</TabsTrigger>
+            <TabsTrigger value="chat" className="text-sm sm:text-base">Chat with Context</TabsTrigger>
           </TabsList>
           
           <div className="mt-4 sm:mt-6">
             <TabsContent value="features" className="space-y-4 sm:space-y-6">
-              <h2 className="text-xl sm:text-2xl font-semibold">How Document Retrieval Works</h2>
+              <h2 className="text-xl sm:text-2xl font-semibold">How Context Retrieval Works</h2>
               <p className="text-muted-foreground text-sm sm:text-base">
-                Our retrieval system uses advanced AI to understand your documents and answer questions about them.
+                Our retrieval system uses advanced AI to understand your documents/contexts and answer questions about them.
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -232,7 +236,7 @@ export default function RetrievalPage() {
                       <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="text-base sm:text-lg">Document Processing</CardTitle>
+                      <CardTitle className="text-base sm:text-lg">Context Processing</CardTitle>
                       <CardDescription className="text-sm">Intelligent text extraction</CardDescription>
                     </div>
                   </CardHeader>
@@ -314,7 +318,7 @@ export default function RetrievalPage() {
             <TabsContent value="chat" className="space-y-4 sm:space-y-6">
               <AgentChatInterface
                 endpoint="api/chat/retrieval"
-                placeholder={`I've got a nose for finding the right documents! Ask, "What is a document loader?"`}
+                placeholder={`Hello!I am Bumuntu, your personal shadow. What are we doing today?`}
                 emoji="🐶"
                 uploadButton={
                   <div className="mb-3">
