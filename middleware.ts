@@ -8,11 +8,13 @@ const isProtectedRoute = createRouteMatcher([
   "/agents(.*)",
   "/structured_output(.*)",
   "/streaming(.*)",
-  "/visualize(.*)"
+  "/visualize(.*)",
+  "/embeddings(.*)",
+  "/insights(.*)"
 ]);
 
 // Create route matchers for public routes
-const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
+const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)", "/"]);
 
 export default clerkMiddleware(async (auth, req) => {
   // If it's a public route, allow access
@@ -24,6 +26,9 @@ export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
   }
+
+  // Allow access to other routes (like API routes, static files, etc.)
+  return NextResponse.next();
 });
 
 export const config = {

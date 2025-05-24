@@ -39,6 +39,16 @@ export function Navbar() {
     { href: "/insights", label: "Insights", icon: <Lightbulb className="h-4 w-4" /> },
   ];
 
+  // Get the correct sign out URL based on environment
+  const getSignOutUrl = () => {
+    if (typeof window !== 'undefined') {
+      // In browser, use the current origin
+      return `${window.location.origin}/`;
+    }
+    // Fallback for server-side rendering
+    return process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL || "/";
+  };
+
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container grid grid-cols-12 h-16 items-center">
@@ -87,7 +97,14 @@ export function Navbar() {
         {/* User account section */}
         <div className="col-span-4 sm:col-span-4 lg:col-span-2 flex items-center justify-end gap-2">
           <SignedIn>
-            <UserButton afterSignOutUrl={process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL || "/"} />
+            <UserButton 
+              afterSignOutUrl={getSignOutUrl()}
+              appearance={{
+                elements: {
+                  avatarBox: "w-8 h-8",
+                }
+              }}
+            />
           </SignedIn>
           <SignedOut>
             <Link
