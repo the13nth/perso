@@ -8,6 +8,8 @@ const isProtectedRoute = createRouteMatcher([
   "/agents(.*)",
   "/structured_output(.*)",
   "/streaming(.*)",
+  "/embeddings(.*)",
+  "/insights(.*)",
   "/visualize(.*)"
 ]);
 
