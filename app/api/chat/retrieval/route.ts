@@ -34,9 +34,20 @@ const condenseQuestionPrompt = PromptTemplate.fromTemplate(
   CONDENSE_QUESTION_TEMPLATE,
 );
 
-const ANSWER_TEMPLATE = `You are Ubumuntu AI, a personal AI assistant that helps with activity tracking, document management, and general assistance. You have access to the user's personal documents, notes, and activity logs. Answer questions based on the provided context and chat history.
+const ANSWER_TEMPLATE = `You are Ubumuntu AI, a personal AI assistant that helps with activity tracking, document management, and general assistance. You have access to the user's personal documents, notes, activity logs, and previous conversations.
 
-If you're asked about activities, be specific about dates, types, and metrics. If you're asked about documents or notes, reference them appropriately. Always be helpful and detailed in your responses.
+When answering questions:
+- Reference previous conversations when relevant using the format: "As we discussed before..." or "Building on our previous conversation..."
+- For activities, be specific about dates, types, and metrics
+- For documents or notes, reference them appropriately
+- For previous conversations, acknowledge the context and build upon it
+- Always be helpful, detailed, and maintain conversation continuity
+
+The context below includes various types of information:
+- [PREVIOUS CONVERSATION] - Past discussions from this or other sessions
+- [ACTIVITY] - Physical activities, work tasks, or personal logs
+- [NOTE] - Personal notes and thoughts
+- [DOCUMENT] - Uploaded documents and files
 
 <context>
   {context}
@@ -56,20 +67,23 @@ async function searchPinecone(
   embeddings: GoogleGenerativeAIEmbeddings,
   query: string,
   userId: string,
+  sessionId?: string,
   topK = 10
 ) {
   // Get the embedding for the query
   const queryEmbedding = await embeddings.embedQuery(query);
 
   // Search for similar documents in Pinecone with user filtering
+  // Include conversation history if sessionId is provided
+  const filter: any = {
+    userId: userId
+  };
+
   const results = await pineconeIndex.query({
     vector: queryEmbedding,
     topK,
     includeMetadata: true,
-    filter: {
-      // Only user's own content - no access to other users' content
-      userId: userId
-    }
+    filter
   });
 
   // Convert the matches to Document objects
@@ -89,8 +103,20 @@ async function searchPinecone(
       owner: metadata.userId === userId ? "You" : "Other user"
     };
     
+    // Special handling for conversations
+    if (metadata.type === "conversation") {
+      const conversationMeta = metadata as any;
+      enhancedMetadata = {
+        ...enhancedMetadata,
+        contentType: "Conversation",
+        query: conversationMeta.query || "Unknown query",
+        response: conversationMeta.response || "Unknown response", 
+        sessionId: conversationMeta.sessionId || "Unknown session",
+        title: conversationMeta.title || "Previous conversation"
+      };
+    }
     // Special handling for activities
-    if (metadata.type === "comprehensive_activity") {
+    else if (metadata.type === "comprehensive_activity") {
       const activityMeta = metadata as any;
       enhancedMetadata = {
         ...enhancedMetadata,
@@ -135,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const messages = body.messages ?? [];
+    const sessionId = body.sessionId; // Extract sessionId from request
     const previousMessages = messages.slice(0, -1);
     const currentMessageContent = messages[messages.length - 1].content;
 
@@ -161,7 +188,7 @@ export async function POST(req: NextRequest) {
 
     const retriever = {
       invoke: async (query: string) => {
-        const documents = await searchPinecone(pineconeIndex, embeddings, query, userId);
+        const documents = await searchPinecone(pineconeIndex, embeddings, query, userId, sessionId);
         resolveWithDocuments(documents);
         return documents;
       },
@@ -174,7 +201,9 @@ export async function POST(req: NextRequest) {
         let contextLine = doc.pageContent;
         
         // Add context information for different content types
-        if (meta.contentType === "Activity") {
+        if (meta.contentType === "Conversation") {
+          contextLine = `[PREVIOUS CONVERSATION - Session ${meta.sessionId}]\nQuery: ${meta.query}\nResponse: ${meta.response}`;
+        } else if (meta.contentType === "Activity") {
           contextLine = `[ACTIVITY - ${meta.category}/${meta.activityType} on ${meta.date}]\n${contextLine}`;
         } else if (meta.contentType === "Note") {
           contextLine = `[NOTE - ${meta.title}]\n${contextLine}`;
@@ -226,22 +255,11 @@ export async function POST(req: NextRequest) {
         "x-sources": serializedSources,
       },
     });
-  } catch (e: unknown) {
-    console.error("Error during retrieval:", e);
+  } catch (error) {
+    console.error("Retrieval QA error:", error);
     return NextResponse.json(
-      {
-        error: e instanceof Error ? e.message : "Unknown error",
-        details: e instanceof Error ? e.stack : undefined
-      },
-      {
-        status:
-          typeof e === "object" &&
-          e !== null &&
-          "status" in e &&
-          typeof (e as { status?: unknown }).status === "number"
-            ? (e as { status: number }).status
-            : 500
-      }
+      { error: "An error occurred while processing your request." },
+      { status: 500 }
     );
   }
 }

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, AlertCircle, Loader2 } from "lucide-react";
+import { Trash2, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 interface Embedding {
@@ -43,6 +43,7 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   const [localEmbeddings, setLocalEmbeddings] = useState<Embedding[]>(embeddings);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [categoryDistributionExpanded, setCategoryDistributionExpanded] = useState(false);
 
   // Update local embeddings when props change
   useEffect(() => {
@@ -275,19 +276,29 @@ export default function Dashboard({ embeddings }: DashboardProps) {
       {/* Category Distribution */}
       {categoryStats.length > 0 && (
         <div className="mb-4 sm:mb-6">
-          <h3 className="text-sm font-medium mb-2 sm:mb-3">Category Distribution:</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-            {categoryStats.map(([category, count]) => (
-              <div 
-                key={category}
-                className="bg-muted/40 rounded-md p-3 text-sm flex justify-between items-center cursor-pointer hover:bg-muted/60 transition-colors min-h-[48px] touch-manipulation"
-                onClick={() => toggleCategory(category)}
-              >
-                <span className="truncate mr-2 text-sm">{category}</span>
-                <span className="bg-muted rounded-full px-2 py-1 text-xs font-medium flex-shrink-0">{count}</span>
-              </div>
-            ))}
-          </div>
+          <Button
+            variant="ghost"
+            onClick={() => setCategoryDistributionExpanded(!categoryDistributionExpanded)}
+            className="w-full justify-between p-3 h-auto"
+          >
+            <h3 className="text-sm font-medium">Category Distribution ({categoryStats.length} categories)</h3>
+            {categoryDistributionExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+          
+          {categoryDistributionExpanded && (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+              {categoryStats.map(([category, count]) => (
+                <div 
+                  key={category}
+                  className="bg-muted/40 rounded-md p-3 text-sm flex justify-between items-center cursor-pointer hover:bg-muted/60 transition-colors min-h-[48px] touch-manipulation"
+                  onClick={() => toggleCategory(category)}
+                >
+                  <span className="truncate mr-2 text-sm">{category}</span>
+                  <span className="bg-muted rounded-full px-2 py-1 text-xs font-medium flex-shrink-0">{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
