@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { BarChart3, Lightbulb, ArrowRight, BookOpen, Building2, Heart, Users, Sparkles, Database, CheckCircle2, AlertCircle, Loader2, RefreshCw, FileText, Bot, Brain, Filter } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 
 // Sample categories with icons
-const CATEGORY_ICONS: Record<string, any> = {
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   "Business": <Building2 className="w-5 h-5" />,
   "Education": <BookOpen className="w-5 h-5" />,
   "Health": <Heart className="w-5 h-5" />,
@@ -27,7 +27,6 @@ function getCategoryIcon(category: string) {
 interface CategorySummary {
   name: string;
   count: number;
-  avgSimilarity: number;
   topWords: string[];
   description: string;
 }
@@ -40,6 +39,8 @@ interface InsightResponse {
   connections: string[];
   documentCount?: number;
   sampledCount?: number;
+  insightType?: "summary" | "full";
+  useAllDocuments?: boolean;
 }
 
 interface Embedding {
@@ -48,7 +49,7 @@ interface Embedding {
   metadata: {
     text: string;
     categories: string[];
-    [key: string]: any;
+    [key: string]: string | string[] | number | boolean | undefined;
   };
 }
 
@@ -74,7 +75,7 @@ export default function InsightsPage() {
   
   // New state for agent selection
   const [agentSelectionOpen, setAgentSelectionOpen] = useState(false);
-  const [availableAgents, setAvailableAgents] = useState<Agent[]>([
+  const [availableAgents] = useState<Agent[]>([
     {
       id: "research-agent",
       name: "Research Assistant",
@@ -107,6 +108,7 @@ export default function InsightsPage() {
     }
   ]);
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
+  const [insightType, setInsightType] = useState<"summary" | "full">("full");
 
   // Fetch real categories from Pinecone embeddings
   useEffect(() => {
@@ -115,7 +117,7 @@ export default function InsightsPage() {
       setFetchError(null);
       
       try {
-        const response = await fetch('/api/embeddings');
+        const response = await fetch('/api/embeddings?limit=10000');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch embeddings: ${response.status} ${response.statusText}`);
@@ -188,7 +190,6 @@ export default function InsightsPage() {
           summaries.push({
             name: category,
             count: data.count,
-            avgSimilarity: 0.75, // Placeholder since we don't have real similarity data
             topWords,
             description
           });
@@ -205,7 +206,6 @@ export default function InsightsPage() {
           {
             name: "Uncategorized",
             count: 42,
-            avgSimilarity: 0.64,
             topWords: ["various", "mixed", "general", "diverse", "miscellaneous"],
             description: "Uncategorized documents contain diverse content that doesn't fit neatly into other categories, with mixed terminology and topics."
           }
@@ -219,10 +219,11 @@ export default function InsightsPage() {
   }, []);
 
   // Function to generate insights for a category
-  async function generateInsight(category: CategorySummary) {
+  async function generateInsight(category: CategorySummary, insightType: "summary" | "full" = "full") {
     setSelectedCategory(category);
     setSelectedAgents(["insight-agent"]); // Default selection
     setAgentSelectionOpen(true);
+    setInsightType(insightType);
   }
   
   // New function to proceed with insight generation after agent selection
@@ -246,6 +247,7 @@ export default function InsightsPage() {
           category: selectedCategory.name,
           topWords: selectedCategory.topWords,
           agents: selectedAgents,
+          insightType: insightType,
         }),
       });
       
@@ -278,6 +280,7 @@ export default function InsightsPage() {
         },
         body: JSON.stringify({
           category: selectedCategory.name,
+          insightType: insightType,
           ...insightData
         }),
       });
@@ -290,7 +293,7 @@ export default function InsightsPage() {
       const data = await response.json();
       setSavedInsightId(data.insightId);
       toast.success("Insight saved successfully!", {
-        description: "The insight has been stored in Pinecone and can be retrieved in future searches.",
+        description: `The ${insightType} insight has been saved under "${data.category}" and can be retrieved in future searches.`,
         duration: 5000,
       });
     } catch (error) {
@@ -380,7 +383,7 @@ export default function InsightsPage() {
                     <CardTitle>{category.name}</CardTitle>
                   </div>
                   <CardDescription>
-                    {category.count} documents {category.avgSimilarity > 0 ? `· ${category.avgSimilarity.toFixed(2)} avg. similarity` : ''}
+                    {category.count} documents
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -400,15 +403,40 @@ export default function InsightsPage() {
                   )}
                 </CardContent>
                 <CardFooter>
-                  <Button 
-                    onClick={() => generateInsight(category)}
-                    className="w-full gap-2 group"
-                    disabled={category.count === 0}
-                  >
-                    <Lightbulb className="w-4 h-4" />
-                    Generate Insight
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
+                  {category.name === "physical" ? (
+                    <Button 
+                      onClick={() => generateInsight(category)}
+                      className="w-full gap-2 group"
+                      disabled={category.count === 0}
+                    >
+                      <Lightbulb className="w-4 h-4" />
+                      Generate Full Insight
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                  ) : (
+                    <div className="w-full space-y-2">
+                      <Button 
+                        onClick={() => generateInsight(category, "summary")}
+                        className="w-full gap-2 group"
+                        disabled={category.count === 0}
+                        variant="outline"
+                      >
+                        <Lightbulb className="w-4 h-4" />
+                        Quick Insight
+                        <span className="text-xs text-muted-foreground ml-1">(few docs)</span>
+                      </Button>
+                      <Button 
+                        onClick={() => generateInsight(category, "full")}
+                        className="w-full gap-2 group"
+                        disabled={category.count === 0}
+                      >
+                        <Lightbulb className="w-4 h-4" />
+                        Full Insight
+                        <span className="text-xs text-muted-foreground ml-1">(all docs)</span>
+                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      </Button>
+                    </div>
+                  )}
                 </CardFooter>
               </Card>
             ))}
@@ -473,7 +501,7 @@ export default function InsightsPage() {
               className="gap-2"
             >
               <Filter className="h-4 w-4" />
-              Generate with {selectedAgents.length} Agent{selectedAgents.length !== 1 ? 's' : ''}
+              {`Generate with ${selectedAgents.length} Agent${selectedAgents.length !== 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -488,12 +516,25 @@ export default function InsightsPage() {
               {selectedCategory?.name} Insights
             </DialogTitle>
             <DialogDescription>
-              Gemini-powered insights based on {selectedCategory?.count} documents in this category.
+              {selectedCategory?.name === "physical" 
+                ? `AI-powered physical activity insights based on ALL documents (${selectedCategory?.count} physical activity documents plus all other categories) to find connections between physical activities and other life aspects.`
+                : insightType === "full"
+                  ? `Comprehensive AI insights for ${selectedCategory?.name} based on ALL documents (${selectedCategory?.count} ${selectedCategory?.name} documents plus all other categories) to find cross-category connections and patterns.`
+                  : `Focused AI insights based on ${selectedCategory?.count} documents specifically in the ${selectedCategory?.name} category.`
+              }
             </DialogDescription>
             {insightData?.documentCount && (
               <div className="mt-1 text-xs text-muted-foreground">
                 Analysis based on {insightData.sampledCount} documents {insightData.sampledCount !== insightData.documentCount ? 
                   `(sampled from ${insightData.documentCount} total)` : ''} from Pinecone
+                {(selectedCategory?.name === "physical" || insightData.useAllDocuments) && (
+                  <span className="block text-orange-600 dark:text-orange-400 font-medium">
+                    {selectedCategory?.name === "physical" 
+                      ? "Including documents from all categories to find cross-category insights for physical activities"
+                      : "Including documents from all categories for comprehensive cross-category insights"
+                    }
+                  </span>
+                )}
               </div>
             )}
           </DialogHeader>
@@ -503,10 +544,20 @@ export default function InsightsPage() {
               <div className="py-8 flex flex-col items-center justify-center">
                 <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
                 <p className="text-sm text-muted-foreground">
-                  Generating insights with Gemini from {selectedCategory?.name} documents...
+                  {selectedCategory?.name === "physical" 
+                    ? `Generating physical activity insights using ALL documents to find cross-category patterns...`
+                    : insightType === "full"
+                      ? `Generating comprehensive ${selectedCategory?.name} insights using ALL documents to find cross-category patterns...`
+                      : `Generating focused ${selectedCategory?.name} insights from category-specific documents...`
+                  }
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Retrieving embeddings from Pinecone and analyzing with Google's Gemini model
+                  {selectedCategory?.name === "physical" 
+                    ? "Analyzing documents from all categories to understand how physical activities connect to work, study, routines, and overall well-being"
+                    : insightType === "full"
+                      ? `Analyzing documents from all categories to understand how ${selectedCategory?.name} connects to other life aspects and overall patterns`
+                      : "Retrieving and analyzing category-specific documents with Google's Gemini model"
+                  }
                 </p>
               </div>
             ) : insightError ? (
@@ -587,7 +638,7 @@ export default function InsightsPage() {
               <div>
                 <div className="rounded-lg border p-4 bg-muted/30">
                   <p className="text-sm">
-                    No insights generated yet. Click "Generate Insight" to analyze documents in this category.
+                    No insights generated yet. Click &quot;Generate Insight&quot; to analyze documents in this category.
                   </p>
                 </div>
               </div>

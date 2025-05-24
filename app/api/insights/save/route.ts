@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
       trends = [],
       keyTopics = [],
       recommendations = [],
-      connections = []
+      connections = [],
+      insightType = "full"
     } = await req.json();
     
     if (!category || !summary) {
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     // Create a combined text representation of the insight
     const insightText = `
-      INSIGHT SUMMARY: ${summary}
+      INSIGHT SUMMARY (${insightType} insight for ${category}): ${summary}
       
       KEY TRENDS:
       ${trends.map((trend: string, i: number) => `${i+1}. ${trend}`).join('\n')}
@@ -63,11 +64,13 @@ export async function POST(req: NextRequest) {
     
     const embeddingResult = await embeddings.embedQuery(insightText);
     
-    // Prepare metadata
+    // Prepare metadata with descriptive categories
+    const insightCategoryName = `${category} insights`;
     const metadata = {
       text: insightText,
-      categories: [category, "insight"],
-      insightType: "generated",
+      categories: [insightCategoryName, "insight"],
+      insightType: insightType,
+      originalCategory: category,
       userId,
       timestamp: new Date().toISOString(),
       summary,
@@ -76,8 +79,9 @@ export async function POST(req: NextRequest) {
     // Remove any protocol prefix from the host if it exists
     const cleanHost = host.replace(/^https?:\/\//, '');
     
-    // Create unique ID for the insight
-    const insightId = `insight-${category}-${uuidv4()}`;
+    // Create unique ID for the insight with more descriptive format
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+    const insightId = `insight-${category}-${insightType}-${timestamp}-${uuidv4().slice(0, 8)}`;
     
     // Save to Pinecone
     const upsertResponse = await fetch(
@@ -110,7 +114,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       insightId,
-      message: "Insight saved successfully"
+      category: insightCategoryName,
+      insightType: insightType,
+      message: `Insight saved successfully under "${insightCategoryName}" category`
     });
     
   } catch (error) {
