@@ -42,12 +42,13 @@ export async function GET(req: NextRequest) {
     // Check if the document exists in Pinecone
     const index = pinecone.index(process.env.PINECONE_INDEX || "");
     
-    // Look for any chunks with this document ID
+    // Look for any chunks with this document ID (only for the current user)
     const queryResponse = await index.query({
       vector: Array(1536).fill(0), // Dummy vector for metadata filtering
       topK: 1,
       filter: {
-        documentId: documentId
+        documentId: documentId,
+        userId: userId // Security: only query user's own documents
       },
       includeMetadata: true
     });
@@ -67,16 +68,6 @@ export async function GET(req: NextRequest) {
         });
       }
       
-      // Check if this is the document owner
-      if (metadata.userId !== userId) {
-        return new NextResponse(JSON.stringify({
-          error: "Not authorized to access this document"
-        }), { 
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      
       // Check if processing is complete
       // Ensure totalChunks is a number
       const totalChunks = typeof metadata.totalChunks === 'number' 
@@ -85,12 +76,13 @@ export async function GET(req: NextRequest) {
           ? parseInt(metadata.totalChunks, 10)
           : 0;
       
-      // Query to count how many chunks have been processed
+      // Query to count how many chunks have been processed (only user's own)
       const countResponse = await index.query({
         vector: Array(1536).fill(0),
         topK: totalChunks > 0 ? totalChunks : 100, // Use totalChunks if valid, otherwise default to 100
         filter: {
-          documentId: documentId
+          documentId: documentId,
+          userId: userId // Security: only count user's own document chunks
         },
         includeMetadata: false
       });

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Navbar } from "@/components/Navbar";
+import { Toaster } from "@/components/ui/sonner";
 import type { ReactNode } from 'react';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -51,6 +52,7 @@ export default function RootLayout({
               </div>
             </main>
           </div>
+          <Toaster />
         </body>
       </html>
     </ClerkProvider>

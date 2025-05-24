@@ -12,6 +12,7 @@ import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { Pinecone, type Index, type ScoredPineconeRecord, type RecordMetadata } from "@pinecone-database/pinecone";
+import { auth } from "@clerk/nextjs/server";
 
 interface PineconeMatch {
   id: string;
@@ -33,8 +34,9 @@ const condenseQuestionPrompt = PromptTemplate.fromTemplate(
   CONDENSE_QUESTION_TEMPLATE,
 );
 
-const ANSWER_TEMPLATE = `You are an AI assistant for African business growth. Answer the question based only on the following context and chat history.
-If you don't know the answer, just say you don't know. DO NOT try to make up an answer. Give a detailed answer always.
+const ANSWER_TEMPLATE = `You are Ubumuntu AI, a personal AI assistant that helps with activity tracking, document management, and general assistance. You have access to the user's personal documents, notes, and activity logs. Answer questions based on the provided context and chat history.
+
+If you're asked about activities, be specific about dates, types, and metrics. If you're asked about documents or notes, reference them appropriately. Always be helpful and detailed in your responses.
 
 <context>
   {context}
@@ -53,33 +55,84 @@ async function searchPinecone(
   pineconeIndex: Index,
   embeddings: GoogleGenerativeAIEmbeddings,
   query: string,
-  topK = 5
+  userId: string,
+  topK = 10
 ) {
   // Get the embedding for the query
   const queryEmbedding = await embeddings.embedQuery(query);
 
-  // Search for similar documents in Pinecone
+  // Search for similar documents in Pinecone with user filtering
   const results = await pineconeIndex.query({
     vector: queryEmbedding,
     topK,
-    includeMetadata: true
+    includeMetadata: true,
+    filter: {
+      // Only user's own content - no access to other users' content
+      userId: userId
+    }
   });
 
   // Convert the matches to Document objects
   return results.matches.map((match: ScoredPineconeRecord<RecordMetadata>) => {
     const metadata = match.metadata ?? {};
+    
+    // Extract text content
+    let text = "";
+    if (typeof (metadata as { text?: unknown }).text === "string") {
+      text = (metadata as { text?: unknown }).text as string;
+    }
+    
+    // Create enhanced metadata for different content types
+    let enhancedMetadata: any = {
+      ...metadata,
+      similarity: match.score ?? 0,
+      owner: metadata.userId === userId ? "You" : "Other user"
+    };
+    
+    // Special handling for activities
+    if (metadata.type === "comprehensive_activity") {
+      const activityMeta = metadata as any;
+      enhancedMetadata = {
+        ...enhancedMetadata,
+        contentType: "Activity",
+        activityType: activityMeta.activity || "Unknown",
+        category: activityMeta.category || "Unknown",
+        date: activityMeta.activityDate || "Unknown date",
+        duration: activityMeta.duration || "Unknown duration",
+        title: activityMeta.title || "Activity"
+      };
+    } else if (metadata.type === "note") {
+      enhancedMetadata = {
+        ...enhancedMetadata,
+        contentType: "Note",
+        title: metadata.title || "Note"
+      };
+    } else {
+      enhancedMetadata = {
+        ...enhancedMetadata,
+        contentType: "Document",
+        title: metadata.title || "Document"
+      };
+    }
+    
     return new Document({
-      pageContent: typeof (metadata as { text?: unknown }).text === "string" ? (metadata as { text?: unknown }).text as string : "",
-      metadata: {
-        ...metadata,
-        similarity: match.score ?? 0
-      }
+      pageContent: text,
+      metadata: enhancedMetadata
     });
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
+    // Get user authentication
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: You must be logged in to use this feature" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const messages = body.messages ?? [];
     const previousMessages = messages.slice(0, -1);
@@ -96,7 +149,7 @@ export async function POST(req: NextRequest) {
 
     const embeddings = new GoogleGenerativeAIEmbeddings({
       apiKey: process.env.GOOGLE_API_KEY || "",
-      modelName: "embedding-001",
+      modelName: "text-embedding-004", // Use the same model as activities
     });
 
     const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX || "");
@@ -108,7 +161,7 @@ export async function POST(req: NextRequest) {
 
     const retriever = {
       invoke: async (query: string) => {
-        const documents = await searchPinecone(pineconeIndex, embeddings, query);
+        const documents = await searchPinecone(pineconeIndex, embeddings, query, userId);
         resolveWithDocuments(documents);
         return documents;
       },
@@ -116,7 +169,21 @@ export async function POST(req: NextRequest) {
 
     const retrievalChain = async (query: string) => {
       const docs = await retriever.invoke(query);
-      return docs.map((doc: Document) => doc.pageContent).join('\n\n');
+      return docs.map((doc: Document) => {
+        const meta = doc.metadata;
+        let contextLine = doc.pageContent;
+        
+        // Add context information for different content types
+        if (meta.contentType === "Activity") {
+          contextLine = `[ACTIVITY - ${meta.category}/${meta.activityType} on ${meta.date}]\n${contextLine}`;
+        } else if (meta.contentType === "Note") {
+          contextLine = `[NOTE - ${meta.title}]\n${contextLine}`;
+        } else if (meta.contentType === "Document") {
+          contextLine = `[DOCUMENT - ${meta.title}]\n${contextLine}`;
+        }
+        
+        return contextLine;
+      }).join('\n\n---\n\n');
     };
 
     const answerChain = RunnableSequence.from([
@@ -142,8 +209,13 @@ export async function POST(req: NextRequest) {
     const serializedSources = Buffer.from(
       JSON.stringify(
         documents.map((doc) => ({
-          pageContent: `${doc.pageContent.slice(0, 50)}...`,
-          metadata: doc.metadata,
+          pageContent: `${doc.pageContent.slice(0, 100)}...`,
+          metadata: {
+            contentType: doc.metadata.contentType,
+            title: doc.metadata.title,
+            similarity: doc.metadata.similarity,
+            owner: doc.metadata.owner
+          },
         })),
       ),
     ).toString("base64");

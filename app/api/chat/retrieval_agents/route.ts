@@ -62,12 +62,8 @@ async function searchPineconeViaAPI(query: string, userId: string, topK = 5) {
       topK,
       includeMetadata: true,
       filter: {
-        $or: [
-          // Documents owned by the user
-          { userId },
-          // Public documents from other users
-          { access: "public" }
-        ]
+        // Only user's own content - no access to other users' content
+        userId
       }
     }),
   });
