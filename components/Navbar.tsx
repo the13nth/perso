@@ -87,7 +87,7 @@ export function Navbar() {
         {/* User account section */}
         <div className="col-span-4 sm:col-span-4 lg:col-span-2 flex items-center justify-end gap-2">
           <SignedIn>
-            <UserButton afterSignOutUrl="/" />
+            <UserButton afterSignOutUrl={process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL || "/"} />
           </SignedIn>
           <SignedOut>
             <Link
