@@ -3310,7 +3310,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/three@npm:*":
+"@types/three@npm:*, @types/three@npm:^0.176.0":
   version: 0.176.0
   resolution: "@types/three@npm:0.176.0"
   dependencies:
@@ -3322,18 +3322,6 @@ __metadata:
     fflate: ~0.8.2
     meshoptimizer: ~0.18.1
   checksum: 84821e0c7ddf5cc7e7a17561631f4d6e91fc7377898ce4402f69f24dfce08ea875b527620fb3d2f9772d0440cbbee6da97819cdb3a63f368aac284b8a10c9cbe
-  languageName: node
-  linkType: hard
-
-"@types/three@npm:^0.159.0":
-  version: 0.159.0
-  resolution: "@types/three@npm:0.159.0"
-  dependencies:
-    "@types/stats.js": "*"
-    "@types/webxr": "*"
-    fflate: ~0.6.10
-    meshoptimizer: ~0.18.1
-  checksum: 409495d27e70cce06bdc64e80b22685d1a1f8c327052a78b62166f71dca1f49077f1ecda9ff3440447096c9e5c520e5e158a8605207b74827af3c33c10020883
   languageName: node
   linkType: hard
 
@@ -5221,6 +5209,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"density-clustering@npm:^1.3.0":
+  version: 1.3.0
+  resolution: "density-clustering@npm:1.3.0"
+  checksum: 4f3d42df1cdba0a26f46d9144fc1e246dd810a7f797dfc3b42ae334d7cb512fc80332ff5a595df86119ff9d3a6946a125c646e65af2f5093e657b07a31aaf204
+  languageName: node
+  linkType: hard
+
 "dequal@npm:2.0.3, dequal@npm:^2.0.3":
   version: 2.0.3
   resolution: "dequal@npm:2.0.3"
@@ -6221,7 +6216,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fflate@npm:^0.6.9, fflate@npm:~0.6.10":
+"fflate@npm:^0.6.9":
   version: 0.6.10
   resolution: "fflate@npm:0.6.10"
   checksum: 96384bc4090987fe565c0de8204e3830f538144ec950576fea50aee1b42adbe9fc3ed5e7905dfa7979faaa20979def330dbebce548f3dcafc3e118cc9838526d
@@ -11649,17 +11644,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"three@npm:^0.159.0":
-  version: 0.159.0
-  resolution: "three@npm:0.159.0"
-  checksum: 41f03abf140d7872f64d3f980eb8cf05ef15385914969435a0b60f006f4ed846c6473aaa992e9e770baac4b4e8fdfc288c6276a74b75977cef6a5b9e76f40eb3
-  languageName: node
-  linkType: hard
-
 "three@npm:^0.170.0":
   version: 0.170.0
   resolution: "three@npm:0.170.0"
   checksum: 774d8091e51f784cf4f5a5326e11e2be947ab7cc5f1056de59f13d4682310937615b264d7161357b09bd16e6648719c49e568d5cc595f14637477ecadeec71e2
+  languageName: node
+  linkType: hard
+
+"three@npm:^0.176.0":
+  version: 0.176.0
+  resolution: "three@npm:0.176.0"
+  checksum: 660040290fca89ec3c7a5319b384218c2fb867d5191addb0507012e3beeefb57dfde0823655b675ce2fcf0b2ca4287a7b63b559b7a575a0c62a7b80c99fb142b
   languageName: node
   linkType: hard
 
@@ -12031,7 +12026,7 @@ __metadata:
     "@types/react": ^19.1.5
     "@types/react-dom": ^19.1.5
     "@types/react-plotly.js": ^2.6.3
-    "@types/three": ^0.159.0
+    "@types/three": ^0.176.0
     "@types/uuid": ^10.0.0
     "@typescript-eslint/eslint-plugin": ^8.32.1
     "@typescript-eslint/parser": ^8.32.1
@@ -12039,6 +12034,7 @@ __metadata:
     autoprefixer: 10.4.14
     class-variance-authority: ^0.7.1
     clsx: ^2.1.1
+    density-clustering: ^1.3.0
     eslint: ^9.27.0
     eslint-config-next: ^15.3.2
     langchain: ^0.3.26
@@ -12062,7 +12058,7 @@ __metadata:
     tailwind-merge: ^2.6.0
     tailwindcss: 3.3.3
     tailwindcss-animate: ^1.0.7
-    three: ^0.159.0
+    three: ^0.176.0
     typescript: latest
     use-stick-to-bottom: ^1.0.44
     uuid: ^11.1.0

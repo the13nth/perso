@@ -2,25 +2,34 @@
 
 import { type Message } from "ai";
 import { useChat } from "ai/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "./ui/button";
-import { LoaderCircle, Bot, User, AlertCircle } from "lucide-react";
+import { LoaderCircle, Bot, User, AlertCircle, Save } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
 import { cn } from "@/utils/cn";
 import { IntermediateStep } from "./IntermediateStep";
+import { CategorySelectionModal } from "./CategorySelectionModal";
+import { v4 as uuidv4 } from 'uuid';
+import { useUser } from "@clerk/nextjs";
 
 interface ChatCardProps {
   message: Message;
   aiEmoji?: string;
   sources?: any[];
+  sessionId?: string;
+  onSaveResponse?: (query: string, response: string, sessionId: string) => void;
+  previousUserMessage?: Message;
+  isSaving?: boolean;
+  isSaved?: boolean;
 }
 
-function ChatCard({ message, aiEmoji, sources }: ChatCardProps) {
+function ChatCard({ message, aiEmoji, sources, sessionId, onSaveResponse, previousUserMessage, isSaving, isSaved }: ChatCardProps) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
+  const isAssistant = message.role === "assistant";
   
   if (isSystem) {
     return <IntermediateStep message={message} />;
@@ -43,6 +52,33 @@ function ChatCard({ message, aiEmoji, sources }: ChatCardProps) {
                 {aiEmoji || <Bot className="w-3 h-3" />}
               </div>
               <span className="text-sm font-medium">AI Assistant</span>
+              {isAssistant && onSaveResponse && previousUserMessage && sessionId && (
+                <div className="ml-auto flex items-center gap-2">
+                  {isSaved ? (
+                    <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      Saved to Memory
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => onSaveResponse(previousUserMessage.content, message.content, sessionId)}
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-xs"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <LoaderCircle className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <Save className="w-3 h-3 mr-1" />
+                          Save Response
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
             </>
           )}
         </CardTitle>
@@ -142,9 +178,22 @@ export function AgentChatInterface(props: {
   );
   const [intermediateStepsLoading, setIntermediateStepsLoading] = useState(false);
   const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, any>>({});
+  const [sessionId, setSessionId] = useState(uuidv4());
+  const [savingStates, setSavingStates] = useState<Record<string, boolean>>({});
+  const [savedResponses, setSavedResponses] = useState<Set<string>>(new Set());
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [pendingSaveData, setPendingSaveData] = useState<{
+    query: string;
+    response: string;
+    sessionId: string;
+  } | null>(null);
+  const { user } = useUser();
 
   const chat = useChat({
     api: props.endpoint,
+    body: {
+      sessionId: sessionId,
+    },
     onResponse(response) {
       const sourcesHeader = response.headers.get("x-sources");
       const sources = sourcesHeader
@@ -165,6 +214,79 @@ export function AgentChatInterface(props: {
         description: e.message,
       }),
   });
+
+  useEffect(() => {
+    setSessionId(uuidv4());
+  }, []);
+
+  // Function to trigger save response with category selection
+  const initiateSaveResponse = (query: string, response: string, sessionId: string) => {
+    if (!user?.id) {
+      toast.error("You must be logged in to save responses");
+      return;
+    }
+
+    setPendingSaveData({ query, response, sessionId });
+    setShowCategoryModal(true);
+  };
+
+  // Function to save response to Pinecone with selected categories
+  const saveResponseWithCategories = async (categories: string[]) => {
+    if (!pendingSaveData || !user?.id) {
+      toast.error("Missing data for saving response");
+      return;
+    }
+
+    const { query, response, sessionId } = pendingSaveData;
+    const messageKey = `${query}-${response}`;
+    setSavingStates(prev => ({ ...prev, [messageKey]: true }));
+
+    try {
+      const saveResponse = await fetch('/api/retrieval/save-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          response,
+          sessionId,
+          userId: user.id,
+          categories, // Include selected categories
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json();
+        throw new Error(errorData.message || 'Failed to save response');
+      }
+
+      const data = await saveResponse.json();
+      
+      // Mark this response as saved
+      setSavedResponses(prev => new Set([...Array.from(prev), messageKey]));
+      
+      toast.success("Response saved successfully!", {
+        description: `Saved to ${categories.length} ${categories.length === 1 ? 'category' : 'categories'}: ${categories.join(', ')}`,
+        duration: 4000,
+      });
+    } catch (error) {
+      console.error('Error saving response:', error);
+      toast.error("Failed to save response", {
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        duration: 5000,
+      });
+    } finally {
+      setSavingStates(prev => ({ ...prev, [messageKey]: false }));
+      setShowCategoryModal(false);
+      setPendingSaveData(null);
+    }
+  };
+
+  const handleModalClose = () => {
+    setShowCategoryModal(false);
+    setPendingSaveData(null);
+  };
 
   async function sendMessage(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -189,6 +311,7 @@ export function AgentChatInterface(props: {
       method: "POST",
       body: JSON.stringify({
         messages: messagesWithUserReply,
+        sessionId: sessionId,
         show_intermediate_steps: true,
       }),
     });
@@ -248,70 +371,22 @@ export function AgentChatInterface(props: {
   if (chat.messages.length === 0) {
     return (
       <div className="space-y-4 sm:space-y-6">
-        {/* <Card>
-          <CardHeader className="pb-3 sm:pb-4">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              🤖 AI Agent with Tools
+        {/* Session Info */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-xs text-muted-foreground">Session Active</span>
+              <span className="text-xs text-muted-foreground ml-auto">ID: {sessionId.slice(0, 8)}...</span>
             </CardTitle>
-            <CardDescription className="text-sm">
-              This agent has access to multiple specialized tools and can help solve complex tasks.
-            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                🤝
-                <span className="text-sm leading-relaxed">
-                  This template showcases a{" "}
-                  <a href="https://js.langchain.com/" target="_blank" className="text-primary hover:underline">
-                    LangChain.js
-                  </a>{" "}
-                  agent and the Vercel{" "}
-                  <a href="https://sdk.vercel.ai/docs" target="_blank" className="text-primary hover:underline">
-                    AI SDK
-                  </a>{" "}
-                  in a{" "}
-                  <a href="https://nextjs.org/" target="_blank" className="text-primary hover:underline">
-                    Next.js
-                  </a>{" "}
-                  project.
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                🛠️
-                <span className="text-sm leading-relaxed">
-                  The agent has memory and access to multiple tools including document analysis, weather information, database queries, image generation, code execution, web search, and calculations.
-                </span>
-              </div>
-              <div className="hidden sm:flex items-start gap-2">
-                💻
-                <span className="text-sm leading-relaxed">
-                  You can find the prompt and model logic for this use-case in{" "}
-                  <code className="text-xs bg-muted px-1 py-0.5 rounded">app/api/chat/agents/route.ts</code>.
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                🤖
-                <span className="text-sm leading-relaxed">
-                  The agent is an AI assistant that can use various tools to help solve complex tasks.
-                </span>
-              </div>
-              <div className="hidden sm:flex items-start gap-2">
-                🎨
-                <span className="text-sm leading-relaxed">
-                  The main frontend logic is found in{" "}
-                  <code className="text-xs bg-muted px-1 py-0.5 rounded">app/agents/page.tsx</code>.
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                👇
-                <span className="text-sm leading-relaxed">
-                  Try asking e.g. <code className="text-xs bg-muted px-1 py-0.5 rounded break-all">What's the weather forecast for London this week?</code> or <code className="text-xs bg-muted px-1 py-0.5 rounded break-all">Compare the weather in Tokyo and Sydney</code> below!
-                </span>
-              </div>
-            </div>
+          <CardContent className="pt-0">
+            <p className="text-xs text-muted-foreground">
+              Your conversations in this session can be saved to memory and will be available for future reference. 
+              Click "Save Response" on AI messages to add them to your personal knowledge base.
+            </p>
           </CardContent>
-        </Card> */}
+        </Card>
 
         <ChatInput
           value={chat.input}
@@ -324,6 +399,14 @@ export function AgentChatInterface(props: {
           onToggleIntermediateSteps={setShowIntermediateSteps}
           uploadButton={props.uploadButton}
         />
+
+        {/* Category Selection Modal */}
+        <CategorySelectionModal
+          isOpen={showCategoryModal}
+          onClose={handleModalClose}
+          onSave={saveResponseWithCategories}
+          isLoading={pendingSaveData ? savingStates[`${pendingSaveData.query}-${pendingSaveData.response}`] || false : false}
+        />
       </div>
     );
   }
@@ -331,14 +414,39 @@ export function AgentChatInterface(props: {
   // Show chat messages in cards
   return (
     <div className="space-y-4">
+      {/* Session Info Header */}
+      <Card className="border-dashed">
+        <CardContent className="py-2 px-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span>Session {sessionId.slice(0, 8)}...</span>
+            </div>
+            <span>{chat.messages.filter(m => m.role === 'assistant').length} AI responses</span>
+          </div>
+        </CardContent>
+      </Card>
+      
       {chat.messages.map((message, i) => {
         const sourceKey = (chat.messages.length - 1 - i).toString();
+        const previousUserMessage = chat.messages[i - 1];
+        const messageKey = previousUserMessage && message.role === "assistant" 
+          ? `${previousUserMessage.content}-${message.content}` 
+          : `${message.id}`;
+        
         return (
           <ChatCard
             key={message.id}
             message={message}
             aiEmoji={props.emoji}
             sources={sourcesForMessages[sourceKey]}
+            sessionId={sessionId}
+            onSaveResponse={(query, response, sessionId) => {
+              initiateSaveResponse(query, response, sessionId);
+            }}
+            previousUserMessage={previousUserMessage as Message}
+            isSaving={savingStates[messageKey] || false}
+            isSaved={savedResponses.has(messageKey)}
           />
         );
       })}
@@ -353,6 +461,14 @@ export function AgentChatInterface(props: {
         showIntermediateSteps={showIntermediateSteps}
         onToggleIntermediateSteps={setShowIntermediateSteps}
         uploadButton={props.uploadButton}
+      />
+
+      {/* Category Selection Modal */}
+      <CategorySelectionModal
+        isOpen={showCategoryModal}
+        onClose={handleModalClose}
+        onSave={saveResponseWithCategories}
+        isLoading={pendingSaveData ? savingStates[`${pendingSaveData.query}-${pendingSaveData.response}`] || false : false}
       />
     </div>
   );

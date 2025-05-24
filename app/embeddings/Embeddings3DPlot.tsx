@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as PlotlyJS from 'plotly.js-dist-min';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PCA } from 'ml-pca';
+import { Button } from "@/components/ui/button";
+import { Circle, Blend, Maximize, Minimize } from "lucide-react";
 
 interface NormalizedEmbedding {
   id: string;
@@ -91,8 +95,8 @@ function getCategoryColor(category: string): string {
   
   // Convert to HSL with high saturation and good lightness for visibility
   const h = Math.floor(hue * 360);
-  const s = 75 + (Math.abs(hash) % 20); // 75-95% saturation
-  const l = 50 + (Math.abs(hash) % 20); // 50-70% lightness
+  const s = 80 + (Math.abs(hash) % 15); // 80-95% saturation (increased from 75)
+  const l = 55 + (Math.abs(hash) % 10); // 55-65% lightness (more focused range)
   
   // Convert HSL to hex instead of returning HSL string
   const rgb = hslToRgb(h, s, l);
@@ -251,11 +255,474 @@ function getCategoryBlendedColor(categories: string[]): string {
 
 export default function Embeddings3DPlot({ embeddings }: PlotProps) {
   const plotRef = useRef<HTMLDivElement>(null);
+  const threeRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [visualizationMode, setVisualizationMode] = useState<'dots' | 'blobs'>('dots');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Fullscreen functionality
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (error) {
+      console.error('Fullscreen error:', error);
+    }
+  };
+
+  // Listen for fullscreen changes
   useEffect(() => {
-    if (!plotRef.current || embeddings.length === 0) return;
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Three.js blob visualization
+  useEffect(() => {
+    if (visualizationMode !== 'blobs' || !threeRef.current || embeddings.length === 0) return;
+
+    console.log(`Creating blob visualization with ${embeddings.length} embeddings`);
+
+    // Clear any existing content
+    while (threeRef.current.firstChild) {
+      threeRef.current.removeChild(threeRef.current.firstChild);
+    }
+
+    // Setup Three.js scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d121e); // Match app background
+
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      threeRef.current.clientWidth / threeRef.current.clientHeight,
+      0.1,
+      1000
+    );
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(threeRef.current.clientWidth, threeRef.current.clientHeight);
+    renderer.setClearColor(0x0d121e, 1);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    threeRef.current.appendChild(renderer.domElement);
+
+    // Enhanced lighting setup
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.4); // Softer ambient
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    directionalLight.position.set(10, 10, 5);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 500;
+    scene.add(directionalLight);
+
+    // Add a second light for better illumination
+    const pointLight = new THREE.PointLight(0x8866ff, 0.6, 100);
+    pointLight.position.set(-10, -10, 10);
+    scene.add(pointLight);
+
+    // Prepare data using PCA
+    const vectors = embeddings.map(e => e.vector);
+    if (vectors[0].length < 3) {
+      console.error("Vectors need at least 3 dimensions for PCA");
+      return;
+    }
+
+    const pca = new PCA(vectors);
+    const reducedVectors = pca.predict(vectors, { nComponents: 3 }).to2DArray();
+
+    // Create metaballs/blobs for each embedding
+    const metaballs: Array<{ sphere: THREE.Mesh; position: THREE.Vector3; color: THREE.Color }> = [];
+    const blobGroup = new THREE.Group();
+
+    embeddings.forEach((embedding, i) => {
+      const categories = getNormalizedCategories(embedding);
+      const blendedColor = getCategoryBlendedColor(categories);
+      
+      // Convert hex color to Three.js color
+      const color = new THREE.Color(blendedColor);
+
+      // Position based on PCA coordinates
+      const position = new THREE.Vector3(
+        reducedVectors[i][0] * 2, // Scale for better visibility
+        reducedVectors[i][1] * 2,
+        reducedVectors[i][2] * 2
+      );
+
+      // Create a sphere for each point that will act as a metaball
+      const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+      const material = new THREE.MeshPhongMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.8,
+        shininess: 100
+      });
+
+      const sphere = new THREE.Mesh(geometry, material);
+      sphere.position.copy(position);
+      
+      // Store metadata for interaction
+      sphere.userData = {
+        embedding: embedding,
+        categories: categories,
+        originalColor: blendedColor
+      };
+
+      blobGroup.add(sphere);
+      metaballs.push({ sphere, position, color });
+    });
+
+    scene.add(blobGroup);
+
+    // Add a subtle ground plane to receive shadows
+    const groundGeometry = new THREE.PlaneGeometry(20, 20);
+    const groundMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x0a0f1a, 
+      transparent: true, 
+      opacity: 0.3 
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -3;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Add raycaster for hover interactions
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let hoveredBlob: THREE.Mesh | null = null;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      // Reset previous hover
+      if (hoveredBlob) {
+        const originalMaterial = hoveredBlob.material as THREE.MeshPhongMaterial;
+        originalMaterial.emissive.multiplyScalar(0.5); // Reduce glow
+        hoveredBlob = null;
+      }
+
+      // Check for new hover
+      for (const intersect of intersects) {
+        const object = intersect.object as THREE.Mesh;
+        if (object.userData.category) {
+          hoveredBlob = object;
+          const material = object.material as THREE.MeshPhongMaterial;
+          material.emissive.multiplyScalar(2); // Increase glow on hover
+          renderer.domElement.style.cursor = 'pointer';
+          break;
+        }
+      }
+
+      if (!hoveredBlob) {
+        renderer.domElement.style.cursor = 'grab';
+      }
+    };
+
+    const handleClick = (event: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      for (const intersect of intersects) {
+        const object = intersect.object as THREE.Mesh;
+        if (object.userData.category) {
+          console.log(`Clicked on category: ${object.userData.category}`);
+          console.log(`Contains ${object.userData.itemCount} embeddings`);
+          // You could add more interaction logic here
+          break;
+        }
+      }
+    };
+
+    renderer.domElement.addEventListener('mousemove', handleMouseMove);
+    renderer.domElement.addEventListener('click', handleClick);
+
+    // Create merged blobs based on categories instead of proximity
+    const createCategoryBlobs = () => {
+      const categoryGroups: { [key: string]: Array<{ 
+        metaball: { sphere: THREE.Mesh; position: THREE.Vector3; color: THREE.Color }, 
+        embedding: any, 
+        index: number 
+      }> } = {};
+
+      // Group embeddings by their primary category
+      metaballs.forEach((metaball, i) => {
+        const embedding = embeddings[i];
+        const categories = getNormalizedCategories(embedding);
+        const primaryCategory = categories[0] || 'uncategorized'; // Use first category as primary
+        
+        if (!categoryGroups[primaryCategory]) {
+          categoryGroups[primaryCategory] = [];
+        }
+        
+        categoryGroups[primaryCategory].push({
+          metaball,
+          embedding,
+          index: i
+        });
+      });
+
+      const categoryBlobsGroup = new THREE.Group();
+
+      // Create a blob for each category
+      Object.entries(categoryGroups).forEach(([category, items]) => {
+        if (items.length === 0) return;
+
+        // Calculate average position for this category
+        const avgPosition = new THREE.Vector3(0, 0, 0);
+        items.forEach(item => {
+          avgPosition.add(item.metaball.position);
+        });
+        avgPosition.divideScalar(items.length);
+
+        // Get the category color
+        const categoryColor = getCategoryColor(category);
+        const color = new THREE.Color(categoryColor);
+
+        // Create blob size based on number of items in category
+        const blobSize = Math.max(0.4, Math.min(0.3 + items.length * 0.15, 1.2));
+        
+        // Create more organic blob geometry
+        const geometry = new THREE.SphereGeometry(blobSize, 16, 16);
+        
+        // Add organic deformation
+        const vertices = geometry.attributes.position;
+        for (let v = 0; v < vertices.count; v++) {
+          const vertex = new THREE.Vector3();
+          vertex.fromBufferAttribute(vertices, v);
+          
+          // Add more pronounced organic deformation
+          const noiseX = Math.sin(vertex.x * 8) * Math.cos(vertex.y * 6);
+          const noiseY = Math.cos(vertex.y * 8) * Math.sin(vertex.z * 6);
+          const noiseZ = Math.sin(vertex.z * 8) * Math.cos(vertex.x * 6);
+          const combinedNoise = (noiseX + noiseY + noiseZ) / 3;
+          
+          vertex.multiplyScalar(1 + combinedNoise * 0.2);
+          
+          vertices.setXYZ(v, vertex.x, vertex.y, vertex.z);
+        }
+        vertices.needsUpdate = true;
+        geometry.computeVertexNormals();
+
+        // Create material with category-specific color
+        const material = new THREE.MeshPhongMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.85,
+          shininess: 120,
+          emissive: color.clone().multiplyScalar(0.08), // Slight glow
+          specular: new THREE.Color(0x222222)
+        });
+
+        const categoryBlob = new THREE.Mesh(geometry, material);
+        categoryBlob.position.copy(avgPosition);
+        categoryBlob.castShadow = true;
+        categoryBlob.receiveShadow = true;
+        
+        // Store category metadata
+        categoryBlob.userData = {
+          category: category,
+          itemCount: items.length,
+          embeddings: items.map(item => item.embedding)
+        };
+
+        categoryBlobsGroup.add(categoryBlob);
+
+        // Hide individual spheres that belong to this category
+        items.forEach(item => {
+          item.metaball.sphere.visible = false;
+        });
+
+        console.log(`Created blob for category '${category}' with ${items.length} items at position:`, avgPosition);
+      });
+
+      scene.add(categoryBlobsGroup);
+      
+      // Category labels could be added here in the future if needed
+    };
+
+    createCategoryBlobs();
+
+    // Add floating particles for ambient effect
+    const createParticles = () => {
+      const particleGeometry = new THREE.BufferGeometry();
+      const particleCount = 100;
+      const positions = new Float32Array(particleCount * 3);
+
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 15;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 15;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 15;
+      }
+
+      particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      const particleMaterial = new THREE.PointsMaterial({
+        color: 0x888888,
+        size: 0.02,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending
+      });
+
+      const particles = new THREE.Points(particleGeometry, particleMaterial);
+      scene.add(particles);
+      return particles;
+    };
+
+    const particles = createParticles();
+
+    // Position camera with better initial view
+    camera.position.set(8, 6, 8);
+    camera.lookAt(0, 0, 0);
+
+    // Add OrbitControls for proper 3D navigation
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; // Smooth camera movement
+    controls.dampingFactor = 0.05;
+    controls.screenSpacePanning = false;
+    controls.minDistance = 3;
+    controls.maxDistance = 20;
+    controls.maxPolarAngle = Math.PI; // Allow full rotation
+
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+
+      // Update controls for smooth damping
+      controls.update();
+
+      const time = Date.now() * 0.0005; // Reduced from 0.001 for slower animations
+
+      // Gentle rotation of the blob group
+      blobGroup.rotation.y += 0.0015; // Reduced from 0.003 for slower rotation
+      
+      // Add sophisticated floating animation to individual blobs
+      scene.traverse((child) => {
+        if (child.userData.category) {
+          // Each blob moves in a unique pattern based on its position
+          const offset = child.position.x + child.position.z;
+          child.position.y += Math.sin(time * 1.5 + offset) * 0.001; // Reduced multipliers for slower movement
+          
+          // Subtle scale pulsing for "breathing" effect
+          const scale = 1 + Math.sin(time * 2 + offset * 2) * 0.03; // Reduced from 0.05 for subtler breathing
+          child.scale.set(scale, scale, scale);
+          
+          // Rotate each blob slightly for more organic movement
+          child.rotation.x += 0.0005; // Reduced from 0.001
+          child.rotation.z += 0.001; // Reduced from 0.002
+        }
+      });
+
+      // Animate particles
+      if (particles) {
+        particles.rotation.y += 0.0003; // Reduced from 0.0005
+        particles.rotation.x += 0.0001; // Reduced from 0.0002
+        
+        // Make particles slowly drift
+        const positions = particles.geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+          const y = positions.getY(i);
+          positions.setY(i, y + Math.sin(time + i * 0.1) * 0.0005); // Reduced from 0.001
+        }
+        positions.needsUpdate = true;
+      }
+
+      // Dynamic lighting color shift (slower)
+      pointLight.color.setHSL(
+        (Math.sin(time * 0.3) + 1) * 0.1 + 0.6, // Reduced from 0.5 for slower color changes
+        0.7, // Saturation
+        0.5  // Lightness
+      );
+
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // Handle resize
+    const handleResize = () => {
+      if (threeRef.current) {
+        camera.aspect = threeRef.current.clientWidth / threeRef.current.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(threeRef.current.clientWidth, threeRef.current.clientHeight);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Trigger resize when entering/exiting fullscreen
+    const fullscreenObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    
+    if (threeRef.current) {
+      fullscreenObserver.observe(threeRef.current);
+    }
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      fullscreenObserver.disconnect();
+      
+      if (threeRef.current) {
+        renderer.domElement.removeEventListener('mousemove', handleMouseMove);
+        renderer.domElement.removeEventListener('click', handleClick);
+        while (threeRef.current.firstChild) {
+          threeRef.current.removeChild(threeRef.current.firstChild);
+        }
+      }
+      
+      // Dispose of geometries and materials to prevent memory leaks
+      scene.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(material => material.dispose());
+            } else {
+              child.material.dispose();
+            }
+          }
+        }
+      });
+      
+      controls.dispose();
+      renderer.dispose();
+    };
+  }, [embeddings, visualizationMode]);
+
+  // Original Plotly visualization (existing code)
+  useEffect(() => {
+    if (visualizationMode !== 'dots' || !plotRef.current || embeddings.length === 0) return;
 
     console.log(`Processing ${embeddings.length} embeddings for 3D plot`);
+
+    // Clear any existing plot first
+    if (plotRef.current) {
+      PlotlyJS.purge(plotRef.current);
+    }
 
     // Extract vectors for PCA
     const vectors = embeddings.map(e => e.vector);
@@ -326,15 +793,12 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         mode: 'markers' as const,
         name: 'Embeddings',
         marker: {
-          size: 8, // Slightly larger for better visibility
+          size: 6, // Increased from 8 for better visibility
           color: rgbColors, // Use RGB format instead of hex
           colorscale: undefined, // Disable colorscale to use individual colors
           showscale: false, // Don't show color scale
-          opacity: 0.9,
-          line: {
-            color: 'rgba(255,255,255,0.3)',
-            width: 2
-          }
+          opacity: 1.0, // Increased from 0.9 for full opacity
+          
         },
         hovertemplate: '%{text}<extra></extra>',
         showlegend: false
@@ -416,14 +880,86 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       if (plotRef.current) {
         PlotlyJS.purge(plotRef.current);
       }
-      };
-  }, [embeddings]);
+    };
+  }, [embeddings, visualizationMode]);
+
+  // Handle Plotly resize for fullscreen
+  useEffect(() => {
+    if (visualizationMode === 'dots' && plotRef.current) {
+      // Trigger Plotly resize when fullscreen changes
+      setTimeout(() => {
+        if (plotRef.current) {
+          PlotlyJS.Plots.resize(plotRef.current);
+        }
+      }, 100);
+    }
+  }, [isFullscreen, visualizationMode]);
+
+  // Cleanup effect for when switching away from dots view
+  useEffect(() => {
+    return () => {
+      if (visualizationMode !== 'dots' && plotRef.current) {
+        PlotlyJS.purge(plotRef.current);
+      }
+    };
+  }, [visualizationMode]);
 
   return (
-    <div 
-      ref={plotRef} 
-      className="w-full h-[300px] sm:h-[400px] lg:h-[500px] border border-muted-foreground/20 rounded-md mb-4 sm:mb-6 lg:mb-8 touch-manipulation"
-      style={{ minHeight: '300px' }}
-    />
+    <div ref={containerRef} className={`space-y-4 ${isFullscreen ? 'fixed inset-0 z-50 bg-background p-4' : ''}`}>
+      {/* Visualization Mode Toggle */}
+      <div className="flex items-center gap-2 justify-center">
+        <Button
+          onClick={() => setVisualizationMode('dots')}
+          variant={visualizationMode === 'dots' ? 'default' : 'outline'}
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <Circle className="w-4 h-4" />
+          Dots View
+        </Button>
+        <Button
+          onClick={() => setVisualizationMode('blobs')}
+          variant={visualizationMode === 'blobs' ? 'default' : 'outline'}
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <Blend className="w-4 h-4" />
+          Blobs View
+        </Button>
+        
+        {/* Fullscreen Toggle - especially useful on mobile */}
+        <Button
+          onClick={toggleFullscreen}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2 md:hidden" // Show only on mobile
+        >
+          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          {isFullscreen ? 'Exit' : 'Fullscreen'}
+        </Button>
+      </div>
+
+      {/* Plotly Dots Visualization */}
+      {visualizationMode === 'dots' && (
+        <div 
+          ref={plotRef} 
+          className={`w-full border border-muted-foreground/20 rounded-md mb-4 sm:mb-6 lg:mb-8 touch-manipulation ${
+            isFullscreen ? 'h-[calc(100vh-120px)]' : 'h-[300px] sm:h-[400px] lg:h-[500px]'
+          }`}
+          style={{ minHeight: isFullscreen ? 'calc(100vh - 120px)' : '300px' }}
+        />
+      )}
+
+      {/* Three.js Blobs Visualization */}
+      {visualizationMode === 'blobs' && (
+        <div 
+          ref={threeRef} 
+          className={`w-full border border-muted-foreground/20 rounded-md mb-4 sm:mb-6 lg:mb-8 touch-manipulation ${
+            isFullscreen ? 'h-[calc(100vh-120px)]' : 'h-[300px] sm:h-[400px] lg:h-[500px]'
+          }`}
+          style={{ minHeight: isFullscreen ? 'calc(100vh - 120px)' : '300px' }}
+        />
+      )}
+    </div>
   );
 } 
