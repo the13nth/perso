@@ -29,6 +29,8 @@ export function UploadComprehensiveActivityForm({
     return today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
   });
   const [duration, setDuration] = useState("");
+  const [customHours, setCustomHours] = useState("");
+  const [customMinutes, setCustomMinutes] = useState("");
   const [howYouFeel, setHowYouFeel] = useState("good");
   const [productivity, setProductivity] = useState("medium");
   const [goalSet, setGoalSet] = useState("");
@@ -231,6 +233,40 @@ export function UploadComprehensiveActivityForm({
     { value: "very_poor", label: "Very Poor", icon: "😢" },
   ];
 
+  // Helper function to format duration
+  const getFormattedDuration = () => {
+    if (duration === "custom") {
+      const hours = parseInt(customHours) || 0;
+      const minutes = parseInt(customMinutes) || 0;
+      
+      if (hours === 0 && minutes === 0) {
+        return "Custom duration (not specified)";
+      }
+      
+      let formatted = "";
+      if (hours > 0) {
+        formatted += `${hours} hour${hours === 1 ? '' : 's'}`;
+      }
+      if (minutes > 0) {
+        if (formatted) formatted += " ";
+        formatted += `${minutes} minute${minutes === 1 ? '' : 's'}`;
+      }
+      return formatted;
+    }
+    return duration;
+  };
+
+  // Helper function to validate duration
+  const isDurationValid = () => {
+    if (!duration) return false;
+    if (duration === "custom") {
+      const hours = parseInt(customHours) || 0;
+      const minutes = parseInt(customMinutes) || 0;
+      return hours > 0 || minutes > 0;
+    }
+    return true;
+  };
+
   const saveActivity = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
@@ -238,7 +274,7 @@ export function UploadComprehensiveActivityForm({
     let activityData: any = {
       category: activityCategory,
       activityDate: activityDate,
-      duration: duration,
+      duration: getFormattedDuration(),
       feeling: howYouFeel,
       productivity: productivity,
       goalSet: goalSet,
@@ -264,7 +300,7 @@ export function UploadComprehensiveActivityForm({
 Physical Activity: ${physicalActivities.find(a => a.value === selectedPhysicalActivity)?.label}
 Category: Physical, ${selectedPhysicalActivity}
 Date: ${activityDate}
-Duration: ${duration || 'Not specified'}
+Duration: ${getFormattedDuration() || 'Not specified'}
 ${distance ? `Distance: ${distance} ${distanceUnit}` : ''}
 Intensity: ${intensityLevels.find(i => i.value === intensity)?.label}
 How I felt: ${feelingOptions.find(f => f.value === howYouFeel)?.label}
@@ -291,7 +327,7 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
 Work Activity: ${workActivities.find(a => a.value === selectedWorkActivity)?.label}
 Category: Work, ${selectedWorkActivity}
 Date: ${activityDate}
-Duration: ${duration || 'Not specified'}
+Duration: ${getFormattedDuration() || 'Not specified'}
 ${projectName ? `Project: ${projectName}` : ''}
 ${collaborators ? `Collaborators: ${collaborators}` : ''}
 ${workTools ? `Tools Used: ${workTools}` : ''}
@@ -320,7 +356,7 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
 Study Activity: ${studyActivities.find(a => a.value === selectedStudyActivity)?.label}
 Category: Study, ${selectedStudyActivity}
 Date: ${activityDate}
-Duration: ${duration || 'Not specified'}
+Duration: ${getFormattedDuration() || 'Not specified'}
 ${subject ? `Subject: ${subject}` : ''}
 ${studyMaterial ? `Study Material: ${studyMaterial}` : ''}
 Comprehension Level: ${comprehensionLevels.find(c => c.value === comprehensionLevel)?.label}
@@ -348,7 +384,7 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
 Routine Activity: ${routineActivities.find(a => a.value === selectedRoutineActivity)?.label}
 Category: Routine, ${selectedRoutineActivity}
 Date: ${activityDate}
-Duration: ${duration || 'Not specified'}
+Duration: ${getFormattedDuration() || 'Not specified'}
 ${routineSteps ? `Routine Steps: ${routineSteps}` : ''}
 Consistency: ${consistencyLevels.find(c => c.value === consistency)?.label}
 Mood Before: ${moodOptions.find(m => m.value === moodBefore)?.label}
@@ -418,6 +454,8 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
       return today.toISOString().split('T')[0];
     });
     setDuration("");
+    setCustomHours("");
+    setCustomMinutes("");
     setHowYouFeel("good");
     setProductivity("medium");
     setGoalSet("");
@@ -575,6 +613,49 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
                 ))}
               </SelectContent>
             </Select>
+            {duration === "custom" && (
+              <div className="mt-3 p-3 bg-muted/30 rounded-lg border">
+                <Label className="text-xs font-medium text-muted-foreground mb-2 block">
+                  Custom Duration
+                </Label>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="23"
+                      placeholder="0"
+                      value={customHours}
+                      onChange={(e) => setCustomHours(e.target.value)}
+                      className="w-16 h-9 text-sm text-center"
+                      disabled={isLoading}
+                    />
+                    <span className="text-xs text-muted-foreground">hrs</span>
+                  </div>
+                  <span className="text-muted-foreground">:</span>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="59"
+                      placeholder="0"
+                      value={customMinutes}
+                      onChange={(e) => setCustomMinutes(e.target.value)}
+                      className="w-16 h-9 text-sm text-center"
+                      disabled={isLoading}
+                    />
+                    <span className="text-xs text-muted-foreground">min</span>
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {customHours || customMinutes ? (
+                    `Total: ${customHours || '0'} hour${(customHours || '0') === '1' ? '' : 's'} ${customMinutes || '0'} minute${(customMinutes || '0') === '1' ? '' : 's'}`
+                  ) : (
+                    'Enter hours and/or minutes'
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -976,7 +1057,7 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
           )}
           <Button 
             type="submit" 
-            disabled={isLoading || !duration || !activityDate}
+            disabled={isLoading || !isDurationValid() || !activityDate}
             className="w-full sm:flex-1 h-11 text-sm font-medium"
           >
             {isLoading ? "Saving..." : "Save Activity"}
