@@ -1,35 +1,8 @@
 [build]
   command = "yarn build --no-lint"
-  publish = ".next"
-
-[functions]
-  external_node_modules = ["styled-jsx", "next/dist/compiled/find-up", "pdf-parse"]
-  included_files = ["node_modules/styled-jsx/**/*", "node_modules/next/dist/compiled/find-up/**/*", "node_modules/pdf-parse/**/*"]
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# Explicitly configure the PDF extraction function
-[[edge_functions]]
-  path = "/api/retrieval/extract"
-  function = "retrieve-extract"
-
-# Redirect configuration for SPA behavior
-[[redirects]]
-  from = "/sign-in/*"
-  to = "/sign-in/index.html"
-  status = 200
-
-[[redirects]]
-  from = "/sign-up/*"
-  to = "/sign-up/index.html"
-  status = 200
-
-# Catch-all redirect for client-side routing (should be last)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
 
 # Environment variables that must be set on Netlify
 [template.environment]
@@ -38,6 +11,4 @@
   PINECONE_INDEX = "Name of your Pinecone index"
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "Your Clerk publishable key"
   CLERK_SECRET_KEY = "Your Clerk secret key"
-  NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL = "Your deployed Netlify app URL (e.g., https://your-app.netlify.app)"
-  NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
-  NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up" 
+  NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL = "Your deployed Netlify app URL (e.g., https://your-app.netlify.app)" 
