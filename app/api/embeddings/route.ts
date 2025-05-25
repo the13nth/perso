@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
 
     // Parse query parameters
     const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get('limit') || '100', 10);
     const category = url.searchParams.get('category');
 
     // Remove any protocol prefix from the host if it exists
@@ -62,87 +61,139 @@ export async function GET(req: NextRequest) {
       filter.categories = { $in: [category] };
     }
     
-    // Query the index directly using the host
-    const queryResponse = await fetch(
-      `https://${cleanHost}/query`,
-      {
-        method: 'POST',
-        headers: {
-          'Api-Key': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vector: new Array(768).fill(0), // Match index dimension of 768
-          topK: limit,
-          includeMetadata: true,
-          includeValues: true,
-          filter
-        }),
-      }
-    );
-
-    if (!queryResponse.ok) {
-      const errorData = await queryResponse.text();
-      console.error("Pinecone query failed:", errorData);
-      return NextResponse.json(
-        { error: "Failed to query vectors" },
-        { status: queryResponse.status }
+    // Fetch ALL embeddings using batched approach to avoid Pinecone limits
+    const allEmbeddings: Embedding[] = [];
+    const batchSize = 1000; // Large batch size for efficiency
+    let hasMore = true;
+    let lastId = '';
+    let totalFetched = 0;
+    const maxEmbeddings = 50000; // Safety limit to prevent infinite loops
+    
+    console.log(`Starting to fetch all embeddings for user ${userId}...`);
+    
+    while (hasMore && totalFetched < maxEmbeddings) {
+      console.log(`Fetching batch starting from lastId: ${lastId.substring(0, 20)}...`);
+      
+      // Query the index directly using the host
+      const queryResponse = await fetch(
+        `https://${cleanHost}/query`,
+        {
+          method: 'POST',
+          headers: {
+            'Api-Key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            vector: new Array(768).fill(0), // Match index dimension of 768
+            topK: batchSize,
+            includeMetadata: true,
+            includeValues: true,
+            filter
+          }),
+        }
       );
-    }
 
-    const data = await queryResponse.json();
+      if (!queryResponse.ok) {
+        const errorData = await queryResponse.text();
+        console.error("Pinecone query failed:", errorData);
+        return NextResponse.json(
+          { error: "Failed to query vectors" },
+          { status: queryResponse.status }
+        );
+      }
 
-    // Extract vectors and metadata, ensuring proper category format
-    const embeddings: Embedding[] = (data.matches || []).map((match: any) => {
-      // Normalize the metadata to handle categories consistently
-      const rawMetadata: EmbeddingMetadata = { ...match.metadata };
-      let normalizedCategories: string[] = [];
+      const data = await queryResponse.json();
+      const matches = data.matches || [];
       
-      // Handle different category formats
-      if (!rawMetadata.categories) {
-        // Check if we have a single category field
-        if (rawMetadata.category) {
-          normalizedCategories = [rawMetadata.category];
-        } else if (rawMetadata.docType) {
-          normalizedCategories = [rawMetadata.docType];
-        } else {
-          normalizedCategories = ["Uncategorized"];
-        }
-      } else if (typeof rawMetadata.categories === 'string') {
-        // If categories is a string, try to parse it as JSON first
-        try {
-          const parsed = JSON.parse(rawMetadata.categories);
-          normalizedCategories = Array.isArray(parsed) ? parsed : [rawMetadata.categories];
-        } catch {
-          // If parsing fails, treat it as a single category
-          normalizedCategories = [rawMetadata.categories];
-        }
-      } else if (Array.isArray(rawMetadata.categories)) {
-        normalizedCategories = rawMetadata.categories;
+      if (matches.length === 0) {
+        console.log("No more matches found, ending batch fetch");
+        hasMore = false;
+        break;
       }
       
-      // Create a normalized metadata object with categories as string[]
-      const metadata: NormalizedEmbeddingMetadata = {
-        ...rawMetadata,
-        categories: normalizedCategories
-      };
+      // Filter out any duplicates based on lastId to handle pagination overlap
+      const newMatches = lastId 
+        ? matches.filter((match: any) => match.id > lastId)
+        : matches;
       
-      return {
-      id: match.id,
-      vector: match.values,
-        metadata
-      };
-    });
+      console.log(`Got ${matches.length} matches, ${newMatches.length} new ones`);
+      
+      // Process new matches and add to results
+      newMatches.forEach((match: any) => {
+        // Normalize the metadata to handle categories consistently
+        const rawMetadata: EmbeddingMetadata = { ...match.metadata };
+        let normalizedCategories: string[] = [];
+        
+        // Handle different category formats
+        if (!rawMetadata.categories) {
+          // Check if we have a single category field
+          if (rawMetadata.category) {
+            normalizedCategories = [rawMetadata.category];
+          } else if (rawMetadata.docType) {
+            normalizedCategories = [rawMetadata.docType];
+          } else {
+            normalizedCategories = ["Uncategorized"];
+          }
+        } else if (typeof rawMetadata.categories === 'string') {
+          // If categories is a string, try to parse it as JSON first
+          try {
+            const parsed = JSON.parse(rawMetadata.categories);
+            normalizedCategories = Array.isArray(parsed) ? parsed : [rawMetadata.categories];
+          } catch {
+            // If parsing fails, treat it as a single category
+            normalizedCategories = [rawMetadata.categories];
+          }
+        } else if (Array.isArray(rawMetadata.categories)) {
+          normalizedCategories = rawMetadata.categories;
+        }
+        
+        // Create a normalized metadata object with categories as string[]
+        const metadata: NormalizedEmbeddingMetadata = {
+          ...rawMetadata,
+          categories: normalizedCategories
+        };
+        
+        allEmbeddings.push({
+          id: match.id,
+          vector: match.values,
+          metadata
+        });
+      });
+      
+      totalFetched += newMatches.length;
+      
+      // Check if we got fewer results than requested (indicates end of data)
+      if (matches.length < batchSize) {
+        console.log(`Got ${matches.length} < ${batchSize}, assuming end of data`);
+        hasMore = false;
+      } else if (newMatches.length === 0) {
+        console.log("No new matches after filtering, ending");
+        hasMore = false;
+      } else {
+        // Update lastId for next iteration
+        lastId = matches[matches.length - 1].id || '';
+        console.log(`Next batch will start after: ${lastId.substring(0, 20)}...`);
+      }
+    }
+    
+    console.log(`Finished fetching embeddings. Total: ${allEmbeddings.length}`);
+    
+    // Safety check
+    if (totalFetched >= maxEmbeddings) {
+      console.warn(`Hit maximum embedding limit of ${maxEmbeddings}, there may be more embeddings not fetched`);
+    }
 
     // Extract all unique categories for filtering
     const allCategories = new Set<string>();
-    embeddings.forEach((emb: Embedding) => {
+    allEmbeddings.forEach((emb: Embedding) => {
       emb.metadata.categories.forEach((cat: string) => allCategories.add(cat));
     });
 
     return NextResponse.json({ 
-      embeddings,
-      categories: Array.from(allCategories).sort()
+      embeddings: allEmbeddings,
+      categories: Array.from(allCategories).sort(),
+      totalFetched: allEmbeddings.length,
+      batchesUsed: Math.ceil(totalFetched / batchSize)
     });
   } catch (error) {
     console.error("Error fetching embeddings:", error);

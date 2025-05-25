@@ -233,228 +233,347 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   }, [normalizedEmbeddings, search, selectedCategories]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full h-full bg-background text-foreground overflow-auto">
-      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Embeddings Dashboard</h1>
-      
-      {/* Search & Filter Controls */}
-      <div className="mb-4 sm:mb-6 space-y-4">
-        <div>
-          <input
-            type="text"
-            placeholder="Search text..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="border rounded-md px-3 py-2.5 sm:py-2 w-full max-w-md text-sm bg-background border-input focus:ring-2 focus:ring-ring focus:border-transparent outline-none min-h-[44px] sm:min-h-[40px]"
-          />
-        </div>
+    <div className="w-full min-h-screen p-4 sm:p-6 bg-background">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         
-        {allCategories.length > 0 && (
-          <div>
-            <h3 className="text-sm font-medium mb-2 sm:mb-3">Filter by Category:</h3>
-            <div className="flex flex-wrap gap-2 mb-2 sm:mb-3">
-              {allCategories.map(category => (
-                <button
-                  key={category}
-                  onClick={() => toggleCategory(category)}
-                  className={`px-3 py-2 text-sm rounded-md transition-colors min-h-[40px] touch-manipulation ${
-                    selectedCategories.includes(category)
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-            <div className="text-xs sm:text-sm text-muted-foreground italic">
-              {allCategories.length} categories found. Click to toggle selection.
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Category Distribution */}
-      {categoryStats.length > 0 && (
-        <div className="mb-4 sm:mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => setCategoryDistributionExpanded(!categoryDistributionExpanded)}
-            className="w-full justify-between p-3 h-auto"
-          >
-            <h3 className="text-sm font-medium">Category Distribution ({categoryStats.length} categories)</h3>
-            {categoryDistributionExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
-          
-          {categoryDistributionExpanded && (
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-              {categoryStats.map(([category, count]) => (
-                <div 
-                  key={category}
-                  className="bg-muted/40 rounded-md p-3 text-sm flex justify-between items-center cursor-pointer hover:bg-muted/60 transition-colors min-h-[48px] touch-manipulation"
-                  onClick={() => toggleCategory(category)}
-                >
-                  <span className="truncate mr-2 text-sm">{category}</span>
-                  <span className="bg-muted rounded-full px-2 py-1 text-xs font-medium flex-shrink-0">{count}</span>
+        {/* Summary Statistics */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg sm:text-xl">Embeddings Overview</CardTitle>
+            <CardDescription>
+              Complete statistics for your embedding collection
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="text-center p-3 bg-muted/30 rounded-lg">
+                <div className="text-2xl font-bold text-primary">{embeddings.length}</div>
+                <div className="text-sm text-muted-foreground">Total Embeddings</div>
+              </div>
+              <div className="text-center p-3 bg-muted/30 rounded-lg">
+                <div className="text-2xl font-bold text-blue-500">{allCategories.length}</div>
+                <div className="text-sm text-muted-foreground">Categories</div>
+              </div>
+              <div className="text-center p-3 bg-muted/30 rounded-lg">
+                <div className="text-2xl font-bold text-green-500">
+                  {embeddings.length > 0 ? embeddings[0].vector.length : 0}
                 </div>
-              ))}
+                <div className="text-sm text-muted-foreground">Vector Dimensions</div>
+              </div>
+              <div className="text-center p-3 bg-muted/30 rounded-lg">
+                <div className="text-2xl font-bold text-orange-500">
+                  {Math.round(embeddings.reduce((sum, emb) => sum + (emb.metadata.text || "").length, 0) / embeddings.length) || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Avg Text Length</div>
+              </div>
+              <div className="text-center p-3 bg-muted/30 rounded-lg">
+                <div className="text-2xl font-bold text-purple-500">
+                  {embeddings.length > 0 
+                    ? Math.sqrt(embeddings.reduce((sum, emb) => {
+                        const norm = Math.sqrt(emb.vector.reduce((s, v) => s + v * v, 0));
+                        return sum + norm;
+                      }, 0) / embeddings.length).toFixed(3)
+                    : '0'
+                  }
+                </div>
+                <div className="text-sm text-muted-foreground">Avg Vector Norm</div>
+              </div>
+              <div className="text-center p-3 bg-muted/30 rounded-lg">
+                <div className="text-2xl font-bold text-red-500">{filtered.length}</div>
+                <div className="text-sm text-muted-foreground">Filtered Results</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Search & Filter Controls */}
+        <div className="mb-4 sm:mb-6 space-y-4">
+          <div>
+            <input
+              type="text"
+              placeholder="Search text..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="border rounded-md px-3 py-2.5 sm:py-2 w-full max-w-md text-sm bg-background border-input focus:ring-2 focus:ring-ring focus:border-transparent outline-none min-h-[44px] sm:min-h-[40px]"
+            />
+          </div>
+          
+          {allCategories.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium mb-2 sm:mb-3">Filter by Category:</h3>
+              <div className="flex flex-wrap gap-2 mb-2 sm:mb-3">
+                {allCategories.map(category => (
+                  <button
+                    key={category}
+                    onClick={() => toggleCategory(category)}
+                    className={`px-3 py-2 text-sm rounded-md transition-colors min-h-[40px] touch-manipulation ${
+                      selectedCategories.includes(category)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+              <div className="text-xs sm:text-sm text-muted-foreground italic">
+                {allCategories.length} categories found. Click to toggle selection.
+              </div>
             </div>
           )}
         </div>
-      )}
 
-      {/* Tabs for different views */}
-      <Tabs defaultValue="visualization" className="mt-4 sm:mt-6">
-        <TabsList className="grid w-full grid-cols-3 sticky top-0 z-50 bg-background h-11 sm:h-12">
-          <TabsTrigger value="visualization" className="text-sm sm:text-base">3D Visualization</TabsTrigger>
-          <TabsTrigger value="table" className="text-sm sm:text-base">Table View</TabsTrigger>
-          <TabsTrigger value="analysis" className="text-sm sm:text-base">Analysis</TabsTrigger>
-        </TabsList>
-        
-        <div className="mt-4 sm:mt-6">
-          <TabsContent value="visualization" className="space-y-4 sm:space-y-6">
-            {normalizedEmbeddings.length > 0 && (
-              <div className="mb-6 sm:mb-8">
-                <Embeddings3DPlot embeddings={normalizedEmbeddings} />
+        {/* Category Distribution */}
+        {categoryStats.length > 0 && (
+          <div className="mb-4 sm:mb-6">
+            <Button
+              variant="ghost"
+              onClick={() => setCategoryDistributionExpanded(!categoryDistributionExpanded)}
+              className="w-full justify-between p-3 h-auto"
+            >
+              <h3 className="text-sm font-medium">Category Distribution ({categoryStats.length} categories)</h3>
+              {categoryDistributionExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            
+            {categoryDistributionExpanded && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                {categoryStats.map(([category, count]) => (
+                  <div 
+                    key={category}
+                    className="bg-muted/40 rounded-md p-3 text-sm flex justify-between items-center cursor-pointer hover:bg-muted/60 transition-colors min-h-[48px] touch-manipulation"
+                    onClick={() => toggleCategory(category)}
+                  >
+                    <span className="truncate mr-2 text-sm">{category}</span>
+                    <span className="bg-muted rounded-full px-2 py-1 text-xs font-medium flex-shrink-0">{count}</span>
+                  </div>
+                ))}
               </div>
             )}
-          </TabsContent>
-          
-          <TabsContent value="table" className="space-y-4 sm:space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Embeddings Data</CardTitle>
-                <CardDescription>
-                  View and manage your embeddings. You can delete individual embeddings or select multiple for bulk operations.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {filtered.length === 0 ? (
-                  <div className="text-center py-8">
-                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No embeddings found</h3>
-                    <p className="text-muted-foreground">Try adjusting your search or filter criteria.</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Bulk Actions Bar */}
-                    {selectedIds.size > 0 && (
-                      <div className="flex items-center justify-between p-3 mb-4 bg-muted/50 rounded-lg border">
-                        <div className="text-sm text-muted-foreground">
-                          {selectedIds.size} embedding{selectedIds.size > 1 ? 's' : ''} selected
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedIds(new Set())}
-                            disabled={bulkDeleting}
-                          >
-                            Clear Selection
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={bulkDeleteEmbeddings}
-                            disabled={bulkDeleting}
-                          >
-                            {bulkDeleting ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Deleting...
-                              </>
-                            ) : (
-                              <>
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Selected ({selectedIds.size})
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+          </div>
+        )}
 
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[50px]">
-                              <Checkbox
-                                checked={selectedIds.size === filtered.length && filtered.length > 0}
-                                onCheckedChange={toggleSelectAll}
-                                aria-label="Select all embeddings"
-                              />
-                            </TableHead>
-                            <TableHead className="w-[200px]">ID</TableHead>
-                            <TableHead>Text Preview</TableHead>
-                            <TableHead>Categories</TableHead>
-                            <TableHead className="w-[100px]">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filtered.map((embedding) => (
-                            <TableRow key={embedding.id} className={selectedIds.has(embedding.id) ? "bg-muted/30" : ""}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedIds.has(embedding.id)}
-                                  onCheckedChange={() => toggleSelection(embedding.id)}
-                                  aria-label={`Select embedding ${embedding.id}`}
-                                />
-                              </TableCell>
-                              <TableCell className="font-mono text-xs">
-                                {embedding.id.length > 30 
-                                  ? `${embedding.id.substring(0, 15)}...${embedding.id.substring(embedding.id.length - 15)}`
-                                  : embedding.id
-                                }
-                              </TableCell>
-                              <TableCell className="max-w-xs">
-                                <div className="truncate">
-                                  {embedding.metadata.text?.substring(0, 100)}
-                                  {(embedding.metadata.text?.length || 0) > 100 && "..."}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-wrap gap-1">
-                                  {embedding.metadata.categories.map((category) => (
-                                    <span
-                                      key={category}
-                                      className="inline-block px-2 py-1 text-xs bg-secondary rounded-md"
-                                    >
-                                      {category}
-                                    </span>
-                                  ))}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => deleteEmbedding(embedding.id)}
-                                  disabled={deletingIds.has(embedding.id) || bulkDeleting}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  {deletingIds.has(embedding.id) ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+        {/* Tabs for different views */}
+        <Tabs defaultValue="visualization" className="mt-4 sm:mt-6">
+          <TabsList className="grid w-full grid-cols-3 sticky top-0 z-50 bg-background h-11 sm:h-12">
+            <TabsTrigger value="visualization" className="text-sm sm:text-base">3D Visualization</TabsTrigger>
+            <TabsTrigger value="table" className="text-sm sm:text-base">Table View</TabsTrigger>
+            <TabsTrigger value="analysis" className="text-sm sm:text-base">Analysis</TabsTrigger>
+          </TabsList>
           
-          <TabsContent value="analysis" className="space-y-4 sm:space-y-6">
-            <EmbeddingAnalytics embeddings={filtered} />
-          </TabsContent>
-        </div>
-      </Tabs>
+          <div className="mt-4 sm:mt-6">
+            <TabsContent value="visualization" className="space-y-4 sm:space-y-6">
+              {normalizedEmbeddings.length > 0 && (
+                <div className="mb-6 sm:mb-8">
+                  <Embeddings3DPlot embeddings={normalizedEmbeddings} />
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="table" className="space-y-4 sm:space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Embeddings Data</CardTitle>
+                  <CardDescription>
+                    View and manage your embeddings. You can delete individual embeddings or select multiple for bulk operations.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {filtered.length === 0 ? (
+                    <div className="text-center py-8">
+                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No embeddings found</h3>
+                      <p className="text-muted-foreground">Try adjusting your search or filter criteria.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Bulk Actions Bar */}
+                      {selectedIds.size > 0 && (
+                        <div className="flex items-center justify-between p-3 mb-4 bg-muted/50 rounded-lg border">
+                          <div className="text-sm text-muted-foreground">
+                            {selectedIds.size} embedding{selectedIds.size > 1 ? 's' : ''} selected
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedIds(new Set())}
+                              disabled={bulkDeleting}
+                            >
+                              Clear Selection
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={bulkDeleteEmbeddings}
+                              disabled={bulkDeleting}
+                            >
+                              {bulkDeleting ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Selected ({selectedIds.size})
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[50px]">
+                                <Checkbox
+                                  checked={selectedIds.size === filtered.length && filtered.length > 0}
+                                  onCheckedChange={toggleSelectAll}
+                                  aria-label="Select all embeddings"
+                                />
+                              </TableHead>
+                              <TableHead className="w-[250px]">ID</TableHead>
+                              <TableHead className="min-w-[400px]">Text Content</TableHead>
+                              <TableHead className="w-[200px]">Categories</TableHead>
+                              <TableHead className="w-[150px]">Document Info</TableHead>
+                              <TableHead className="w-[120px]">Vector Info</TableHead>
+                              <TableHead className="w-[100px]">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filtered.map((embedding) => (
+                              <TableRow key={embedding.id} className={selectedIds.has(embedding.id) ? "bg-muted/30" : ""}>
+                                <TableCell>
+                                  <Checkbox
+                                    checked={selectedIds.has(embedding.id)}
+                                    onCheckedChange={() => toggleSelection(embedding.id)}
+                                    aria-label={`Select embedding ${embedding.id}`}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  <div className="space-y-1">
+                                    <div className="font-semibold text-sm">
+                                      {embedding.id.length > 40 
+                                        ? `${embedding.id.substring(0, 20)}...${embedding.id.substring(embedding.id.length - 15)}`
+                                        : embedding.id
+                                      }
+                                    </div>
+                                    {embedding.metadata.chunkIndex !== undefined && (
+                                      <div className="text-xs text-muted-foreground">
+                                        Chunk {typeof embedding.metadata.chunkIndex === 'number' ? embedding.metadata.chunkIndex + 1 : embedding.metadata.chunkIndex}
+                                        {embedding.metadata.totalChunks && typeof embedding.metadata.totalChunks === 'number' && ` of ${embedding.metadata.totalChunks}`}
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="min-w-[400px]">
+                                  <div className="space-y-2">
+                                    <div className="text-sm leading-relaxed max-h-32 overflow-y-auto p-2 bg-muted/30 rounded border">
+                                      {embedding.metadata.text || "No text content"}
+                                    </div>
+                                    {embedding.metadata.title && (
+                                      <div className="text-xs text-muted-foreground font-medium">
+                                        Title: {embedding.metadata.title}
+                                      </div>
+                                    )}
+                                    <div className="text-xs text-muted-foreground">
+                                      Length: {(embedding.metadata.text || "").length} chars
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap gap-1">
+                                      {embedding.metadata.categories.map((category) => (
+                                        <span
+                                          key={category}
+                                          className="inline-block px-2 py-1 text-xs bg-secondary rounded-md font-medium"
+                                        >
+                                          {category}
+                                        </span>
+                                      ))}
+                                    </div>
+                                    {embedding.metadata.access && (
+                                      <div className="text-xs text-muted-foreground">
+                                        Access: <span className="font-medium">{embedding.metadata.access}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="space-y-1 text-xs">
+                                    {embedding.metadata.documentId && (
+                                      <div>
+                                        <span className="text-muted-foreground">Doc ID:</span>
+                                        <div className="font-mono text-xs break-all">
+                                          {typeof embedding.metadata.documentId === 'string' 
+                                            ? embedding.metadata.documentId.substring(0, 20) + '...'
+                                            : String(embedding.metadata.documentId).substring(0, 20) + '...'
+                                          }
+                                        </div>
+                                      </div>
+                                    )}
+                                    {embedding.metadata.createdAt && (
+                                      <div>
+                                        <span className="text-muted-foreground">Created:</span>
+                                        <div className="text-xs">
+                                          {typeof embedding.metadata.createdAt === 'string' || typeof embedding.metadata.createdAt === 'number'
+                                            ? new Date(embedding.metadata.createdAt).toLocaleDateString()
+                                            : String(embedding.metadata.createdAt)
+                                          }
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="space-y-1 text-xs">
+                                    <div>
+                                      <span className="text-muted-foreground">Dimensions:</span>
+                                      <div className="font-mono">{embedding.vector.length}</div>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Norm:</span>
+                                      <div className="font-mono">
+                                        {Math.sqrt(embedding.vector.reduce((sum, v) => sum + v * v, 0)).toFixed(3)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => deleteEmbedding(embedding.id)}
+                                    disabled={deletingIds.has(embedding.id) || bulkDeleting}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    {deletingIds.has(embedding.id) ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="analysis" className="space-y-4 sm:space-y-6">
+              <EmbeddingAnalytics embeddings={filtered} />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
     </div>
   );
 } 
