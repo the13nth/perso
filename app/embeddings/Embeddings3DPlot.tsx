@@ -374,11 +374,11 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       const sphere = new THREE.Mesh(geometry, material);
       sphere.position.copy(position);
       
-      // Store metadata for interaction
+      // Store metadata for interaction including the blended color
       sphere.userData = {
         embedding: embedding,
         categories: categories,
-        originalColor: blendedColor
+        blendedColor: blendedColor
       };
 
       blobGroup.add(sphere);
@@ -404,6 +404,32 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     let hoveredBlob: THREE.Mesh | null = null;
+    
+    // Create tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.style.position = 'absolute';
+    tooltip.style.backgroundColor = 'rgba(0,0,0,0.9)';
+    tooltip.style.color = 'white';
+    tooltip.style.padding = '12px 16px';
+    tooltip.style.borderRadius = '8px';
+    tooltip.style.fontSize = '13px';
+    tooltip.style.fontFamily = 'Arial, sans-serif';
+    tooltip.style.pointerEvents = 'none';
+    tooltip.style.zIndex = '1000';
+    tooltip.style.maxWidth = '280px';
+    tooltip.style.lineHeight = '1.5';
+    tooltip.style.border = '1px solid rgba(255,255,255,0.3)';
+    tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+    tooltip.style.display = 'none';
+    tooltip.style.top = '10px';
+    tooltip.style.right = '10px';
+    tooltip.style.transition = 'opacity 0.2s ease-in-out';
+    
+    // Add tooltip to the Three.js container instead of document body
+    if (threeRef.current) {
+      threeRef.current.style.position = 'relative';
+      threeRef.current.appendChild(tooltip);
+    }
 
     const handleMouseMove = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -418,22 +444,46 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         const originalMaterial = hoveredBlob.material as THREE.MeshPhongMaterial;
         originalMaterial.emissive.multiplyScalar(0.5); // Reduce glow
         hoveredBlob = null;
+        tooltip.style.display = 'none';
+        tooltip.style.opacity = '0';
       }
 
       // Check for new hover
       for (const intersect of intersects) {
         const object = intersect.object as THREE.Mesh;
-        if (object.userData.category) {
+        if (object.userData.category && object.userData.itemCount) {
           hoveredBlob = object;
           const material = object.material as THREE.MeshPhongMaterial;
           material.emissive.multiplyScalar(2); // Increase glow on hover
           renderer.domElement.style.cursor = 'pointer';
+          
+          // Create detailed tooltip content
+          const data = object.userData;
+          let tooltipContent = `<div style="font-weight: bold; margin-bottom: 8px; color: #60A5FA;">Category: ${data.category}</div>`;
+          tooltipContent += `<div style="margin-bottom: 4px;"><b>Embeddings:</b> ${data.itemCount}</div>`;
+          tooltipContent += `<div style="margin-bottom: 4px;"><b>Total Text:</b> ${data.totalTextLength.toLocaleString()} chars</div>`;
+          tooltipContent += `<div style="margin-bottom: 4px;"><b>Avg Text:</b> ${data.avgTextLength} chars</div>`;
+          tooltipContent += `<div style="margin-bottom: 4px;"><b>Avg Vector Norm:</b> ${data.avgVectorNorm.toFixed(3)}</div>`;
+          
+          if (data.subCategories && data.subCategories.length > 1) {
+            tooltipContent += `<div style="margin-bottom: 4px;"><b>Sub-categories:</b><br><span style="font-size: 11px; color: #D1D5DB;">${data.subCategories.join(', ')}</span></div>`;
+          }
+          
+          tooltipContent += `<div style="margin-bottom: 8px;"><b>Color:</b> <span style="color: ${data.blobColor};">●</span> ${data.blobColor}</div>`;
+          tooltipContent += `<div style="font-style: italic; font-size: 11px; color: #9CA3AF; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 6px;">Click blob for details</div>`;
+          
+          tooltip.innerHTML = tooltipContent;
+          tooltip.style.display = 'block';
+          tooltip.style.opacity = '1';
+          
           break;
         }
       }
 
       if (!hoveredBlob) {
         renderer.domElement.style.cursor = 'grab';
+        tooltip.style.display = 'none';
+        tooltip.style.opacity = '0';
       }
     };
 
@@ -447,10 +497,12 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
 
       for (const intersect of intersects) {
         const object = intersect.object as THREE.Mesh;
-        if (object.userData.category) {
-          console.log(`Clicked on category: ${object.userData.category}`);
-          console.log(`Contains ${object.userData.itemCount} embeddings`);
-          // You could add more interaction logic here
+        if (object.userData.category && object.userData.itemCount) {
+          console.log(`Clicked on category blob: ${object.userData.category}`);
+          console.log(`Contains ${object.userData.itemCount} embeddings:`);
+          object.userData.embeddings.forEach((emb: any, i: number) => {
+            console.log(`  ${i + 1}. ${emb.id} - ${emb.metadata.text?.substring(0, 50)}...`);
+          });
           break;
         }
       }
@@ -497,9 +549,18 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         });
         avgPosition.divideScalar(items.length);
 
-        // Get the category color
-        const categoryColor = getCategoryColor(category);
-        const color = new THREE.Color(categoryColor);
+        // Calculate blended color based on all embeddings in this category group
+        // This matches the dots visualization approach
+        const embeddingColors = items.map(item => {
+          const embeddingCategories = getNormalizedCategories(item.embedding);
+          return getCategoryBlendedColor(embeddingCategories);
+        });
+        
+        // Blend all the embedding colors together for this category blob
+        const blobColor = blendColors(embeddingColors);
+        const color = new THREE.Color(blobColor);
+        
+        console.log(`Category '${category}' blob: ${items.length} embeddings, color: ${blobColor}`);
 
         // Create blob size based on number of items in category
         const blobSize = Math.max(0.4, Math.min(0.3 + items.length * 0.15, 1.2));
@@ -526,7 +587,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         vertices.needsUpdate = true;
         geometry.computeVertexNormals();
 
-        // Create material with category-specific color
+        // Create material with blended color
         const material = new THREE.MeshPhongMaterial({
           color: color,
           transparent: true,
@@ -541,11 +602,28 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         categoryBlob.castShadow = true;
         categoryBlob.receiveShadow = true;
         
-        // Store category metadata
+        // Store comprehensive metadata for hover tooltips
+        const totalTextLength = items.reduce((sum, item) => sum + (item.embedding.metadata.text || "").length, 0);
+        const avgTextLength = Math.round(totalTextLength / items.length);
+        const uniqueSubCategories = new Set<string>();
+        
+        items.forEach(item => {
+          const categories = getNormalizedCategories(item.embedding);
+          categories.forEach(cat => uniqueSubCategories.add(cat));
+        });
+        
         categoryBlob.userData = {
           category: category,
           itemCount: items.length,
-          embeddings: items.map(item => item.embedding)
+          embeddings: items.map(item => item.embedding),
+          avgTextLength: avgTextLength,
+          totalTextLength: totalTextLength,
+          subCategories: Array.from(uniqueSubCategories),
+          blobColor: blobColor,
+          avgVectorNorm: items.reduce((sum, item) => {
+            const norm = Math.sqrt(item.embedding.vector.reduce((s: number, v: number) => s + v * v, 0));
+            return sum + norm;
+          }, 0) / items.length
         };
 
         categoryBlobsGroup.add(categoryBlob);
@@ -686,6 +764,11 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       window.removeEventListener('resize', handleResize);
       fullscreenObserver.disconnect();
       
+      // Remove tooltip from Three.js container
+      if (tooltip && tooltip.parentNode) {
+        tooltip.parentNode.removeChild(tooltip);
+      }
+      
       if (threeRef.current) {
         renderer.domElement.removeEventListener('mousemove', handleMouseMove);
         renderer.domElement.removeEventListener('click', handleClick);
@@ -757,8 +840,40 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         
         // Prepare hover text with all categories
         const categoriesText = categories.join(", ");
-        const truncatedText = embedding.metadata.text?.substring(0, 50) + "..." || "";
-        const hoverText = `ID: ${embedding.id}<br>Categories: ${categoriesText}<br>Text: ${truncatedText}`;
+        const truncatedText = embedding.metadata.text?.substring(0, 200) + "..." || "";
+        
+        // Enhanced hover text with more information
+        let hoverText = `<b>ID:</b> ${embedding.id}<br>`;
+        hoverText += `<b>Categories:</b> ${categoriesText}<br>`;
+        hoverText += `<b>Text:</b> ${truncatedText}<br>`;
+        
+        // Add additional metadata if available
+        if (embedding.metadata.title) {
+          hoverText += `<b>Title:</b> ${embedding.metadata.title}<br>`;
+        }
+        
+        if (embedding.metadata.chunkIndex !== undefined && embedding.metadata.totalChunks) {
+          const chunkIndex = typeof embedding.metadata.chunkIndex === 'number' ? embedding.metadata.chunkIndex : 0;
+          const totalChunks = typeof embedding.metadata.totalChunks === 'number' ? embedding.metadata.totalChunks : 0;
+          hoverText += `<b>Chunk:</b> ${chunkIndex + 1} of ${totalChunks}<br>`;
+        }
+        
+        if (embedding.metadata.createdAt) {
+          const createdDate = typeof embedding.metadata.createdAt === 'string' || typeof embedding.metadata.createdAt === 'number'
+            ? new Date(embedding.metadata.createdAt).toLocaleDateString()
+            : String(embedding.metadata.createdAt);
+          hoverText += `<b>Created:</b> ${createdDate}<br>`;
+        }
+        
+        if (embedding.metadata.access) {
+          hoverText += `<b>Access:</b> ${embedding.metadata.access}<br>`;
+        }
+        
+        // Vector information
+        const vectorNorm = Math.sqrt(embedding.vector.reduce((sum, v) => sum + v * v, 0));
+        hoverText += `<b>Vector Norm:</b> ${vectorNorm.toFixed(3)}<br>`;
+        hoverText += `<b>Dimensions:</b> ${embedding.vector.length}<br>`;
+        hoverText += `<b>Text Length:</b> ${(embedding.metadata.text || "").length} chars`;
         
         // Add data point
         x.push(reducedVectors[i][0]);
@@ -801,6 +916,16 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
           
         },
         hovertemplate: '%{text}<extra></extra>',
+        hoverlabel: {
+          bgcolor: 'rgba(0,0,0,0.9)',
+          bordercolor: 'rgba(255,255,255,0.3)',
+          font: { 
+            size: 14, 
+            color: 'white',
+            family: 'Arial, sans-serif'
+          },
+          namelength: 0
+        },
         showlegend: false
       }];
       

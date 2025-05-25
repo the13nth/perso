@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     // Query Pinecone for the user's documents
     const queryResponse = await index.query({
-      vector: Array(1536).fill(0), // Zero vector to get random results
+      vector: Array(768).fill(0), // Zero vector to get random results
       ...query
     });
 
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       try {
         // Get all chunks for this document in order
         const allChunksQuery = await index.query({
-          vector: Array(1536).fill(0),
+          vector: Array(768).fill(0),
           filter: {
             documentId,
             userId
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     // Query for all chunks of this document
     const response = await index.query({
-      vector: Array(1536).fill(0), // Zero vector to get all chunks
+      vector: Array(768).fill(0), // Zero vector to get all chunks
       filter: {
         documentId,
         userId // Security: ensure user can only access their own documents
