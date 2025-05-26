@@ -82,6 +82,32 @@ export async function POST(req: NextRequest) {
     
     console.log(`Received document with ${textLength} characters`);
     
+    // Check if we're in production/online deployment
+    const isProduction = process.env.NODE_ENV === 'production' || 
+                        process.env.NETLIFY === 'true' || 
+                        process.env.VERCEL === '1' ||
+                        process.env.RAILWAY_ENVIRONMENT ||
+                        process.env.RENDER;
+    
+    // Document size limits for online deployments
+    const MAX_DOCUMENT_SIZE_PRODUCTION = 1000000; // 1MB for production free tier
+    
+    // Enforce document size limits for online deployments only
+    if (isProduction && textLength > MAX_DOCUMENT_SIZE_PRODUCTION) {
+      console.log(`Document too large for production: ${textLength} characters (max: ${MAX_DOCUMENT_SIZE_PRODUCTION})`);
+      return new NextResponse(JSON.stringify({ 
+        error: "Document too large",
+        message: `Document size (${Math.round(textLength/1000)}KB) exceeds the maximum allowed size of ${Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB for the free tier. Please upgrade to our Pro plan for unlimited document processing, split your document into smaller parts, or use the application locally.`,
+        maxSize: MAX_DOCUMENT_SIZE_PRODUCTION,
+        currentSize: textLength,
+        isProduction: true,
+        upgradeRequired: true
+      }), {
+        status: 413, // Payload Too Large
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    
     // Handle both single category (legacy) and multiple categories
     let documentCategories: string[] = [];
     
@@ -100,9 +126,11 @@ export async function POST(req: NextRequest) {
     const documentId = `doc-${userId}-${Date.now()}`;
     const createdAt = new Date().toISOString();
 
-    // For large documents (>50KB), return early with a 202 Accepted response
-    // and process asynchronously to avoid timeout
-    const isLargeDocument = textLength > 50000; // 50KB threshold
+    // For large documents, use async processing (only for local development)
+    // In production, documents are already limited to smaller sizes
+    // For local development, no size limit but use async processing for documents > 50KB
+    const asyncThreshold = isProduction ? MAX_DOCUMENT_SIZE_PRODUCTION : 50000; // 50KB for local
+    const isLargeDocument = !isProduction && textLength > asyncThreshold;
     
     if (isLargeDocument) {
       console.log("Large document detected, returning 202 Accepted");

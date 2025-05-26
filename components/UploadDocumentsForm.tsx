@@ -37,6 +37,20 @@ export function UploadDocumentsForm({
   const [activeTab, setActiveTab] = useState<"document" | "settings">("document");
   const { user } = useUser();
 
+  // Check if we're in production environment
+  const isProduction = typeof window !== 'undefined' && (
+    window.location.hostname.includes('netlify.app') ||
+    window.location.hostname.includes('vercel.app') ||
+    window.location.hostname.includes('railway.app') ||
+    window.location.hostname.includes('render.com') ||
+    (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'))
+  );
+  
+  // Document size limits
+  const MAX_DOCUMENT_SIZE_PRODUCTION = 1000000; // 1MB for production
+  // No limit for local development, but show async threshold
+  const ASYNC_THRESHOLD_LOCAL = 50000; // 50KB async threshold for local
+
   // Poll for document processing status when in async processing mode
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
@@ -193,6 +207,22 @@ export function UploadDocumentsForm({
       }
     }
     
+    // Client-side document size validation
+    const textLength = textContent.length;
+    
+    if (isProduction && textLength > MAX_DOCUMENT_SIZE_PRODUCTION) {
+      setIsLoading(false);
+      toast.error(
+        `Document too large for free tier`, 
+        {
+          duration: 10000,
+          position: "top-center",
+          description: `Document size (${Math.round(textLength/1000)}KB) exceeds the ${Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB free tier limit. Please upgrade to Pro plan for unlimited processing, split your document, or use the application locally.`
+        }
+      );
+      return;
+    }
+    
     try {
     const response = await fetch("/api/retrieval/ingest", {
       method: "POST",
@@ -240,6 +270,24 @@ export function UploadDocumentsForm({
         );
         
         // Don't call onSuccess yet since document is still processing
+    } else if (response.status === 413) {
+        // Document too large for free tier
+        setDocument("Document too large for free tier");
+        toast.error(
+          "Document too large for free tier", 
+          {
+            duration: 12000,
+            position: "top-center",
+            description: data.message || "Please upgrade to Pro plan for unlimited document processing, split your document into smaller parts, or use the application locally.",
+            action: data.upgradeRequired ? {
+              label: "Upgrade to Pro",
+              onClick: () => {
+                // This could link to a pricing page or upgrade flow
+                window.open('/pricing', '_blank');
+              }
+            } : undefined
+          }
+        );
     } else {
         setDocument(data.error || "Error uploading document");
         toast.error("Failed to upload: " + (data.error || "Unknown error"));
@@ -297,6 +345,29 @@ export function UploadDocumentsForm({
         </div>
       )}
       
+      {/* Document Size Limit Information */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md border border-blue-200 dark:border-blue-800">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-blue-900 dark:text-blue-300 mb-1">Document Size Limits</h3>
+            <p className="text-blue-700 dark:text-blue-400 text-sm">
+              {isProduction ? (
+                <>
+                  <strong>Free tier limit:</strong> Maximum {Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB per document. 
+                  For larger documents, upgrade to Pro plan for unlimited processing or use the application locally.
+                </>
+              ) : (
+                <>
+                  <strong>Local development:</strong> No size limit. 
+                  Documents over {Math.round(ASYNC_THRESHOLD_LOCAL/1000)}KB will be processed asynchronously.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "document" | "settings")} className="w-full">
         <TabsList className="grid grid-cols-2 mb-6">
           <TabsTrigger value="document" className="text-sm sm:text-base">Document</TabsTrigger>
@@ -347,6 +418,12 @@ export function UploadDocumentsForm({
                         <FileText className="h-4 w-4 mr-2" />
                         <span className="font-medium truncate max-w-[200px] sm:max-w-xs">{file.name}</span>
                       </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        File size: {Math.round(file.size/1024)}KB
+                        {isProduction && file.size > MAX_DOCUMENT_SIZE_PRODUCTION && (
+                          <span className="text-red-500 ml-2">⚠ May exceed processing limit after text extraction</span>
+                        )}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -354,19 +431,42 @@ export function UploadDocumentsForm({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              <Label htmlFor="document-text" className="text-lg font-medium">Enter Text</Label>
-              <Textarea
-                id="document-text"
-                className="min-h-[300px] md:min-h-[400px] p-4 rounded"
-                value={document}
-                onChange={(e) => {
-                  setDocument(e.target.value);
-                  setUploadSuccess(false);
-                  setAsyncProcessing(false);
-                  setProcessingProgress(0);
-                }}
-                placeholder="Paste or type your text here..."
-              />
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="document-text" className="text-lg font-medium">Enter Text</Label>
+                  <span className={`text-sm ${
+                    isProduction && document.length > MAX_DOCUMENT_SIZE_PRODUCTION
+                      ? 'text-red-500 font-medium' 
+                      : isProduction && document.length > MAX_DOCUMENT_SIZE_PRODUCTION * 0.8 
+                        ? 'text-amber-500' 
+                        : !isProduction && document.length > ASYNC_THRESHOLD_LOCAL
+                          ? 'text-amber-500'
+                          : 'text-muted-foreground'
+                  }`}>
+                    {Math.round(document.length/1000)}KB {isProduction ? `/ ${Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB` : '(no limit)'}
+                  </span>
+                </div>
+                <Textarea
+                  id="document-text"
+                  className="min-h-[300px] md:min-h-[400px] p-4 rounded"
+                  value={document}
+                  onChange={(e) => {
+                    setDocument(e.target.value);
+                    setUploadSuccess(false);
+                    setAsyncProcessing(false);
+                    setProcessingProgress(0);
+                  }}
+                  placeholder="Paste or type your text here..."
+                />
+                {((isProduction && document.length > MAX_DOCUMENT_SIZE_PRODUCTION) || (!isProduction && document.length > ASYNC_THRESHOLD_LOCAL)) && (
+                  <p className={`text-sm ${isProduction ? 'text-red-500' : 'text-amber-500'}`}>
+                    {isProduction 
+                      ? `Text exceeds free tier limit (${Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB). Please upgrade to Pro plan, reduce the text size, or use the application locally.`
+                      : `Large document detected (${Math.round(document.length/1000)}KB). This will be processed asynchronously in the background.`
+                    }
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </TabsContent>
