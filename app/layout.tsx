@@ -4,6 +4,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Navbar } from "@/components/Navbar";
 import { Toaster } from "@/components/ui/sonner";
+import { MainContent } from "@/components/MainContent";
 import type { ReactNode } from 'react';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -46,10 +47,10 @@ export default function RootLayout({
         <body className={`${inter.className} h-full antialiased`}>
           <div className="grid min-h-screen grid-rows-[auto_1fr]">
             <Navbar />
-            <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-              <div className="grid grid-cols-1 gap-8">
+            <main className="w-full">
+              <MainContent>
                 <NuqsAdapter>{children}</NuqsAdapter>
-              </div>
+              </MainContent>
             </main>
           </div>
           <Toaster />

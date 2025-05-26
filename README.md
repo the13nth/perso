@@ -126,6 +126,47 @@ via header in addition to the streaming response.
 
 For more info on retrieval agents, [see this page](https://langchain-ai.github.io/langgraphjs/tutorials/rag/langgraph_agentic_rag/).
 
+## ⚠️ Document Size Limitations
+
+To ensure optimal performance and avoid timeout issues on serverless platforms, the application enforces different document size limits based on your plan and deployment environment:
+
+### 🆓 Free Tier (Online Deployments)
+- **Maximum document size**: 1MB per document
+- **Reason**: Balanced performance for free tier users
+- **Upgrade option**: Pro plan offers unlimited document processing
+- **Alternatives**: Split documents into smaller parts or use the application locally
+
+### 💎 Pro Plan (Online Deployments)
+- **Maximum document size**: Unlimited
+- **Advanced processing**: Handle large documents with extended timeout limits
+- **Priority support**: Faster processing and dedicated resources
+- **Background processing**: Large documents processed asynchronously
+
+### 💻 Local Development
+- **Maximum document size**: No limit
+- **Large document handling**: Documents over 50KB are processed asynchronously
+- **No timeout restrictions**: Full processing capabilities available
+
+### 📝 How to Handle Large Documents
+
+**For Free Tier Users:**
+1. **Upgrade to Pro**: Get unlimited document processing with our Pro plan
+2. **Split documents**: Break large documents into logical sections (chapters, topics, etc.)
+3. **Use summaries**: Create condensed versions of lengthy documents
+4. **Process locally**: Use local development for initial processing, then deploy smaller chunks
+
+**For Pro Plan Users:**
+1. Upload documents of any size directly
+2. Large documents are automatically processed in the background
+3. Receive notifications when processing is complete
+
+**For Local Development:**
+1. Documents up to 50KB are processed immediately
+2. Larger documents are processed in the background with progress tracking
+3. You'll receive notifications when processing is complete
+
+The application will automatically detect your environment and plan, applying the appropriate limits and providing clear feedback when documents exceed the allowed size.
+
 ## 📊 Comprehensive Activity Logging
 
 This application includes a powerful activity logging system that goes beyond simple physical activity tracking. It supports comprehensive activity logging across four main categories:
