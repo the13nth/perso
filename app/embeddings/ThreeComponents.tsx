@@ -23,6 +23,9 @@ export default function ThreeComponents({ embeddings }: Props) {
   useEffect(() => {
     if (!containerRef.current || !embeddings.length) return;
 
+    // Capture the container reference
+    const container = containerRef.current;
+
     // Setup scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
@@ -30,7 +33,7 @@ export default function ThreeComponents({ embeddings }: Props) {
     // Setup camera
     const camera = new THREE.PerspectiveCamera(
       75,
-      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      container.clientWidth / container.clientHeight,
       0.1,
       1000
     );
@@ -38,8 +41,8 @@ export default function ThreeComponents({ embeddings }: Props) {
 
     // Setup renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-    containerRef.current.appendChild(renderer.domElement);
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
 
     // Add controls
     const controls = new OrbitControlsImpl(camera, renderer.domElement);
@@ -81,17 +84,17 @@ export default function ThreeComponents({ embeddings }: Props) {
 
     // Handle resize
     function handleResize() {
-      if (!containerRef.current) return;
-      camera.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
+      if (!container) return;
+      camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+      renderer.setSize(container.clientWidth, container.clientHeight);
     }
     window.addEventListener('resize', handleResize);
 
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
-      containerRef.current?.removeChild(renderer.domElement);
+      container.removeChild(renderer.domElement);
       renderer.dispose();
     };
   }, [embeddings]);

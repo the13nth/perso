@@ -14,7 +14,7 @@ const builder = new StateGraph(
     timestamp: Annotation<number>,
   }),
 )
-  .addNode("agent", async (state, config) => {
+  .addNode("agent", async (state) => {
     const message = await llm.invoke([
       {
         type: "system",

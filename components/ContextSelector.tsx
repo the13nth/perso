@@ -98,9 +98,9 @@ export function ContextSelector({ userId, onSelectionChange }: ContextSelectorPr
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-center text-muted-foreground">
-            No personal context available. Add some context first to enhance your agent's knowledge.
-          </p>
+          <div className="text-sm text-gray-500">
+            You haven&apos;t uploaded any documents yet
+          </div>
         </CardContent>
       </Card>
     );

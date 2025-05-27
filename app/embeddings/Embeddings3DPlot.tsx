@@ -29,8 +29,32 @@ interface Embedding {
   };
 }
 
+interface Point {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  label: string;
+  vector: number[];
+  metadata: {
+    text: string;
+    categories: string[];
+    title?: string;
+    chunkIndex?: number;
+    totalChunks?: number;
+    createdAt?: string | number;
+    access?: string;
+    [key: string]: any;
+  };
+}
+
+interface PlotData {
+  points: Point[];
+  categories: string[];
+}
+
 interface PlotProps {
-  embeddings: NormalizedEmbedding[] | Embedding[];
+  data: PlotData;
 }
 
 // Function to normalize categories for any embedding type
@@ -253,9 +277,9 @@ function getCategoryBlendedColor(categories: string[]): string {
   return blended;
 }
 
-export default function Embeddings3DPlot({ embeddings }: PlotProps) {
-  const plotRef = useRef<HTMLDivElement>(null);
+export default function Embeddings3DPlot({ data }: PlotProps) {
   const threeRef = useRef<HTMLDivElement>(null);
+  const plotRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [visualizationMode, setVisualizationMode] = useState<'dots' | 'blobs'>('dots');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -289,13 +313,16 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
 
   // Three.js blob visualization
   useEffect(() => {
-    if (visualizationMode !== 'blobs' || !threeRef.current || embeddings.length === 0) return;
+    if (visualizationMode !== 'blobs' || !threeRef.current || data.points.length === 0) return;
 
-    console.log(`Creating blob visualization with ${embeddings.length} embeddings`);
+    console.log(`Creating blob visualization with ${data.points.length} embeddings`);
+
+    // Capture the ref value
+    const threeContainer = threeRef.current;
 
     // Clear any existing content
-    while (threeRef.current.firstChild) {
-      threeRef.current.removeChild(threeRef.current.firstChild);
+    while (threeContainer.firstChild) {
+      threeContainer.removeChild(threeContainer.firstChild);
     }
 
     // Setup Three.js scene
@@ -304,17 +331,17 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
 
     const camera = new THREE.PerspectiveCamera(
       75,
-      threeRef.current.clientWidth / threeRef.current.clientHeight,
+      threeContainer.clientWidth / threeContainer.clientHeight,
       0.1,
       1000
     );
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(threeRef.current.clientWidth, threeRef.current.clientHeight);
+    renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
     renderer.setClearColor(0x0d121e, 1);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    threeRef.current.appendChild(renderer.domElement);
+    threeContainer.appendChild(renderer.domElement);
 
     // Enhanced lighting setup
     const ambientLight = new THREE.AmbientLight(0x404040, 0.4); // Softer ambient
@@ -335,7 +362,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
     scene.add(pointLight);
 
     // Prepare data using PCA
-    const vectors = embeddings.map(e => e.vector);
+    const vectors = data.points.map(p => p.vector);
     if (vectors[0].length < 3) {
       console.error("Vectors need at least 3 dimensions for PCA");
       return;
@@ -344,12 +371,16 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
     const pca = new PCA(vectors);
     const reducedVectors = pca.predict(vectors, { nComponents: 3 }).to2DArray();
 
-    // Create metaballs/blobs for each embedding
+    // Scale up the vectors to increase spacing
+    const scaleFactor = 3.0; // Reduced from 16.0 to bring blobs closer
+    const scaledVectors = reducedVectors.map(v => v.map(coord => coord * scaleFactor));
+
+    // Create metaballs/blobs for each point
     const metaballs: Array<{ sphere: THREE.Mesh; position: THREE.Vector3; color: THREE.Color }> = [];
     const blobGroup = new THREE.Group();
 
-    embeddings.forEach((embedding, i) => {
-      const categories = getNormalizedCategories(embedding);
+    data.points.forEach((point: Point, i: number) => {
+      const categories = point.metadata.categories;
       const blendedColor = getCategoryBlendedColor(categories);
       
       // Convert hex color to Three.js color
@@ -357,17 +388,17 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
 
       // Position based on PCA coordinates
       const position = new THREE.Vector3(
-        reducedVectors[i][0] * 2, // Scale for better visibility
-        reducedVectors[i][1] * 2,
-        reducedVectors[i][2] * 2
+        scaledVectors[i][0],
+        scaledVectors[i][1],
+        scaledVectors[i][2]
       );
 
       // Create a sphere for each point that will act as a metaball
-      const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+      const geometry = new THREE.SphereGeometry(0.4, 32, 32); // Increased size slightly
       const material = new THREE.MeshPhongMaterial({
         color: color,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.9,
         shininess: 100
       });
 
@@ -376,7 +407,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       
       // Store metadata for interaction including the blended color
       sphere.userData = {
-        embedding: embedding,
+        embedding: point,
         categories: categories,
         blendedColor: blendedColor
       };
@@ -426,9 +457,9 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
     tooltip.style.transition = 'opacity 0.2s ease-in-out';
     
     // Add tooltip to the Three.js container instead of document body
-    if (threeRef.current) {
-      threeRef.current.style.position = 'relative';
-      threeRef.current.appendChild(tooltip);
+    if (threeContainer) {
+      threeContainer.style.position = 'relative';
+      threeContainer.appendChild(tooltip);
     }
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -500,8 +531,9 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         if (object.userData.category && object.userData.itemCount) {
           console.log(`Clicked on category blob: ${object.userData.category}`);
           console.log(`Contains ${object.userData.itemCount} embeddings:`);
-          object.userData.embeddings.forEach((emb: any, i: number) => {
-            console.log(`  ${i + 1}. ${emb.id} - ${emb.metadata.text?.substring(0, 50)}...`);
+          object.userData.embeddings.forEach((emb: unknown, i: number) => {
+            const embedding = emb as { id: string; metadata: { text?: string } };
+            console.log(`  ${i + 1}. ${embedding.id} - ${embedding.metadata.text?.substring(0, 50)}...`);
           });
           break;
         }
@@ -515,13 +547,13 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
     const createCategoryBlobs = () => {
       const categoryGroups: { [key: string]: Array<{ 
         metaball: { sphere: THREE.Mesh; position: THREE.Vector3; color: THREE.Color }, 
-        embedding: any, 
+        embedding: unknown, 
         index: number 
       }> } = {};
 
-      // Group embeddings by their primary category
+      // Group points by their primary category
       metaballs.forEach((metaball, i) => {
-        const embedding = embeddings[i];
+        const embedding = data.points[i];
         const categories = getNormalizedCategories(embedding);
         const primaryCategory = categories[0] || 'uncategorized'; // Use first category as primary
         
@@ -549,10 +581,10 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         });
         avgPosition.divideScalar(items.length);
 
-        // Calculate blended color based on all embeddings in this category group
+        // Calculate blended color based on all points in this category group
         // This matches the dots visualization approach
         const embeddingColors = items.map(item => {
-          const embeddingCategories = getNormalizedCategories(item.embedding);
+          const embeddingCategories = getNormalizedCategories(item.embedding as Embedding | NormalizedEmbedding);
           return getCategoryBlendedColor(embeddingCategories);
         });
         
@@ -560,9 +592,9 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         const blobColor = blendColors(embeddingColors);
         const color = new THREE.Color(blobColor);
         
-        console.log(`Category '${category}' blob: ${items.length} embeddings, color: ${blobColor}`);
+        console.log(`Category '${category}' blob: ${items.length} points, color: ${blobColor}`);
 
-        // Create blob size based on number of items in category
+        // Create blob size based on number of points in category
         const blobSize = Math.max(0.4, Math.min(0.3 + items.length * 0.15, 1.2));
         
         // Create more organic blob geometry
@@ -603,12 +635,12 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         categoryBlob.receiveShadow = true;
         
         // Store comprehensive metadata for hover tooltips
-        const totalTextLength = items.reduce((sum, item) => sum + (item.embedding.metadata.text || "").length, 0);
+        const totalTextLength = items.reduce((sum, item) => sum + ((item.embedding as Embedding).metadata.text || "").length, 0);
         const avgTextLength = Math.round(totalTextLength / items.length);
         const uniqueSubCategories = new Set<string>();
         
         items.forEach(item => {
-          const categories = getNormalizedCategories(item.embedding);
+          const categories = getNormalizedCategories(item.embedding as Embedding);
           categories.forEach(cat => uniqueSubCategories.add(cat));
         });
         
@@ -621,7 +653,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
           subCategories: Array.from(uniqueSubCategories),
           blobColor: blobColor,
           avgVectorNorm: items.reduce((sum, item) => {
-            const norm = Math.sqrt(item.embedding.vector.reduce((s: number, v: number) => s + v * v, 0));
+            const norm = Math.sqrt((item.embedding as Embedding).vector.reduce((s: number, v: number) => s + v * v, 0));
             return sum + norm;
           }, 0) / items.length
         };
@@ -633,7 +665,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
           item.metaball.sphere.visible = false;
         });
 
-        console.log(`Created blob for category '${category}' with ${items.length} items at position:`, avgPosition);
+        console.log(`Created blob for category '${category}' with ${items.length} points at position:`, avgPosition);
       });
 
       scene.add(categoryBlobsGroup);
@@ -673,17 +705,17 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
     const particles = createParticles();
 
     // Position camera with better initial view
-    camera.position.set(8, 6, 8);
+    camera.position.set(16, 12, 16); // Moved further out to accommodate larger scale
     camera.lookAt(0, 0, 0);
 
     // Add OrbitControls for proper 3D navigation
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; // Smooth camera movement
+    controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = false;
-    controls.minDistance = 3;
-    controls.maxDistance = 20;
-    controls.maxPolarAngle = Math.PI; // Allow full rotation
+    controls.minDistance = 8; // Increased from 5
+    controls.maxDistance = 40; // Increased from 30
+    controls.maxPolarAngle = Math.PI;
 
     // Animation loop
     const animate = () => {
@@ -741,10 +773,10 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
 
     // Handle resize
     const handleResize = () => {
-      if (threeRef.current) {
-        camera.aspect = threeRef.current.clientWidth / threeRef.current.clientHeight;
+      if (threeContainer) {
+        camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(threeRef.current.clientWidth, threeRef.current.clientHeight);
+        renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
       }
     };
 
@@ -755,8 +787,8 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       handleResize();
     });
     
-    if (threeRef.current) {
-      fullscreenObserver.observe(threeRef.current);
+    if (threeContainer) {
+      fullscreenObserver.observe(threeContainer);
     }
 
     // Cleanup
@@ -769,11 +801,11 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         tooltip.parentNode.removeChild(tooltip);
       }
       
-      if (threeRef.current) {
+      if (threeContainer) {
         renderer.domElement.removeEventListener('mousemove', handleMouseMove);
         renderer.domElement.removeEventListener('click', handleClick);
-        while (threeRef.current.firstChild) {
-          threeRef.current.removeChild(threeRef.current.firstChild);
+        while (threeContainer.firstChild) {
+          threeContainer.removeChild(threeContainer.firstChild);
         }
       }
       
@@ -794,23 +826,22 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       controls.dispose();
       renderer.dispose();
     };
-  }, [embeddings, visualizationMode]);
+  }, [data, visualizationMode]);
 
-  // Original Plotly visualization (existing code)
+  // Plotly dots visualization
   useEffect(() => {
-    if (visualizationMode !== 'dots' || !plotRef.current || embeddings.length === 0) return;
+    if (visualizationMode !== 'dots' || !plotRef.current || !data || data.points.length === 0) return;
 
-    console.log(`Processing ${embeddings.length} embeddings for 3D plot`);
+    console.log(`Processing ${data.points.length} embeddings for 3D plot`);
 
-    // Clear any existing plot first
+    // Clear any existing plot
     if (plotRef.current) {
       PlotlyJS.purge(plotRef.current);
     }
 
     // Extract vectors for PCA
-    const vectors = embeddings.map(e => e.vector);
+    const vectors = data.points.map(p => p.vector);
     
-    // Use PCA to reduce dimensionality to 3D
     try {
       // Check if vectors have at least 3 dimensions
       if (vectors[0].length < 3) {
@@ -821,7 +852,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       const pca = new PCA(vectors);
       const reducedVectors = pca.predict(vectors, { nComponents: 3 }).to2DArray();
       
-      // Prepare data for plotting with individual colors per point
+      // Prepare arrays for plotting
       const x: number[] = [];
       const y: number[] = [];
       const z: number[] = [];
@@ -829,122 +860,64 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       const colors: string[] = [];
       const ids: string[] = [];
       
-      // Process each embedding
-      embeddings.forEach((embedding, i) => {
-        const categories = getNormalizedCategories(embedding);
-        console.log(`Embedding ${i}: ID=${embedding.id.substring(0, 8)}..., Categories=[${categories.join(', ')}]`);
-        
-        // Get blended color for all categories
+      // Process each point
+      data.points.forEach((point: Point, i: number) => {
+        const categories = point.metadata.categories;
         const blendedColor = getCategoryBlendedColor(categories);
-        console.log(`Final color for embedding ${i}: ${blendedColor}`);
         
-        // Prepare hover text with all categories
-        const categoriesText = categories.join(", ");
-        const truncatedText = embedding.metadata.text?.substring(0, 200) + "..." || "";
-        
-        // Enhanced hover text with more information
-        let hoverText = `<b>ID:</b> ${embedding.id}<br>`;
-        hoverText += `<b>Categories:</b> ${categoriesText}<br>`;
-        hoverText += `<b>Text:</b> ${truncatedText}<br>`;
-        
-        // Add additional metadata if available
-        if (embedding.metadata.title) {
-          hoverText += `<b>Title:</b> ${embedding.metadata.title}<br>`;
-        }
-        
-        if (embedding.metadata.chunkIndex !== undefined && embedding.metadata.totalChunks) {
-          const chunkIndex = typeof embedding.metadata.chunkIndex === 'number' ? embedding.metadata.chunkIndex : 0;
-          const totalChunks = typeof embedding.metadata.totalChunks === 'number' ? embedding.metadata.totalChunks : 0;
-          hoverText += `<b>Chunk:</b> ${chunkIndex + 1} of ${totalChunks}<br>`;
-        }
-        
-        if (embedding.metadata.createdAt) {
-          const createdDate = typeof embedding.metadata.createdAt === 'string' || typeof embedding.metadata.createdAt === 'number'
-            ? new Date(embedding.metadata.createdAt).toLocaleDateString()
-            : String(embedding.metadata.createdAt);
-          hoverText += `<b>Created:</b> ${createdDate}<br>`;
-        }
-        
-        if (embedding.metadata.access) {
-          hoverText += `<b>Access:</b> ${embedding.metadata.access}<br>`;
-        }
-        
-        // Vector information
-        const vectorNorm = Math.sqrt(embedding.vector.reduce((sum, v) => sum + v * v, 0));
-        hoverText += `<b>Vector Norm:</b> ${vectorNorm.toFixed(3)}<br>`;
-        hoverText += `<b>Dimensions:</b> ${embedding.vector.length}<br>`;
-        hoverText += `<b>Text Length:</b> ${(embedding.metadata.text || "").length} chars`;
-        
+        // Enhanced hover text
+        const hoverText = `<b>ID:</b> ${point.id}<br>
+          <b>Categories:</b> ${categories.join(", ")}<br>
+          <b>Text:</b> ${point.metadata.text?.substring(0, 200) || ""}...`;
+
         // Add data point
-        x.push(reducedVectors[i][0]);
-        y.push(reducedVectors[i][1]);
-        z.push(reducedVectors[i][2]);
+        x.push(reducedVectors[i][0] * 8.0);
+        y.push(reducedVectors[i][1] * 8.0);
+        z.push(reducedVectors[i][2] * 8.0);
         text.push(hoverText);
         colors.push(blendedColor);
-        ids.push(embedding.id);
+        ids.push(point.id);
       });
       
-      console.log(`Generated ${colors.length} colors:`, colors.slice(0, 10)); // Log first 10 colors
-      
-      // Convert hex colors to RGB format for better Plotly compatibility
+      // Convert hex colors to RGB
       const rgbColors = colors.map(color => {
         const rgb = parseColorToRgb(color);
-        if (rgb) {
-          return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-        }
-        return 'rgb(107, 114, 128)'; // Default gray
+        return rgb ? `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})` : 'rgb(107, 114, 128)';
       });
       
-      console.log(`Converted to RGB format:`, rgbColors.slice(0, 5));
-      
-      // Create single trace with individual colors
-      const data = [{
-        x: x,
-        y: y,
-        z: z,
-        text: text,
-        ids: ids,
+      // Create plot data
+      const plotData = [{
+        x, y, z,
+        text,
+        ids,
         type: 'scatter3d' as const,
         mode: 'markers' as const,
         name: 'Embeddings',
         marker: {
-          size: 6, // Increased from 8 for better visibility
-          color: rgbColors, // Use RGB format instead of hex
-          colorscale: undefined, // Disable colorscale to use individual colors
-          showscale: false, // Don't show color scale
-          opacity: 1.0, // Increased from 0.9 for full opacity
-          
+          size: 6,
+          color: rgbColors,
+          colorscale: undefined,
+          showscale: false,
+          opacity: 1.0,
         },
         hovertemplate: '%{text}<extra></extra>',
         hoverlabel: {
           bgcolor: 'rgba(0,0,0,0.9)',
           bordercolor: 'rgba(255,255,255,0.3)',
-          font: { 
-            size: 14, 
-            color: 'white',
-            family: 'Arial, sans-serif'
-          },
+          font: { size: 14, color: 'white', family: 'Arial, sans-serif' },
           namelength: 0
         },
         showlegend: false
       }];
       
-      console.log(`3D Plot: Created plot with ${embeddings.length} points using individual blended colors`);
-      console.log('Data structure for Plotly:', {
-        pointCount: data[0].x.length,
-        colorCount: data[0].marker.color.length,
-        sampleColors: data[0].marker.color.slice(0, 5),
-        markerConfig: data[0].marker
-      });
-      
-      // Configure the plot
+      // Plot layout
       const layout = {
         title: {
           text: '3D Embedding Visualization (Color-Blended Categories)',
           font: { size: window.innerWidth < 640 ? 14 : 16 }
         },
-        paper_bgcolor: 'rgba(13,18,30,0.95)',  // Lighter dark blue to match app background
-        plot_bgcolor: 'rgba(13,18,30,0)',     // Transparent plot background
+        paper_bgcolor: 'rgba(13,18,30,0.95)',
+        plot_bgcolor: 'rgba(13,18,30,0)',
         scene: {
           xaxis: { 
             title: { text: 'PC1', font: { size: window.innerWidth < 640 ? 10 : 12 } },
@@ -961,7 +934,7 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
             gridcolor: 'rgba(255,255,255,0.1)', 
             zerolinecolor: 'rgba(255,255,255,0.2)' 
           },
-          bgcolor: 'rgba(13,18,30,0.95)',      // Dark navy blue background for the 3D scene to match app
+          bgcolor: 'rgba(13,18,30,0.95)',
         },
         margin: { 
           l: window.innerWidth < 640 ? 10 : 0, 
@@ -969,10 +942,8 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
           b: window.innerWidth < 640 ? 20 : 0, 
           t: window.innerWidth < 640 ? 40 : 30 
         },
-        showlegend: false, // Hide legend since each point has individual color
-        font: {
-          color: 'rgba(255,255,255,0.8)'   
-        },
+        showlegend: false,
+        font: { color: 'rgba(255,255,255,0.8)' },
         annotations: [{
           x: 0.02,
           y: 0.98,
@@ -987,10 +958,10 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
         }]
       };
       
-      // Create the plot
-      PlotlyJS.newPlot(plotRef.current, data, layout, {
+      // Create plot
+      PlotlyJS.newPlot(plotRef.current, plotData, layout, {
         responsive: true,
-        displayModeBar: window.innerWidth >= 640, // Hide toolbar on mobile
+        displayModeBar: window.innerWidth >= 640,
         modeBarButtonsToRemove: window.innerWidth < 640 ? [] : ['pan2d', 'lasso2d', 'select2d'],
         displaylogo: false,
         scrollZoom: true,
@@ -1000,21 +971,23 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
       console.error("Error creating 3D plot:", error);
     }
     
-    // Cleanup function
     return () => {
       if (plotRef.current) {
         PlotlyJS.purge(plotRef.current);
       }
     };
-  }, [embeddings, visualizationMode]);
+  }, [data, visualizationMode]);
 
   // Handle Plotly resize for fullscreen
   useEffect(() => {
     if (visualizationMode === 'dots' && plotRef.current) {
+      // Capture the ref value
+      const plotContainer = plotRef.current;
+      
       // Trigger Plotly resize when fullscreen changes
       setTimeout(() => {
-        if (plotRef.current) {
-          PlotlyJS.Plots.resize(plotRef.current);
+        if (plotContainer) {
+          PlotlyJS.Plots.resize(plotContainer);
         }
       }, 100);
     }
@@ -1022,9 +995,12 @@ export default function Embeddings3DPlot({ embeddings }: PlotProps) {
 
   // Cleanup effect for when switching away from dots view
   useEffect(() => {
+    // Capture ref immediately to avoid the warning
+    const plotContainer = plotRef.current;
+    
     return () => {
-      if (visualizationMode !== 'dots' && plotRef.current) {
-        PlotlyJS.purge(plotRef.current);
+      if (visualizationMode !== 'dots' && plotContainer) {
+        PlotlyJS.purge(plotContainer);
       }
     };
   }, [visualizationMode]);

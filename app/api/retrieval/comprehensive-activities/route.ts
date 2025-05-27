@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { Pinecone, RecordMetadataValue } from "@pinecone-database/pinecone";
 import { auth } from "@clerk/nextjs/server";
 
 export async function POST(req: NextRequest) {
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     const activityId = `comprehensive_activity_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Build comprehensive metadata based on category
-    let metadata: any = {
+    let metadata: Record<string, RecordMetadataValue> = {
       text: text,
       type: "comprehensive_activity",
       activity: activity,

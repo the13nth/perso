@@ -151,17 +151,20 @@ Respond in a friendly, conversational tone as if you're a local weather reporter
           pressure: weatherData.main.pressure,
           visibility: weatherData.visibility ? Math.round(weatherData.visibility / 1000) : null // Convert to km
         },
-        forecast: forecastData ? forecastData.list.slice(0, 6).map((item: any) => ({
-          time: new Date(item.dt * 1000).toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric',
-            hour: '2-digit'
-          }),
-          temperature: Math.round(item.main.temp),
-          condition: item.weather[0].main,
-          description: item.weather[0].description
-        })) : null,
+        forecast: forecastData ? forecastData.list.slice(0, 6).map((item: unknown) => {
+          const forecastItem = item as ForecastItem;
+          return {
+            time: new Date(forecastItem.dt * 1000).toLocaleDateString('en-US', { 
+              weekday: 'short', 
+              month: 'short', 
+              day: 'numeric',
+              hour: '2-digit'
+            }),
+            temperature: Math.round(forecastItem.main.temp),
+            condition: forecastItem.weather[0].main,
+            description: forecastItem.weather[0].description
+          };
+        }) : null,
         lastUpdated: new Date().toISOString()
       });
       
@@ -275,4 +278,10 @@ export class CodeInterpreterTool extends Tool {
       return `Error executing code: ${error}`;
     }
   }
+}
+
+interface ForecastItem {
+  dt: number;
+  main: { temp: number };
+  weather: Array<{ main: string; description: string }>;
 } 

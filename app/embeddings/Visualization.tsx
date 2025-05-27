@@ -4,15 +4,19 @@ import { useEffect, useState } from "react";
 import Dashboard from "./Dashboard";
 import { XCircle } from 'lucide-react';
 
+interface EmbeddingMetadata {
+  text: string;
+  categories?: string[] | string;
+  category?: string;
+  title?: string;
+  source?: string;
+  [key: string]: string | string[] | undefined;
+}
+
 interface Embedding {
   id: string;
   vector: number[];
-  metadata: {
-    text: string;
-    categories?: string[] | string;
-    category?: string;
-    [key: string]: any;
-  };
+  metadata: EmbeddingMetadata;
 }
 
 export default function ClientVisualization() {
@@ -29,21 +33,21 @@ export default function ClientVisualization() {
         const data = await response.json();
         
         // Process and normalize embeddings to ensure proper category handling
-        const processedEmbeddings = data.embeddings.map((emb: any) => {
+        const processedEmbeddings = data.embeddings.map((emb: Partial<Embedding>) => {
           // Create a new embedding object with properly typed structure
           const processedEmb: Embedding = {
-            id: emb.id,
-            vector: emb.vector,
-              metadata: {
-                ...emb.metadata,
-              text: emb.metadata.text || "",
+            id: emb.id || "",
+            vector: emb.vector || [],
+            metadata: {
+              ...emb.metadata,
+              text: emb.metadata?.text || ""
             }
           };
           
           // Process categories appropriately
-          if (emb.metadata.categories) {
+          if (emb.metadata?.categories) {
             processedEmb.metadata.categories = emb.metadata.categories;
-          } else if (emb.metadata.category) {
+          } else if (emb.metadata?.category) {
             processedEmb.metadata.category = emb.metadata.category;
           }
           

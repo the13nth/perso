@@ -5,7 +5,7 @@ import { useChat } from "ai/react";
 import { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "./ui/button";
 import { LoaderCircle, Bot, User, AlertCircle, Save } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
@@ -15,10 +15,26 @@ import { CategorySelectionModal } from "./CategorySelectionModal";
 import { v4 as uuidv4 } from 'uuid';
 import { useUser } from "@clerk/nextjs";
 
+interface ExtendedMessage extends Message {
+  tool_calls?: { name: string; arguments: string }[];
+}
+
+interface Source {
+  pageContent: string;
+  metadata?: {
+    loc?: {
+      lines: {
+        from: number;
+        to: number;
+      };
+    };
+  };
+}
+
 interface ChatCardProps {
   message: Message;
   aiEmoji?: string;
-  sources?: any[];
+  sources?: Source[];
   sessionId?: string;
   onSaveResponse?: (query: string, response: string, sessionId: string) => void;
   previousUserMessage?: Message;
@@ -97,7 +113,7 @@ function ChatCard({ message, aiEmoji, sources, sessionId, onSaveResponse, previo
             <div className="space-y-2">
               {sources.map((source, i) => (
                 <div key={`source-${i}`} className="text-xs bg-muted/50 p-2 sm:p-2 rounded">
-                  <div className="font-medium break-words">{i + 1}. "{source.pageContent}"</div>
+                  <div className="font-medium break-words">{i + 1}. &ldquo;{source.pageContent}&rdquo;</div>
                   {source.metadata?.loc?.lines && (
                     <div className="text-muted-foreground mt-1">
                       Lines {source.metadata.loc.lines.from} to {source.metadata.loc.lines.to}
@@ -177,7 +193,7 @@ export function AgentChatInterface(props: {
     !!props.showIntermediateStepsToggle,
   );
   const [intermediateStepsLoading, setIntermediateStepsLoading] = useState(false);
-  const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, any>>({});
+  const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, Source[]>>({});
   const [sessionId, setSessionId] = useState(uuidv4());
   const [savingStates, setSavingStates] = useState<Record<string, boolean>>({});
   const [savedResponses, setSavedResponses] = useState<Set<string>>(new Set());
@@ -208,7 +224,6 @@ export function AgentChatInterface(props: {
         });
       }
     },
-    streamMode: "text",
     onError: (e) =>
       toast.error(`Error while processing your request`, {
         description: e.message,
@@ -261,7 +276,7 @@ export function AgentChatInterface(props: {
         throw new Error(errorData.message || 'Failed to save response');
       }
 
-      const data = await saveResponse.json();
+      await saveResponse.json();
       
       // Mark this response as saved
       setSavedResponses(prev => new Set([...Array.from(prev), messageKey]));
@@ -304,6 +319,10 @@ export function AgentChatInterface(props: {
       id: chat.messages.length.toString(),
       content: chat.input,
       role: "user",
+      parts: [{
+        type: 'text',
+        text: chat.input
+      }]
     });
     chat.setMessages(messagesWithUserReply);
 
@@ -326,19 +345,16 @@ export function AgentChatInterface(props: {
       return;
     }
 
-    const responseMessages: Message[] = json.messages;
+    const responseMessages: ExtendedMessage[] = json.messages;
     const toolCallMessages = responseMessages.filter(
-      (responseMessage: Message) => {
-        return (
-          (responseMessage.role === "assistant" && !!responseMessage.tool_calls?.length) ||
-          responseMessage.role === "tool"
-        );
+      (responseMessage: ExtendedMessage) => {
+        return responseMessage.role === "assistant" && !!responseMessage.tool_calls?.length;
       },
     );
 
     const intermediateStepMessages = [];
     for (let i = 0; i < toolCallMessages.length; i += 2) {
-      const aiMessage = toolCallMessages[i];
+      const aiMessage = toolCallMessages[i] as ExtendedMessage;
       const toolMessage = toolCallMessages[i + 1];
       intermediateStepMessages.push({
         id: (messagesWithUserReply.length + i / 2).toString(),
@@ -347,6 +363,16 @@ export function AgentChatInterface(props: {
           action: aiMessage.tool_calls?.[0],
           observation: toolMessage.content,
         }),
+        parts: [{
+          type: 'tool-invocation' as const,
+          toolInvocation: {
+            state: 'result' as const,
+            toolCallId: `tool_${i}`,
+            toolName: aiMessage.tool_calls?.[0].name ?? '',
+            args: aiMessage.tool_calls?.[0].arguments ?? '',
+            result: toolMessage.content
+          }
+        }]
       });
     }
     
@@ -383,7 +409,7 @@ export function AgentChatInterface(props: {
           <CardContent className="pt-0">
             <p className="text-xs text-muted-foreground">
               Your conversations in this session can be saved to memory and will be available for future reference. 
-              Click "Save Response" on AI messages to add them to your personal knowledge base.
+              Click &quot;Save Response&quot; on AI messages to add them to your personal knowledge base.
             </p>
           </CardContent>
         </Card>
@@ -393,7 +419,7 @@ export function AgentChatInterface(props: {
           onChange={chat.handleInputChange}
           onSubmit={sendMessage}
           loading={chat.isLoading || intermediateStepsLoading}
-          placeholder={props.placeholder ?? "I'm an AI assistant with access to many tools. How can I help you today?"}
+          placeholder={props.placeholder ?? "I&apos;m an AI assistant with access to many tools. How can I help you today?"}
           showIntermediateStepsToggle={props.showIntermediateStepsToggle}
           showIntermediateSteps={showIntermediateSteps}
           onToggleIntermediateSteps={setShowIntermediateSteps}
@@ -456,7 +482,7 @@ export function AgentChatInterface(props: {
         onChange={chat.handleInputChange}
         onSubmit={sendMessage}
         loading={chat.isLoading || intermediateStepsLoading}
-        placeholder={props.placeholder ?? "I'm an AI assistant with access to many tools. How can I help you today?"}
+        placeholder={props.placeholder ?? "I&apos;m an AI assistant with access to many tools. How can I help you today?"}
         showIntermediateStepsToggle={props.showIntermediateStepsToggle}
         showIntermediateSteps={showIntermediateSteps}
         onToggleIntermediateSteps={setShowIntermediateSteps}

@@ -1,4 +1,4 @@
-import { Pinecone, Index, RecordMetadata, PineconeRecord } from '@pinecone-database/pinecone';
+import { Pinecone, Index, RecordMetadata, PineconeRecord, RecordMetadataValue } from '@pinecone-database/pinecone';
 import { Document } from 'langchain/document';
 
 if (!process.env.PINECONE_API_KEY) {
@@ -12,22 +12,37 @@ const pc = new Pinecone({
 // Vector dimension must match the Pinecone index dimension
 const VECTOR_DIMENSION = 768;
 
+export interface UserContext {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+  category?: string;
+}
+
 export interface AgentMetadata extends RecordMetadata {
   agentId: string;
   name: string;
   description: string;
   category: string;
+  isPublic: boolean;
+  createdAt: number;
+  updatedAt: number;
+  userId: string;
+  ownerId: string;
   useCases: string;
   triggers: string[];
   dataAccess: string[];
-  isPublic: boolean;
-  ownerId: string;
-  createdAt: number;
-  selectedContextIds?: string[];
-  [key: string]: any;
+  selectedContextIds: string[];
 }
 
-export interface ContextMetadata extends RecordMetadata {
+export type MetadataValue = string | number | boolean | string[];
+
+// Our application's metadata types
+export interface AppMetadata {
   agentId?: string;
   userId: string;
   content: string;
@@ -35,27 +50,52 @@ export interface ContextMetadata extends RecordMetadata {
   title: string;
   description?: string;
   createdAt: number;
-  [key: string]: any;
+  updatedAt?: number;
 }
 
-export interface UserContext {
-  id: string;
-  title: string;
-  description?: string;
-  content: string;
-  createdAt: number;
-}
+type PineconeCompatibleMetadata = AppMetadata & RecordMetadata;
 
-let index: Index<AgentMetadata>;
-let contextIndex: Index<ContextMetadata>;
+// Use Pinecone's types directly
+let index: Index;
+let contextIndex: Index;
 
 export async function initIndexes() {
   if (!process.env.PINECONE_INDEX) {
     throw new Error('Missing PINECONE_INDEX environment variable');
   }
   
-  index = pc.index<AgentMetadata>(process.env.PINECONE_INDEX);
-  contextIndex = pc.index<ContextMetadata>(process.env.PINECONE_INDEX);
+  index = pc.index(process.env.PINECONE_INDEX);
+  contextIndex = pc.index(process.env.PINECONE_INDEX);
+}
+
+// Convert metadata to a format compatible with Pinecone
+export function toPineconeMetadata(metadata: Partial<AppMetadata>): Record<string, RecordMetadataValue> {
+  const timestamp = Date.now();
+  const result: Record<string, RecordMetadataValue> = {
+    agentId: metadata.agentId || '',
+    userId: metadata.userId || '',
+    content: metadata.content || '',
+    source: metadata.source || '',
+    title: metadata.title || '',
+    description: metadata.description || '',
+    createdAt: metadata.createdAt || timestamp,
+    updatedAt: metadata.updatedAt || timestamp,
+  };
+  return result;
+}
+
+// Convert Pinecone metadata back to our app format
+export function fromPineconeMetadata(metadata: Record<string, RecordMetadataValue>): AppMetadata {
+  return {
+    userId: String(metadata.userId || ''),
+    content: String(metadata.content || ''),
+    title: String(metadata.title || ''),
+    createdAt: Number(metadata.createdAt || Date.now()),
+    agentId: metadata.agentId ? String(metadata.agentId) : undefined,
+    source: metadata.source ? String(metadata.source) : undefined,
+    description: metadata.description ? String(metadata.description) : undefined,
+    updatedAt: metadata.updatedAt ? Number(metadata.updatedAt) : undefined,
+  };
 }
 
 export async function getUserContexts(userId: string): Promise<UserContext[]> {
@@ -69,10 +109,12 @@ export async function getUserContexts(userId: string): Promise<UserContext[]> {
 
   return response.matches.map(match => ({
     id: match.id,
-    title: match.metadata?.title || 'Untitled',
-    description: match.metadata?.description,
-    content: match.metadata?.content || '',
-    createdAt: match.metadata?.createdAt || Date.now()
+    userId: String(match.metadata?.userId || ''),
+    title: String(match.metadata?.title || 'Untitled'),
+    description: match.metadata?.description ? String(match.metadata.description) : undefined,
+    content: String(match.metadata?.content || ''),
+    createdAt: Number(match.metadata?.createdAt || Date.now()),
+    updatedAt: Number(match.metadata?.updatedAt || Date.now())
   }));
 }
 
@@ -94,7 +136,7 @@ export async function addUserContext(
     metadata: {
       userId,
       title: context.title,
-      description: context.description,
+      description: context.description || '',
       content: context.content,
       createdAt: Date.now()
     }
@@ -103,27 +145,41 @@ export async function addUserContext(
   return contextId;
 }
 
+interface AgentConfig {
+  name: string;
+  description: string;
+  category: string;
+  useCases?: string;
+  triggers?: string;
+  dataAccess?: string;
+  isPublic?: boolean;
+}
+
 export async function storeAgentWithContext(
   agentId: string,
-  config: any,
+  config: unknown,
   contextDocuments: Document[],
   selectedContextIds: string[],
   ownerId: string
 ): Promise<AgentMetadata> {
   if (!index || !contextIndex) await initIndexes();
 
+  const agentConfig = config as AgentConfig;
+  
   // Store agent metadata
   const metadata: AgentMetadata = {
     agentId,
-    name: config.name,
-    description: config.description,
-    category: config.category,
-    useCases: config.useCases,
-    triggers: config.triggers?.split(',').map((t: string) => t.trim()) || [],
-    dataAccess: config.dataAccess?.split(',').map((d: string) => d.trim()) || [],
-    isPublic: config.isPublic || false,
+    name: agentConfig.name,
+    description: agentConfig.description,
+    category: agentConfig.category,
+    useCases: agentConfig.useCases || '',
+    triggers: agentConfig.triggers?.split(',').map((t: string) => t.trim()) || [],
+    dataAccess: agentConfig.dataAccess?.split(',').map((d: string) => d.trim()) || [],
+    isPublic: agentConfig.isPublic || false,
     ownerId,
+    userId: ownerId,
     createdAt: Date.now(),
+    updatedAt: Date.now(),
     selectedContextIds
   };
 
@@ -136,7 +192,7 @@ export async function storeAgentWithContext(
 
   // Store context documents if any
   if (contextDocuments.length > 0) {
-    const contextVectors: PineconeRecord<ContextMetadata>[] = contextDocuments.map((doc, i) => ({
+    const contextVectors: PineconeRecord<PineconeCompatibleMetadata>[] = contextDocuments.map((doc, i) => ({
       id: `${agentId}_context_${i}`,
       values: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
       metadata: {
@@ -155,13 +211,13 @@ export async function storeAgentWithContext(
   // Link selected contexts to the agent
   if (selectedContextIds.length > 0) {
     const selectedContexts = await contextIndex.fetch(selectedContextIds);
-    const contextVectors: PineconeRecord<ContextMetadata>[] = Object.values(selectedContexts.records)
-      .filter((record): record is PineconeRecord<ContextMetadata> => record !== null)
+    const contextVectors: PineconeRecord<PineconeCompatibleMetadata>[] = Object.values(selectedContexts.records)
+      .filter((record): record is PineconeRecord<PineconeCompatibleMetadata> => record !== null)
       .map(record => ({
         id: `${agentId}_${record.id}`,
         values: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
         metadata: {
-          ...record.metadata as ContextMetadata,
+          ...record.metadata as PineconeCompatibleMetadata,
           agentId
         }
       }));
@@ -187,7 +243,7 @@ export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
   return agent.metadata as AgentMetadata;
 }
 
-export async function getAgentContext(agentId: string, query: string): Promise<Document[]> {
+export async function getAgentContext(agentId: string): Promise<Document[]> {
   if (!contextIndex) await initIndexes();
 
   // Get all context documents for the agent
@@ -198,7 +254,7 @@ export async function getAgentContext(agentId: string, query: string): Promise<D
   });
 
   return response.matches.map(match => new Document({
-    pageContent: match.metadata?.content || '',
+    pageContent: String(match.metadata?.content || ''),
     metadata: {
       source: match.metadata?.source,
       title: match.metadata?.title

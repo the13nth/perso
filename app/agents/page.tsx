@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bot, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { AgentInterface } from "@/components/AgentInterface";
 import { AgentMetadata } from "@/lib/pinecone";
 import { useAuth } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
@@ -97,7 +96,7 @@ function AgentsContent() {
             </div>
           ) : (
             <div className="text-center text-muted-foreground">
-              You haven't created any agents yet.
+              You haven&apos;t created any agents yet.
               <br />
               <Link href="/agents/create">
                 <Button variant="link">Create your first agent</Button>

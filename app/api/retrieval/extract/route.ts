@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
           
           extractedText += `Sheet: ${sheetName}\n`;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          json.forEach((row: any) => {
+          json.forEach((row: unknown) => {
             extractedText += JSON.stringify(row) + "\n";
           });
           extractedText += "\n";

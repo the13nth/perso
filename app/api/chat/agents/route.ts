@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
+import { Message as VercelChatMessage } from "ai";
 
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
@@ -85,23 +85,22 @@ export async function POST(req: NextRequest) {
       )
       .map(convertVercelMessageToLangChainMessage);
 
-    // Initialize tools in priority order - specialized tools first
+    // Initialize tools in priority order
     const tools = [
-      new WeatherTool(),              // Weather tool first for weather queries
-      new Calculator(),               // Calculator for math
-      new DocumentAnalysisTool(),     // Document analysis
-      new DatabaseQueryTool(),        // Database queries
-      new ImageGeneratorTool(),       // Image generation
-      new CodeInterpreterTool(),      // Code execution
+      new WeatherTool(),
+      new Calculator(),
+      new DocumentAnalysisTool(),
+      new DatabaseQueryTool(),
+      new ImageGeneratorTool(),
+      new CodeInterpreterTool(),
     ];
     
-    // Add SerpAPI only if the key is available
     if (process.env.SERPAPI_API_KEY) {
       tools.push(new SerpAPI());
     }
 
     const chat = new ChatGoogleGenerativeAI({
-      model: "gemini-2.0-flash",
+      model: "gemini-pro",
       maxOutputTokens: 2048,
       temperature: 0,
     });
@@ -139,22 +138,19 @@ export async function POST(req: NextRequest) {
         { version: "v2" },
       );
 
-      const textEncoder = new TextEncoder();
-      const transformStream = new ReadableStream({
+      const stream = new ReadableStream({
         async start(controller) {
+          const encoder = new TextEncoder();
           for await (const { event, data } of eventStream) {
-            if (event === "on_chat_model_stream") {
-              // Intermediate chat model generations will contain tool calls and no content
-              if (!!data.chunk.content) {
-                controller.enqueue(textEncoder.encode(data.chunk.content));
-              }
+            if (event === "on_chat_model_stream" && data.chunk.content) {
+              controller.enqueue(encoder.encode(data.chunk.content));
             }
           }
           controller.close();
         },
       });
 
-      return new StreamingTextResponse(transformStream);
+      return new Response(stream);
     } else {
       /**
        * We could also pick intermediate steps out from `streamEvents` chunks, but
@@ -170,7 +166,8 @@ export async function POST(req: NextRequest) {
         { status: 200 },
       );
     }
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
+  } catch (error) {
+    const status = error instanceof Error && 'status' in error ? error.status as number : 500;
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'An error occurred' }, { status });
   }
 }

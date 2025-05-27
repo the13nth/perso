@@ -1,26 +1,24 @@
 module.exports = {
-  parser: '@typescript-eslint/parser',
-  parserOptions: {
-    ecmaVersion: 2020,
-    sourceType: 'module',
-    project: './tsconfig.json',
-  },
-  plugins: ['@typescript-eslint'],
+  root: true,
   extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-    'next',
     'next/core-web-vitals',
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended'
   ],
+  parser: '@typescript-eslint/parser',
+  plugins: ['@typescript-eslint'],
+  rules: {
+    '@typescript-eslint/no-unused-vars': 'error',
+    'no-unused-vars': 'off'
+  },
   overrides: [
     {
+      // Allow any in type definition files
       files: ['*.d.ts'],
       rules: {
-        '@typescript-eslint/no-explicit-any': 'off',
-      },
-    },
+        '@typescript-eslint/no-explicit-any': 'off'
+      }
+    }
   ],
-  rules: {
-    // Add any custom rules here
-  },
+  ignorePatterns: ['.next/*', 'node_modules/*']
 };

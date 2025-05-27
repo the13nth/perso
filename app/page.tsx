@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Brain, Building2, Users, Globe2, Heart, BarChart3, Database, PieChart, BookOpen, Sparkles, Lightbulb, Zap, Target, Activity, TrendingUp, Shield, Workflow, Check, Star, ArrowRight, Play, Cpu, Network, Bot } from "lucide-react";
+import { Brain, Users, Globe2, Heart, BarChart3, Database, BookOpen, Sparkles, Lightbulb, Zap, Target, Activity, TrendingUp, Shield, Workflow, Check, Star, ArrowRight, Play, Cpu, Network, Bot } from "lucide-react";
 
 // Animated background pattern component
 function AnimatedBackground() {
@@ -440,7 +440,7 @@ export default function HomePage() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <div className="flex flex-col items-center space-y-6 animate-fade-in-up">
               <p className="text-lg md:text-xl text-muted-foreground max-w-4xl leading-relaxed">
-                Ubumuntu means 'humanity towards others' in Kinyarwanda. Our platform embodies this philosophy by creating AI that understands your unique context—whether you're running a business or managing your personal life—and intelligently automates tasks, generates insights, and provides recommendations that truly serve your needs.
+                Ubumuntu means &apos;humanity towards others&apos; in Kinyarwanda. Our platform embodies this philosophy by creating AI that understands your unique context—whether you&apos;re running a business or managing your personal life—and intelligently automates tasks, generates insights, and provides recommendations that truly serve your needs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link

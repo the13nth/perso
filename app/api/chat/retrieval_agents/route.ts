@@ -1,20 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Message as VercelChatMessage, StreamingTextResponse } from "ai";
+import { Message as VercelChatMessage } from "ai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { RunnableSequence } from "@langchain/core/runnables";
-import { StringOutputParser } from "@langchain/core/output_parsers";
 import { BaseMessage } from "@langchain/core/messages";
-import { AgentExecutor, createOpenAIToolsAgent } from "langchain/agents";
-import { StructuredTool } from "@langchain/core/tools";
-import { DynamicTool } from "langchain/tools";
 import { formatDocumentsAsString } from "langchain/util/document";
 import { Document } from "@langchain/core/documents";
 import { BaseRetriever } from "@langchain/core/retrievers";
 import { auth } from "@clerk/nextjs/server";
-import { z } from "zod";
+
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: process.env.GOOGLE_API_KEY || "",
+  modelName: "embedding-latest",
+});
+
+interface PineconeMatch {
+  metadata: {
+    text?: string;
+    documentId?: string;
+    title?: string;
+    chunkIndex?: number;
+    totalChunks?: number;
+    categories?: string[];
+    access?: string;
+    createdAt?: string;
+    userId?: string;
+  };
+  score?: number;
+}
 
 export const runtime = "edge";
 
@@ -28,24 +43,10 @@ const convertVercelMessageToLangChainMessage = (message: VercelChatMessage) => {
   }
 };
 
-const convertLangChainMessageToVercelMessage = (message: BaseMessage) => {
-  if (message._getType() === "human") {
-    return { role: "user", content: message.content };
-  } else if (message._getType() === "ai") {
-    return { role: "assistant", content: message.content };
-  } else {
-    return { role: "system", content: message.content };
-  }
-};
-
 // Custom Pinecone retriever using fetch API instead of Node.js SDK
 async function searchPineconeViaAPI(query: string, userId: string, topK = 5) {
   // Get embedding for the query
-  const embeddings = new GoogleGenerativeAIEmbeddings({
-    apiKey: process.env.GOOGLE_API_KEY || "",
-    modelName: "embedding-latest",
-  });
-  
+
   const queryEmbedding = await embeddings.embedQuery(query);
 
   // Query Pinecone via REST API
@@ -75,9 +76,9 @@ async function searchPineconeViaAPI(query: string, userId: string, topK = 5) {
   const data = await response.json();
 
   // Convert Pinecone response to Document objects
-  return data.matches.map((match: any) => {
-    // Extract full metadata
-    const metadata = match.metadata || {};
+  return data.matches.map((match: unknown) => {
+    const typedMatch = match as PineconeMatch;
+    const metadata = typedMatch.metadata || {};
     
     // Check if text is valid and sanitize if needed
     let text = "No content available";
@@ -110,7 +111,7 @@ async function searchPineconeViaAPI(query: string, userId: string, topK = 5) {
       pageContent: text,
       metadata: {
         source,
-        score: match.score,
+        score: typedMatch.score,
         categories,
         access: metadata.access || "personal",
         createdAt: metadata.createdAt || "Unknown date",
@@ -143,17 +144,11 @@ export async function POST(req: NextRequest) {
           message.role === "user" || message.role === "assistant",
       )
       .map(convertVercelMessageToLangChainMessage);
-    const returnIntermediateSteps = body.show_intermediate_steps;
 
     const chatModel = new ChatGoogleGenerativeAI({
-      model: "gemini-2.0-flash",
+      model: "gemini-pro",
       maxOutputTokens: 2048,
       temperature: 0.2,
-    });
-
-    const embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: process.env.GOOGLE_API_KEY || "",
-      modelName: "embedding-latest",
     });
 
     // Create a custom retriever that implements BaseRetriever
@@ -171,22 +166,6 @@ export async function POST(req: NextRequest) {
 
     const retriever = new CustomPineconeRetriever(userId);
 
-    class SearchTool extends StructuredTool {
-      name = "search";
-      description =
-        "Search for information about a topic. Input should be a search query.";
-      schema = z.object({
-        query: z.string().describe("The search query to use"),
-      });
-
-      async _call({ query }: { query: string }) {
-        const docs = await retriever.getRelevantDocuments(query);
-        return formatDocumentsAsString(docs);
-      }
-    }
-
-    const tools = [new SearchTool()];
-
     const prompt = PromptTemplate.fromTemplate(`
       You are a helpful AI assistant that answers questions based on the provided context. If you 
       don't know something or it's not mentioned in the context, just say so.
@@ -200,27 +179,39 @@ export async function POST(req: NextRequest) {
 
     const chain = RunnableSequence.from([
       {
+        question: (input: { question: string; chat_history: BaseMessage[] }) => input.question,
+      },
+      {
+        context: async (input: { question: string }) => {
+          const relevantDocs = await retriever.getRelevantDocuments(
+            input.question,
+          );
+          return formatDocumentsAsString(relevantDocs);
+        },
         question: (input) => input.question,
-        context: async (input) => {
-          const docs = await retriever.getRelevantDocuments(input.question);
-          return formatDocumentsAsString(docs);
+      },
+      {
+        result: async (input) => {
+          const result = await prompt.pipe(chatModel).invoke({
+            context: input.context,
+            question: input.question,
+          });
+          return result;
         },
       },
-      prompt,
-      chatModel,
-      new StringOutputParser(),
     ]);
 
-    const currentMessageContent = messages[messages.length - 1].content;
     const stream = await chain.stream({
-      question: currentMessageContent,
-      });
+      question: messages[messages.length - 1].content,
+      chat_history: formattedPreviousMessages,
+    });
 
-    return new StreamingTextResponse(stream);
-  } catch (error) {
-    console.error("Error in retrieval agent:", error);
-      return NextResponse.json(
-      { error: "Error processing your request" },
+    return new Response(stream);
+  } catch (error: unknown) {
+    console.error("Error in retrieval agents:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    return NextResponse.json(
+      { error: errorMessage },
       { status: 500 }
     );
   }
