@@ -4,7 +4,7 @@ import { cn } from "@/utils/cn";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Link from "next/link";
-import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 import { Menu, X, Database, Sparkles, Lightbulb, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -28,16 +28,17 @@ export const ActiveLink = (props: { href: string; children: ReactNode; icon?: Re
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
-  
+  const { isSignedIn } = useUser();
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
   const navLinks = [
-    //{ href: "/chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
-    { href: "/retrieval", label: "Chat", icon: <Database className="h-4 w-4" /> },
-    { href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
-    //{ href: "/structured_output", label: "Structured Output", icon: <Layout className="h-4 w-4" /> },
-    //{ href: "/streaming", label: "Streaming", icon: <Radio className="h-4 w-4" /> },
-    { href: "/embeddings", label: "Embeddings", icon: <Sparkles className="h-4 w-4" /> },
-    { href: "/insights", label: "Insights", icon: <Lightbulb className="h-4 w-4" /> },
+    { href: "/chat", label: "Chat", icon: <Sparkles className="w-4 h-4" /> },
+    { href: "/agents", label: "Agents", icon: <Bot className="w-4 h-4" /> },
+    { href: "/embeddings", label: "Embeddings", icon: <Database className="w-4 h-4" /> },
+    { href: "/insights", label: "Insights", icon: <Lightbulb className="w-4 h-4" /> },
   ];
 
   return (
@@ -81,19 +82,23 @@ export function Navbar() {
                 {link.label}
               </ActiveLink>
             ))}
-            
           </div>
         </div>
         
         {/* User account section */}
         <div className="col-span-4 sm:col-span-4 lg:col-span-2 flex items-center justify-end gap-2">
-          <SignInButton mode="modal">
-            <Button variant="ghost">Sign In</Button>
-          </SignInButton>
-          <SignUpButton mode="modal">
-            <Button>Get Started</Button>
-          </SignUpButton>
-          <UserButton afterSignOutUrl="/" />
+          {!isSignedIn ? (
+            <>
+              <SignInButton mode="modal">
+                <Button variant="ghost" className="hidden md:flex">Sign In</Button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <Button className="hidden md:flex">Get Started</Button>
+              </SignUpButton>
+            </>
+          ) : (
+            <UserButton afterSignOutUrl="/" />
+          )}
         </div>
       </div>
       
@@ -112,7 +117,16 @@ export function Navbar() {
               </ActiveLink>
             </div>
           ))}
-         
+          {!isSignedIn && (
+            <>
+              <SignInButton mode="modal">
+                <Button variant="ghost" className="w-full justify-start">Sign In</Button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <Button className="w-full justify-start">Get Started</Button>
+              </SignUpButton>
+            </>
+          )}
         </div>
       </div>
     </nav>

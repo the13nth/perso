@@ -37,6 +37,7 @@ export interface AgentMetadata extends RecordMetadata {
   triggers: string[];
   dataAccess: string[];
   selectedContextIds: string[];
+  type: string;
 }
 
 export type MetadataValue = string | number | boolean | string[];
@@ -66,6 +67,13 @@ export async function initIndexes() {
   
   index = pc.index(process.env.PINECONE_INDEX);
   contextIndex = pc.index(process.env.PINECONE_INDEX);
+}
+
+// Create a placeholder vector with a single non-zero value
+function createPlaceholderVector() {
+  const vector = new Array(VECTOR_DIMENSION).fill(0);
+  vector[0] = 1; // Set first element to 1 to ensure non-zero vector
+  return vector;
 }
 
 // Convert metadata to a format compatible with Pinecone
@@ -102,7 +110,7 @@ export async function getUserContexts(userId: string): Promise<UserContext[]> {
   if (!contextIndex) await initIndexes();
 
   const response = await contextIndex.query({
-    vector: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
+    vector: createPlaceholderVector(),
     filter: { userId },
     topK: 100
   });
@@ -132,7 +140,7 @@ export async function addUserContext(
   
   await contextIndex.upsert([{
     id: contextId,
-    values: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
+    values: createPlaceholderVector(),
     metadata: {
       userId,
       title: context.title,
@@ -150,7 +158,7 @@ interface AgentConfig {
   description: string;
   category: string;
   useCases?: string;
-  triggers?: string;
+  triggers?: string[];
   dataAccess?: string;
   isPublic?: boolean;
 }
@@ -173,20 +181,21 @@ export async function storeAgentWithContext(
     description: agentConfig.description,
     category: agentConfig.category,
     useCases: agentConfig.useCases || '',
-    triggers: agentConfig.triggers?.split(',').map((t: string) => t.trim()) || [],
+    triggers: agentConfig.triggers || [],
     dataAccess: agentConfig.dataAccess?.split(',').map((d: string) => d.trim()) || [],
     isPublic: agentConfig.isPublic || false,
     ownerId,
     userId: ownerId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    selectedContextIds
+    selectedContextIds,
+    type: 'agent_config'
   };
 
   // Store agent configuration
   await index.upsert([{
     id: `agent_${agentId}`,
-    values: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
+    values: createPlaceholderVector(),
     metadata
   }]);
 
@@ -194,7 +203,7 @@ export async function storeAgentWithContext(
   if (contextDocuments.length > 0) {
     const contextVectors: PineconeRecord<PineconeCompatibleMetadata>[] = contextDocuments.map((doc, i) => ({
       id: `${agentId}_context_${i}`,
-      values: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
+      values: createPlaceholderVector(),
       metadata: {
         agentId,
         userId: ownerId,
@@ -215,7 +224,7 @@ export async function storeAgentWithContext(
       .filter((record): record is PineconeRecord<PineconeCompatibleMetadata> => record !== null)
       .map(record => ({
         id: `${agentId}_${record.id}`,
-        values: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
+        values: createPlaceholderVector(),
         metadata: {
           ...record.metadata as PineconeCompatibleMetadata,
           agentId
@@ -233,13 +242,16 @@ export async function storeAgentWithContext(
 export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
   if (!index) await initIndexes();
 
+  console.log('Fetching agent with ID:', `agent_${agentId}`);
   const response = await index.fetch([`agent_${agentId}`]);
+  console.log('Individual agent fetch response:', JSON.stringify(response.records, null, 2));
 
   const agent = response.records[`agent_${agentId}`];
   if (!agent) {
     throw new Error('Agent not found');
   }
 
+  console.log('Individual agent metadata:', JSON.stringify(agent.metadata, null, 2));
   return agent.metadata as AgentMetadata;
 }
 
@@ -248,7 +260,7 @@ export async function getAgentContext(agentId: string): Promise<Document[]> {
 
   // Get all context documents for the agent
   const response = await contextIndex.query({
-    vector: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
+    vector: createPlaceholderVector(),
     filter: { agentId },
     topK: 100
   });
@@ -262,26 +274,60 @@ export async function getAgentContext(agentId: string): Promise<Document[]> {
   }));
 }
 
-export async function listPublicAgents(): Promise<AgentMetadata[]> {
-  if (!index) await initIndexes();
-
-  const response = await index.query({
-    vector: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
-    filter: { isPublic: true },
-    topK: 100
-  });
-
-  return response.matches.map(match => match.metadata as AgentMetadata);
-}
-
 export async function listUserAgents(ownerId: string): Promise<AgentMetadata[]> {
   if (!index) await initIndexes();
 
-  const response = await index.query({
-    vector: new Array(VECTOR_DIMENSION).fill(0), // Placeholder vector
+  console.log('Listing agents for owner:', ownerId);
+  
+  // First query to get matching IDs
+  const queryResponse = await index.query({
+    vector: createPlaceholderVector(),
     filter: { ownerId },
     topK: 100
   });
 
-  return response.matches.map(match => match.metadata as AgentMetadata);
+  // Get IDs from query response
+  const agentIds = queryResponse.matches.map(match => match.id);
+  
+  if (agentIds.length === 0) {
+    return [];
+  }
+
+  // Fetch full records with metadata
+  const response = await index.fetch(agentIds);
+  console.log('Fetch response:', JSON.stringify(response.records, null, 2));
+
+  // Map and filter out any invalid records
+  const agents = Object.values(response.records)
+    .map(record => record?.metadata as AgentMetadata)
+    .filter(agent => agent && agent.agentId && agent.name);
+
+  console.log('Filtered agents:', JSON.stringify(agents, null, 2));
+  return agents;
+}
+
+export async function listPublicAgents(): Promise<AgentMetadata[]> {
+  if (!index) await initIndexes();
+
+  // First query to get matching IDs
+  const queryResponse = await index.query({
+    vector: createPlaceholderVector(),
+    filter: { isPublic: true },
+    topK: 100
+  });
+
+  // Get IDs from query response
+  const agentIds = queryResponse.matches.map(match => match.id);
+  
+  if (agentIds.length === 0) {
+    return [];
+  }
+
+  // Fetch full records with metadata
+  const response = await index.fetch(agentIds);
+
+  // Map and filter out any invalid records
+  return Object.values(response.records)
+    .map(record => record?.metadata as AgentMetadata)
+    .filter(agent => agent && agent.agentId && agent.name);
 } 

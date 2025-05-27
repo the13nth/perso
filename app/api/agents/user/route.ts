@@ -14,11 +14,20 @@ export async function GET() {
     }
     
     const agents = await listUserAgents(userId);
-    return NextResponse.json({ agents });
+    
+    // Filter out any invalid agents and ensure proper structure
+    const validAgents = agents.filter(agent => 
+      agent && 
+      agent.agentId && 
+      agent.name && 
+      agent.description
+    );
+
+    return NextResponse.json({ agents: validAgents });
   } catch (error) {
     console.error('Error listing user agents:', error);
     return NextResponse.json(
-      { error: 'Failed to list user agents' },
+      { error: 'Failed to list user agents', agents: [] },
       { status: 500 }
     );
   }
