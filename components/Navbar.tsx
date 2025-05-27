@@ -33,7 +33,7 @@ export function Navbar() {
   const navLinks = [
     //{ href: "/chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
     { href: "/retrieval", label: "Chat", icon: <Database className="h-4 w-4" /> },
-    // { href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
+    { href: "/agents", label: "Agents", icon: <Bot className="h-4 w-4" /> },
     //{ href: "/structured_output", label: "Structured Output", icon: <Layout className="h-4 w-4" /> },
     //{ href: "/streaming", label: "Streaming", icon: <Radio className="h-4 w-4" /> },
     { href: "/embeddings", label: "Embeddings", icon: <Sparkles className="h-4 w-4" /> },
