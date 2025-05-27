@@ -35,7 +35,7 @@ export function Navbar() {
   };
 
   const navLinks = [
-    { href: "/chat", label: "Chat", icon: <Sparkles className="w-4 h-4" /> },
+    { href: "/retrieval", label: "Chat", icon: <Sparkles className="w-4 h-4" /> },
     { href: "/agents", label: "Agents", icon: <Bot className="w-4 h-4" /> },
     { href: "/embeddings", label: "Embeddings", icon: <Database className="w-4 h-4" /> },
     { href: "/insights", label: "Insights", icon: <Lightbulb className="w-4 h-4" /> },
