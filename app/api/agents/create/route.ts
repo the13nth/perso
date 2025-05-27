@@ -15,6 +15,19 @@ interface CreateAgentRequest {
   selectedCategories: string[];
 }
 
+interface EmbeddingMetadata {
+  text: string;
+  categories?: string[];
+  category?: string;
+  [key: string]: unknown;
+}
+
+interface Embedding {
+  id: string;
+  metadata: EmbeddingMetadata;
+  values?: number[];
+}
+
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
@@ -45,10 +58,10 @@ export async function POST(req: Request) {
     if (!response.ok) {
       throw new Error('Failed to fetch embeddings');
     }
-    const data = await response.json();
+    const data: { embeddings: Embedding[] } = await response.json();
     
     // Filter embeddings by selected categories
-    const relevantEmbeddings = data.embeddings.filter((emb: any) => {
+    const relevantEmbeddings = data.embeddings.filter((emb) => {
       const embCategories = Array.isArray(emb.metadata.categories) 
         ? emb.metadata.categories 
         : [emb.metadata.category || 'Uncategorized'];
@@ -56,7 +69,7 @@ export async function POST(req: Request) {
     });
 
     // Convert embeddings to documents
-    const contextDocuments = relevantEmbeddings.map((emb: any) => new Document({
+    const contextDocuments = relevantEmbeddings.map((emb) => new Document({
       pageContent: emb.metadata.text || '',
       metadata: {
         ...emb.metadata,
