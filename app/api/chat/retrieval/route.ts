@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import type { Message as VercelChatMessage } from "ai";
+import { Message as VercelChatMessage, LangChainAdapter } from "ai";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { Document } from "@langchain/core/documents";
@@ -9,7 +9,6 @@ import { initializeGeminiModel } from "@/app/utils/modelInit";
 import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
-import { HttpResponseOutputParser } from "langchain/output_parsers";
 import { Pinecone, type Index, type RecordMetadata } from "@pinecone-database/pinecone";
 import { auth } from "@clerk/nextjs/server";
 
@@ -26,134 +25,126 @@ type DocumentMetadata = Partial<{
   category: string;
   activityDate: string;
   duration: string;
+  score: number;
 }> & RecordMetadata;
 
-const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
+// Add type definition at the top with other types
+type PineconeFilter = {
+  userId: string;
+  [key: string]: string | number | boolean;
+};
 
-<chat_history>
-  {chat_history}
-</chat_history>
+const ANSWER_TEMPLATE = `You are Ubumuntu AI, a personal AI assistant. You have access to a knowledge base of documents and information.
 
-Follow Up Input: {question}
-Standalone question:`;
+Instructions:
+1. Use ONLY the provided context to answer the question
+2. If the context doesn't contain relevant information, say "I don't have any information about that in my knowledge base"
+3. Do not make up or infer information not present in the context
+4. If the context is irrelevant to the question, ignore it and say you don't have relevant information
 
-const condenseQuestionPrompt = PromptTemplate.fromTemplate(
-  CONDENSE_QUESTION_TEMPLATE,
-);
+Context from knowledge base:
+{context}
 
-const ANSWER_TEMPLATE = `You are Ubumuntu AI, a personal AI assistant that helps with activity tracking, document management, and general assistance. You have access to the user's personal documents, notes, activity logs, and previous conversations.
+Chat History:
+{chat_history}
 
-When answering questions:
-- Reference previous conversations when relevant using the format: "As we discussed before..." or "Building on our previous conversation..."
-- For activities, be specific about dates, types, and metrics
-- For documents or notes, reference them appropriately
-- For previous conversations, acknowledge the context and build upon it
-- Always be helpful, detailed, and maintain conversation continuity
+Current Question: {question}
+Assistant: Let me check the provided context and answer your question.`;
 
-The context below includes various types of information:
-- [PREVIOUS CONVERSATION] - Past discussions from this or other sessions
-- [ACTIVITY] - Physical activities, work tasks, or personal logs
-- [NOTE] - Personal notes and thoughts
-- [DOCUMENT] - Uploaded documents and files
+function formatDocument(doc: Document) {
+  const meta = doc.metadata;
+  let formattedContent = "";
 
-<context>
-  {context}
-</context>
+  // Format based on document type
+  if (meta.type === "note") {
+    formattedContent = `NOTE [${meta.title || 'Untitled'}]:\n${doc.pageContent}`;
+  } else if (meta.type === "activity") {
+    formattedContent = `ACTIVITY LOG [${meta.category || 'Uncategorized'}]:\n${doc.pageContent}`;
+  } else if (meta.type === "document") {
+    formattedContent = `DOCUMENT [${meta.title || 'Untitled'}]:\n${doc.pageContent}`;
+  } else {
+    formattedContent = doc.pageContent;
+  }
 
-<chat_history>
-  {chat_history}
-</chat_history>
+  // Add relevance score if available
+  if (meta.score) {
+    formattedContent += `\nRelevance: ${(meta.score * 100).toFixed(2)}%`;
+  }
 
-Question: {question}
-Answer:`;
-
-const answerPrompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
+  return formattedContent;
+}
 
 async function searchPinecone(
   pineconeIndex: Index,
   embeddings: GoogleGenerativeAIEmbeddings,
   query: string,
-  userId: string,
-  sessionId?: string,
-  topK = 10
+  userId: string
 ) {
   const queryEmbedding = await embeddings.embedQuery(query);
+  console.log('🔍 Searching for:', query);
 
-  const filter: Record<string, string> = {
-    userId: userId
-  };
-
-  if (sessionId) {
-    filter.sessionId = sessionId;
-  }
-
-  const results = await pineconeIndex.query({
-    vector: queryEmbedding,
-    topK,
-    includeMetadata: true,
-    filter
-  });
-
-  return results.matches.map((match) => {
-    const metadata = match.metadata as DocumentMetadata ?? {};
-    
-    const text = metadata.text || "";
-    
-    const enhancedMetadata: Record<string, unknown> = {
-      ...metadata,
-      similarity: match.score ?? 0,
-      owner: metadata.userId === userId ? "You" : "Other user"
+  try {
+    // Simple filter - just use userId
+    const filter: PineconeFilter = {
+      userId: userId
     };
-    
-    if (metadata.type === "conversation") {
-      enhancedMetadata.contentType = "Conversation";
-      enhancedMetadata.query = metadata.query || "Unknown query";
-      enhancedMetadata.response = metadata.response || "Unknown response";
-      enhancedMetadata.sessionId = metadata.sessionId || "Unknown session";
-      enhancedMetadata.title = metadata.title || "Previous conversation";
-    } else if (metadata.type === "comprehensive_activity") {
-      enhancedMetadata.contentType = "Activity";
-      enhancedMetadata.activityType = metadata.activity || "Unknown";
-      enhancedMetadata.category = metadata.category || "Unknown";
-      enhancedMetadata.date = metadata.activityDate || "Unknown date";
-      enhancedMetadata.duration = metadata.duration || "Unknown duration";
-      enhancedMetadata.title = metadata.title || "Activity";
-    } else if (metadata.type === "note") {
-      enhancedMetadata.contentType = "Note";
-      enhancedMetadata.title = metadata.title || "Note";
-    } else {
-      enhancedMetadata.contentType = "Document";
-      enhancedMetadata.title = metadata.title || "Document";
-    }
-    
-    return new Document({
-      pageContent: text,
-      metadata: enhancedMetadata
+
+    const results = await pineconeIndex.query({
+      vector: queryEmbedding,
+      topK: 20,
+      includeMetadata: true,
+      filter
     });
-  });
+
+    if (!results.matches?.length) {
+      console.log('⚠️ No matches found at all');
+      return [];
+    }
+
+    // Debug log all matches
+    results.matches.forEach((match, idx) => {
+      console.log(`Match ${idx + 1} (score: ${match.score}):`, {
+        metadata: match.metadata,
+        score: match.score
+      });
+    });
+
+    // Less strict relevance filtering (0.5 instead of 0.7)
+    const relevantMatches = results.matches.filter(match => (match.score || 0) > 0.5);
+    console.log(`📊 Found ${relevantMatches.length} relevant matches above 0.5 threshold`);
+
+    return relevantMatches.map(match => {
+      const metadata = match.metadata as DocumentMetadata;
+      return new Document({
+        pageContent: metadata.text || "",
+        metadata: {
+          ...metadata,
+          score: match.score
+        }
+      });
+    });
+  } catch (error) {
+    console.error('❌ Search error:', error);
+    throw error;
+  }
 }
 
-interface ChainInput {
-  question: string;
-  chat_history: string | string[];
-  standalone_question?: string;
-  original_input?: string;
-}
+const formatMessage = (message: VercelChatMessage) => {
+  return `${message.role}: ${message.content}`;
+};
 
 export async function POST(req: NextRequest) {
   try {
-    // Get user authentication
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json(
-        { error: "Unauthorized: You must be logged in to use this feature" },
+        { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
     const body = await req.json();
     const messages = body.messages ?? [];
-    const sessionId = body.sessionId; // Extract sessionId from request
     const previousMessages = messages.slice(0, -1);
     const currentMessageContent = messages[messages.length - 1].content;
 
@@ -168,88 +159,54 @@ export async function POST(req: NextRequest) {
 
     const embeddings = new GoogleGenerativeAIEmbeddings({
       apiKey: process.env.GOOGLE_API_KEY || "",
-      modelName: "text-embedding-004", // Use the same model as activities
+      modelName: "text-embedding-004",
     });
 
+    console.log('🌲 Initializing Pinecone index...');
     const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX || "");
-
-    let resolveWithDocuments: (value: Document[]) => void;
-    const documentPromise = new Promise<Document[]>((resolve) => {
-      resolveWithDocuments = resolve;
-    });
+    console.log('✅ Pinecone index initialized:', process.env.PINECONE_INDEX);
 
     const retriever = {
       invoke: async (query: string) => {
-        const documents = await searchPinecone(pineconeIndex, embeddings, query, userId, sessionId);
-        resolveWithDocuments(documents);
+        console.log('🔍 Retriever Query:', query);
+        const documents = await searchPinecone(pineconeIndex, embeddings, query, userId);
+        console.log('📄 Retrieved Documents:', documents.length);
+        console.log('📝 First Document Sample:', documents[0]?.pageContent.slice(0, 100));
         return documents;
       },
     };
 
-    const retrievalChain = async (query: string): Promise<Document[]> => {
-      return await retriever.invoke(query);
-    };
+    const prompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
 
     const chain = RunnableSequence.from([
       {
-        standalone_question: async (input: unknown) => {
-          const { question, chat_history } = input as ChainInput;
-          const model = await initializeGeminiModel({
-            maxOutputTokens: 2048,
-            temperature: 0.2,
-          });
-          const standaloneQuestionChain = condenseQuestionPrompt
-            .pipe(model)
-            .pipe(new StringOutputParser());
-          return standaloneQuestionChain.invoke({
-            chat_history: Array.isArray(chat_history) ? chat_history.join("\n") : chat_history,
-            question,
-          });
+        context: async (input: { question: string; chat_history: string }) => {
+          console.log('🔍 Original Question:', input.question);
+          const docs = await retriever.invoke(input.question);
+          const formattedDocs = docs.map((doc: Document) => formatDocument(doc)).join('\n\n');
+          console.log('📚 Context Sample:', formattedDocs.slice(0, 200));
+          return formattedDocs;
         },
-        original_input: (input: unknown) => (input as ChainInput).question,
-        chat_history: (input: unknown) => (input as ChainInput).chat_history,
-      },
-      {
-        context: async (input: unknown) => {
-          const relevantDocs = await retrievalChain((input as ChainInput).standalone_question || '');
-          return relevantDocs
-            .map((doc) => formatDocument(doc))
-            .join("\n\n");
+        chat_history: (input: { chat_history: string }) => {
+          console.log('💬 Chat History Length:', input.chat_history.length);
+          return input.chat_history;
         },
-        chat_history: (input: unknown) => (input as ChainInput).chat_history,
-        question: (input: unknown) => (input as ChainInput).original_input,
+        question: (input: { question: string }) => {
+          console.log('❓ Final Question:', input.question);
+          return input.question;
+        },
       },
-      answerPrompt,
+      prompt,
       model,
-      new HttpResponseOutputParser(),
+      new StringOutputParser(),
     ]);
 
     const stream = await chain.stream({
-      chat_history: formatMessages(previousMessages),
       question: currentMessageContent,
+      chat_history: previousMessages.map(formatMessage).join('\n'),
     });
 
-    const documents = await documentPromise;
-    const serializedSources = Buffer.from(
-      JSON.stringify(
-        documents.map((doc) => ({
-          pageContent: `${doc.pageContent.slice(0, 100)}...`,
-          metadata: {
-            contentType: doc.metadata.contentType,
-            title: doc.metadata.title,
-            similarity: doc.metadata.similarity,
-            owner: doc.metadata.owner
-          },
-        })),
-      ),
-    ).toString("base64");
-
-    return new Response(stream, {
-      headers: {
-        "x-message-index": (previousMessages.length + 1).toString(),
-        "x-sources": serializedSources,
-      },
-    });
+    return LangChainAdapter.toDataStreamResponse(stream);
   } catch (error: Error | unknown) {
     console.error("Error in chat/retrieval:", error);
     return NextResponse.json(
@@ -257,28 +214,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function formatMessages(messages: VercelChatMessage[]) {
-  return messages
-    .map((m) => `${m.role}: ${m.content}`)
-    .join('\n');
-}
-
-function formatDocument(doc: Document) {
-  let formattedDoc = doc.pageContent;
-  const meta = doc.metadata;
-  
-  // Add context information for different content types
-  if (meta.contentType === "Conversation") {
-    formattedDoc = `[PREVIOUS CONVERSATION - Session ${meta.sessionId}]\nQuery: ${meta.query}\nResponse: ${meta.response}`;
-  } else if (meta.contentType === "Activity") {
-    formattedDoc = `[ACTIVITY - ${meta.category}/${meta.activityType} on ${meta.date}]\n${formattedDoc}`;
-  } else if (meta.contentType === "Note") {
-    formattedDoc = `[NOTE - ${meta.title}]\n${formattedDoc}`;
-  } else if (meta.contentType === "Document") {
-    formattedDoc = `[DOCUMENT - ${meta.title}]\n${formattedDoc}`;
-  }
-  
-  return formattedDoc;
 }
