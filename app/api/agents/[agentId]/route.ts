@@ -4,7 +4,7 @@ import { getAgentConfig } from '@/lib/pinecone';
 
 export async function GET(
   _request: Request,
-  { params }: { params: { agentId: string } }
+  context: { params: Promise<{ agentId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -15,8 +15,9 @@ export async function GET(
       );
     }
 
+    const { agentId } = await context.params;
     // Get agent configuration
-    const agent = await getAgentConfig(params.agentId);
+    const agent = await getAgentConfig(agentId);
 
     // Check if user has access to this agent
     if (!agent.isPublic && agent.ownerId !== userId) {
