@@ -15,15 +15,18 @@ import { toast } from 'sonner';
 import { useUser } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 
-const CATEGORIES = [
-  'General Purpose',
-  'Research',
-  'Data Analysis',
-  'Writing',
+// Predefined categories for agents
+const AGENT_CATEGORIES = [
   'Customer Service',
-  'Development',
+  'Data Analysis',
+  'Document Processing',
+  'Knowledge Base',
+  'Task Automation',
+  'Research Assistant',
+  'Code Assistant',
+  'Content Creation',
   'Other'
-] as const;
+];
 
 // Function to get icon for category
 function getCategoryIcon(categoryName: string) {
@@ -181,7 +184,7 @@ export default function CreateAgentPage() {
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((category) => (
+                  {AGENT_CATEGORIES.map((category) => (
                     <SelectItem key={category} value={category}>
                       {category}
                     </SelectItem>
@@ -194,10 +197,9 @@ export default function CreateAgentPage() {
               <Label htmlFor="useCases">Use Cases</Label>
               <Textarea
                 id="useCases"
-                required
                 value={formData.useCases}
                 onChange={(e) => setFormData(prev => ({ ...prev, useCases: e.target.value }))}
-                placeholder="Describe the use cases for this agent"
+                placeholder="Describe specific use cases for this agent"
               />
             </div>
 
