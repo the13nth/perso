@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Plus, Loader2 } from "lucide-react";
+import { Bot, Plus, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { AgentMetadata } from "@/lib/pinecone";
 import { useAuth } from '@clerk/nextjs';
@@ -12,26 +13,46 @@ import { redirect } from 'next/navigation';
 
 function AgentCard({ agent }: { agent: AgentMetadata }) {
   return (
-    <Card className="hover:border-primary transition-colors">
+    <Card className="group relative flex flex-col hover:border-primary/50 hover:shadow-lg transition-all">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 group-hover:text-primary transition-colors">
           <Bot className="h-5 w-5" />
           {agent.name}
+          {agent.isPublic && (
+            <Badge variant="secondary" className="ml-auto text-xs font-normal">
+              Public
+            </Badge>
+          )}
         </CardTitle>
-        <CardDescription>{agent.description}</CardDescription>
+        <CardDescription className="line-clamp-2">{agent.description}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="text-sm text-muted-foreground">
-            Category: {agent.category}
+      <CardContent className="flex-grow">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 text-sm">
+            <Badge variant="outline" className="font-normal">
+              {agent.category}
+            </Badge>
+            {agent.triggers && agent.triggers.length > 0 && (
+              <Badge variant="outline" className="font-normal text-muted-foreground">
+                {agent.triggers.length} trigger{agent.triggers.length !== 1 ? 's' : ''}
+              </Badge>
+            )}
           </div>
-          <Link href={`/agents/${agent.agentId}`}>
-            <Button className="w-full">
-              Chat with Agent
-            </Button>
-          </Link>
+          {agent.useCases && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {agent.useCases}
+            </p>
+          )}
         </div>
       </CardContent>
+      <CardFooter className="pt-4">
+        <Link href={`/agents/${agent.agentId}`} className="w-full">
+          <Button className="w-full group-hover:bg-primary/90 transition-colors" size="sm">
+            View Agent
+            <ExternalLink className="w-4 h-4 ml-2 opacity-70" />
+          </Button>
+        </Link>
+      </CardFooter>
     </Card>
   );
 }
@@ -40,22 +61,43 @@ function AgentsContent() {
   const [publicAgents, setPublicAgents] = useState<AgentMetadata[]>([]);
   const [userAgents, setUserAgents] = useState<AgentMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadAgents() {
       try {
+        setIsLoading(true);
+        setError(null);
+        
         const [publicRes, userRes] = await Promise.all([
           fetch('/api/agents/public'),
           fetch('/api/agents/user')
         ]);
 
-        const publicData = await publicRes.json();
-        const userData = await userRes.json();
+        if (!publicRes.ok || !userRes.ok) {
+          throw new Error('Failed to fetch agents');
+        }
 
-        setPublicAgents(publicData.agents);
-        setUserAgents(userData.agents);
+        const [publicData, userData] = await Promise.all([
+          publicRes.json(),
+          userRes.json()
+        ]);
+
+        const validPublicAgents = Array.isArray(publicData.agents) 
+          ? publicData.agents.filter(Boolean)
+          : [];
+        
+        const validUserAgents = Array.isArray(userData.agents)
+          ? userData.agents.filter(Boolean)
+          : [];
+
+        setPublicAgents(validPublicAgents);
+        setUserAgents(validUserAgents);
       } catch (error) {
         console.error('Error loading agents:', error);
+        setError('Failed to load agents');
+        setPublicAgents([]);
+        setUserAgents([]);
       } finally {
         setIsLoading(false);
       }
@@ -64,12 +106,36 @@ function AgentsContent() {
     loadAgents();
   }, []);
 
+  if (error) {
+    return (
+      <div className="container max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <div className="text-center text-destructive space-y-2">
+              <p className="text-lg font-medium">{error}</p>
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.reload()}
+                className="mt-4"
+              >
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="container py-6 space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">AI Agents</h1>
+    <div className="container max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">AI Agents</h1>
+          <p className="text-muted-foreground mt-1">Create and manage your AI agents</p>
+        </div>
         <Link href="/agents/create">
-          <Button>
+          <Button className="w-full sm:w-auto shadow-sm">
             <Plus className="h-4 w-4 mr-2" />
             Create Agent
           </Button>
@@ -77,50 +143,59 @@ function AgentsContent() {
       </div>
 
       <Tabs defaultValue="my-agents" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
           <TabsTrigger value="my-agents">My Agents</TabsTrigger>
           <TabsTrigger value="public">Public Agents</TabsTrigger>
         </TabsList>
 
         <TabsContent value="my-agents" className="space-y-6">
           {isLoading ? (
-            <div className="text-center text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-              Loading your agents...
+            <div className="text-center py-8 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" />
+              <p>Loading your agents...</p>
             </div>
           ) : userAgents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {userAgents.map((agent) => (
                 <AgentCard key={agent.agentId} agent={agent} />
               ))}
             </div>
           ) : (
-            <div className="text-center text-muted-foreground">
-              You haven&apos;t created any agents yet.
-              <br />
-              <Link href="/agents/create">
-                <Button variant="link">Create your first agent</Button>
-              </Link>
-            </div>
+            <Card className="bg-muted/50">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-2">
+                  <Bot className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-muted-foreground">You haven&apos;t created any agents yet</p>
+                  <Link href="/agents/create">
+                    <Button variant="outline" className="mt-2">Create your first agent</Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
         <TabsContent value="public" className="space-y-6">
           {isLoading ? (
-            <div className="text-center text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-              Loading public agents...
+            <div className="text-center py-8 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" />
+              <p>Loading public agents...</p>
             </div>
           ) : publicAgents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {publicAgents.map((agent) => (
                 <AgentCard key={agent.agentId} agent={agent} />
               ))}
             </div>
           ) : (
-            <div className="text-center text-muted-foreground">
-              No public agents available yet.
-            </div>
+            <Card className="bg-muted/50">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-2">
+                  <Bot className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-muted-foreground">No public agents available yet</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
@@ -131,21 +206,19 @@ function AgentsContent() {
 export default function AgentsPage() {
   const { isLoaded, isSignedIn } = useAuth();
 
-  // Show loading state while auth is being checked
   if (!isLoaded) {
     return (
       <div className="flex justify-center items-center min-h-screen px-4">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-          <div className="text-base sm:text-lg text-foreground">
+        <div className="text-center space-y-3">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+          <p className="text-base sm:text-lg text-muted-foreground">
             Loading...
-          </div>
+          </p>
         </div>
       </div>
     );
   }
 
-  // Redirect to sign-in if not authenticated
   if (!isSignedIn) {
     redirect('/sign-in');
   }
@@ -155,11 +228,11 @@ export default function AgentsPage() {
       <Suspense 
         fallback={
           <div className="flex justify-center items-center min-h-screen px-4">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-              <div className="text-base sm:text-lg text-foreground">
+            <div className="text-center space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+              <p className="text-base sm:text-lg text-muted-foreground">
                 Loading agents...
-              </div>
+              </p>
             </div>
           </div>
         }

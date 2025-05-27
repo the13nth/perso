@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Bot, ArrowLeft } from 'lucide-react';
+import { Bot, ArrowLeft, Globe, BookOpen, LineChart, Pencil, HeadsetIcon, Code, Boxes, Wallet, Dumbbell, Activity, StickyNote, Cpu, Brain, Building2, Gamepad, ChartLine, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ContextSelector } from '@/components/ContextSelector';
 import { useUser } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 
@@ -26,21 +25,61 @@ const CATEGORIES = [
   'Other'
 ] as const;
 
+// Function to get icon for category
+function getCategoryIcon(categoryName: string) {
+  const iconMap: Record<string, React.ReactNode> = {
+    'General Purpose': <Globe className="w-4 h-4" />,
+    'Research': <BookOpen className="w-4 h-4" />,
+    'Data Analysis': <LineChart className="w-4 h-4" />,
+    'Writing': <Pencil className="w-4 h-4" />,
+    'Customer Service': <HeadsetIcon className="w-4 h-4" />,
+    'Development': <Code className="w-4 h-4" />,
+    'Other': <Boxes className="w-4 h-4" />,
+    'finances': <Wallet className="w-4 h-4" />,
+    'physical': <Dumbbell className="w-4 h-4" />,
+    'running': <Activity className="w-4 h-4" />,
+    'notes': <StickyNote className="w-4 h-4" />,
+    'technology': <Cpu className="w-4 h-4" />,
+    'thoughts': <Brain className="w-4 h-4" />,
+    'business': <Building2 className="w-4 h-4" />,
+    'entertainment': <Gamepad className="w-4 h-4" />,
+    'running insights': <ChartLine className="w-4 h-4" />,
+    'plans': <ClipboardList className="w-4 h-4" />
+  };
+
+  return iconMap[categoryName.toLowerCase()] || <Boxes className="w-4 h-4" />;
+}
+
 export default function CreateAgentPage() {
   const router = useRouter();
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedContextIds, setSelectedContextIds] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Array<{ name: string; count: number }>>([]);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     category: '',
     useCases: '',
     triggers: '',
-    dataAccess: '',
-    isPublic: false,
-    contextFiles: [] as File[]
+    isPublic: false
   });
+
+  // Fetch available embedding categories when component mounts
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const response = await fetch('/api/retrieval/categories');
+        if (!response.ok) throw new Error('Failed to fetch categories');
+        const data = await response.json();
+        setAvailableCategories(data.categories);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        toast.error('Failed to load available categories');
+      }
+    }
+    fetchCategories();
+  }, []);
 
   // Show loading state while auth is being checked
   if (!isLoaded) {
@@ -65,26 +104,15 @@ export default function CreateAgentPage() {
     setIsSubmitting(true);
 
     try {
-      // Create FormData object
-      const submitData = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        if (key === 'contextFiles') {
-          formData.contextFiles.forEach((file) => {
-            submitData.append('contextFiles', file);
-          });
-        } else if (key === 'triggers') {
-          submitData.append(key, typeof value === 'string' ? value.split(',').map((t) => t.trim()).join(',') : '');
-        } else {
-          submitData.append(key, value.toString());
-        }
-      });
-
-      // Add selected context IDs
-      submitData.append('selectedContextIds', JSON.stringify(selectedContextIds));
-
       const response = await fetch('/api/agents/create', {
         method: 'POST',
-        body: submitData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          selectedCategories
+        }),
       });
 
       if (!response.ok) {
@@ -100,15 +128,6 @@ export default function CreateAgentPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to create agent');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFormData(prev => ({
-        ...prev,
-        contextFiles: Array.from(e.target.files!)
-      }));
     }
   };
 
@@ -193,34 +212,37 @@ export default function CreateAgentPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dataAccess">Data Access Requirements</Label>
-              <Input
-                id="dataAccess"
-                value={formData.dataAccess}
-                onChange={(e) => setFormData(prev => ({ ...prev, dataAccess: e.target.value }))}
-                placeholder="What data does this agent need access to?"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Personal Context</Label>
-              <ContextSelector 
-                userId={user?.id || ''}
-                onSelectionChange={setSelectedContextIds}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contextFiles">Additional Context Files</Label>
-              <Input
-                id="contextFiles"
-                type="file"
-                multiple
-                onChange={handleFileChange}
-                className="cursor-pointer"
-              />
-              <p className="text-sm text-muted-foreground">
-                Upload any additional files that provide context for your agent
+              <Label>Knowledge Categories</Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {availableCategories.map((category) => (
+                  <button
+                    key={category.name}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategories(prev => 
+                        prev.includes(category.name)
+                          ? prev.filter(c => c !== category.name)
+                          : [...prev, category.name]
+                      );
+                    }}
+                    className={`p-4 text-sm rounded-lg transition-colors flex items-center ${
+                      selectedCategories.includes(category.name)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    }`}
+                  >
+                    <div className="flex items-center flex-1">
+                      <span className="mr-2">{getCategoryIcon(category.name)}</span>
+                      <span className="font-medium">{category.name}</span>
+                    </div>
+                    <span className="ml-2 bg-muted/20 px-2.5 py-0.5 rounded-full text-xs font-medium">
+                      {category.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Select categories to give your agent access to relevant knowledge
               </p>
             </div>
 
