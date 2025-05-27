@@ -8,14 +8,21 @@ import { PCA } from 'ml-pca';
 import { Button } from "@/components/ui/button";
 import { Circle, Blend, Maximize, Minimize } from "lucide-react";
 
+interface Metadata {
+  text: string;
+  categories: string[];
+  title?: string;
+  chunkIndex?: number;
+  totalChunks?: number;
+  createdAt?: string | number;
+  access?: string;
+  [key: string]: string | string[] | number | boolean | undefined;
+}
+
 interface NormalizedEmbedding {
   id: string;
   vector: number[];
-  metadata: {
-    text: string;
-    categories: string[];
-    [key: string]: any;
-  };
+  metadata: Metadata;
 }
 
 interface Embedding {
@@ -25,7 +32,7 @@ interface Embedding {
     text: string;
     categories?: string[] | string;
     category?: string;
-    [key: string]: any;
+    [key: string]: string | string[] | number | boolean | undefined;
   };
 }
 
@@ -36,16 +43,7 @@ interface Point {
   z: number;
   label: string;
   vector: number[];
-  metadata: {
-    text: string;
-    categories: string[];
-    title?: string;
-    chunkIndex?: number;
-    totalChunks?: number;
-    createdAt?: string | number;
-    access?: string;
-    [key: string]: any;
-  };
+  metadata: Metadata;
 }
 
 interface PlotData {
@@ -832,12 +830,11 @@ export default function Embeddings3DPlot({ data }: PlotProps) {
   useEffect(() => {
     if (visualizationMode !== 'dots' || !plotRef.current || !data || data.points.length === 0) return;
 
+    const currentPlotRef = plotRef.current;
     console.log(`Processing ${data.points.length} embeddings for 3D plot`);
 
     // Clear any existing plot
-    if (plotRef.current) {
-      PlotlyJS.purge(plotRef.current);
-    }
+    PlotlyJS.purge(currentPlotRef);
 
     // Extract vectors for PCA
     const vectors = data.points.map(p => p.vector);
@@ -959,7 +956,7 @@ export default function Embeddings3DPlot({ data }: PlotProps) {
       };
       
       // Create plot
-      PlotlyJS.newPlot(plotRef.current, plotData, layout, {
+      PlotlyJS.newPlot(currentPlotRef, plotData, layout, {
         responsive: true,
         displayModeBar: window.innerWidth >= 640,
         modeBarButtonsToRemove: window.innerWidth < 640 ? [] : ['pan2d', 'lasso2d', 'select2d'],
@@ -972,9 +969,7 @@ export default function Embeddings3DPlot({ data }: PlotProps) {
     }
     
     return () => {
-      if (plotRef.current) {
-        PlotlyJS.purge(plotRef.current);
-      }
+      PlotlyJS.purge(currentPlotRef);
     };
   }, [data, visualizationMode]);
 
