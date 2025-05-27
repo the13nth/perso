@@ -4,8 +4,9 @@ import { cn } from "@/utils/cn";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Link from "next/link";
-import { UserButton, SignedIn, SignedOut, useAuth } from "@clerk/nextjs";
-import { Menu, X, Database, Sparkles, Github, Lightbulb, Bot, Loader2 } from "lucide-react";
+import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Menu, X, Database, Sparkles, Lightbulb, Bot } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export const ActiveLink = (props: { href: string; children: ReactNode; icon?: ReactNode }) => {
   const pathname = usePathname();
@@ -27,7 +28,6 @@ export const ActiveLink = (props: { href: string; children: ReactNode; icon?: Re
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isLoaded, isSignedIn } = useAuth();
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
   
   const navLinks = [
@@ -39,46 +39,6 @@ export function Navbar() {
     { href: "/embeddings", label: "Embeddings", icon: <Sparkles className="h-4 w-4" /> },
     { href: "/insights", label: "Insights", icon: <Lightbulb className="h-4 w-4" /> },
   ];
-
-  // Get the correct sign out URL based on environment
-  const getSignOutUrl = () => {
-    // Use the environment variable if set (for production)
-    if (process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL) {
-      return process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL;
-    }
-    
-    // Fallback to window.location.origin for development or if env var is not set
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/`;
-    }
-    
-    // Final fallback
-    return '/';
-  };
-
-  // Show loading state while auth is being checked
-  if (!isLoaded) {
-    return (
-      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container grid grid-cols-12 h-16 items-center">
-          <div className="col-span-8 sm:col-span-4 lg:col-span-3 flex items-center gap-2">
-            <div className="flex items-center space-x-2 px-3 py-2">
-              <div className="relative w-8 h-8">
-                <svg viewBox="0 0 24 24" className="w-full h-full fill-current opacity-50">
-                  <title>Ubumuntu AI Logo</title>
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-              </div>
-              <span className="font-bold text-lg opacity-50">Ubumuntu AI</span>
-            </div>
-          </div>
-          <div className="col-span-4 sm:col-span-4 lg:col-span-2 flex items-center justify-end">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        </div>
-      </nav>
-    );
-  }
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -127,24 +87,13 @@ export function Navbar() {
         
         {/* User account section */}
         <div className="col-span-4 sm:col-span-4 lg:col-span-2 flex items-center justify-end gap-2">
-          <SignedIn>
-            <UserButton 
-              afterSignOutUrl={getSignOutUrl()}
-              appearance={{
-                elements: {
-                  avatarBox: "w-8 h-8",
-                }
-              }}
-            />
-          </SignedIn>
-          <SignedOut>
-            <Link
-              href="/sign-in"
-              className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors whitespace-nowrap"
-            >
-              Sign In
-            </Link>
-          </SignedOut>
+          <SignInButton mode="modal">
+            <Button variant="ghost">Sign In</Button>
+          </SignInButton>
+          <SignUpButton mode="modal">
+            <Button>Get Started</Button>
+          </SignUpButton>
+          <UserButton afterSignOutUrl="/" />
         </div>
       </div>
       

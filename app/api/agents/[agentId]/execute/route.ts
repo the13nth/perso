@@ -8,19 +8,16 @@ if (!process.env.GOOGLE_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { agentId: string } }
-) {
+export async function POST(req: NextRequest) {
   try {
     const { input } = await req.json();
-    const agentId = params.agentId;
+    const agentId = req.nextUrl.pathname.split('/')[3]; // Get agentId from URL path
 
     // Get agent configuration from Pinecone
     const agentConfig = await getAgentConfig(agentId);
 
     // Get relevant context for the query
-    const contextDocs = await getAgentContext(agentId, input);
+    const contextDocs = await getAgentContext(agentId);
     const context = contextDocs.map(doc => doc.pageContent).join('\n\n');
 
     // Create system prompt with context

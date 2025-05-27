@@ -1,20 +1,61 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
-import { Input } from "./ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useUser } from "@clerk/nextjs";
-import { Label } from "./ui/label";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CheckCircle2, Activity, Bike, Dumbbell, Heart, Zap, Trophy, Target, Mountain, Clock, MapPin, Briefcase, BookOpen, Coffee, Monitor, Users, Calendar, FileText, Brain, Home, Moon, Sun, Utensils, Gamepad2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 export interface UploadComprehensiveActivityFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
 }
+
+interface BaseActivityData {
+  category: string;
+  activityDate: string;
+  duration: string;
+  feeling: string;
+  productivity: string;
+  goalSet: string;
+  goalAchieved: string;
+  additionalNotes: string;
+  location: string;
+  activity: string;
+}
+
+interface PhysicalActivityData extends BaseActivityData {
+  distance: string;
+  intensity: string;
+}
+
+interface WorkActivityData extends BaseActivityData {
+  projectName: string;
+  collaborators: string;
+  workTools: string;
+  tasksCompleted: string;
+  focusLevel: string;
+}
+
+interface StudyActivityData extends BaseActivityData {
+  subject: string;
+  studyMaterial: string;
+  comprehensionLevel: string;
+  notesCreated: string;
+}
+
+interface RoutineActivityData extends BaseActivityData {
+  routineSteps: string;
+  consistency: string;
+  moodBefore: string;
+  moodAfter: string;
+}
+
+type ActivityData = PhysicalActivityData | WorkActivityData | StudyActivityData | RoutineActivityData;
 
 export function UploadComprehensiveActivityForm({ 
   onSuccess,
@@ -271,7 +312,7 @@ export function UploadComprehensiveActivityForm({
     e.preventDefault();
     
     // Build activity data based on category
-    let activityData: any = {
+    const baseData: BaseActivityData = {
       category: activityCategory,
       activityDate: activityDate,
       duration: getFormattedDuration(),
@@ -281,8 +322,10 @@ export function UploadComprehensiveActivityForm({
       goalAchieved: goalAchieved,
       additionalNotes: additionalNotes,
       location: location,
+      activity: "",
     };
 
+    let activityData: ActivityData = { ...baseData } as ActivityData;
     let selectedActivity = "";
     let textSummary = "";
 
@@ -417,7 +460,7 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
       });
 
       if (response.ok) {
-        const data = await response.json();
+        
         toast.success("Activity saved successfully!", {
           duration: 4000,
           position: "top-center",

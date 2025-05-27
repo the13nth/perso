@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { ChatInput, ChatLayout } from "@/components/ChatWindow";
 import { GuideInfoBox } from "@/components/guide/GuideInfoBox";
 import { ReactNode, Suspense, useState } from "react";

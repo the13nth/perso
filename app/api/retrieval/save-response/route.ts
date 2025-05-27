@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { auth } from "@clerk/nextjs/server";
-import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
   try {

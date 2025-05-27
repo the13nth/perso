@@ -232,6 +232,24 @@ export default function Dashboard({ embeddings }: DashboardProps) {
     });
   }, [normalizedEmbeddings, search, selectedCategories]);
 
+  // Transform embeddings into plot data
+  const plotData = useMemo(() => {
+    const points = normalizedEmbeddings.map(emb => ({
+      id: emb.id,
+      x: emb.vector[0],
+      y: emb.vector[1],
+      z: emb.vector[2],
+      label: emb.metadata.text,
+      vector: emb.vector,
+      metadata: emb.metadata
+    }));
+
+    return {
+      points,
+      categories: allCategories
+    };
+  }, [normalizedEmbeddings, allCategories]);
+
   return (
     <div className="w-full min-h-screen p-4 sm:p-6 bg-background">
       <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
@@ -364,7 +382,7 @@ export default function Dashboard({ embeddings }: DashboardProps) {
             <TabsContent value="visualization" className="space-y-4 sm:space-y-6">
               {normalizedEmbeddings.length > 0 && (
                 <div className="mb-6 sm:mb-8">
-                  <Embeddings3DPlot embeddings={normalizedEmbeddings} />
+                  <Embeddings3DPlot data={plotData} />
                 </div>
               )}
             </TabsContent>

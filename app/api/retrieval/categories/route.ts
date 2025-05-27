@@ -1,7 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
-export async function GET(req: NextRequest) {
+interface PineconeMatch {
+  metadata?: {
+    categories?: string[] | string;
+    category?: string;
+    type?: string;
+  };
+}
+
+export async function GET() {
   try {
     // Check authentication
     const { userId } = await auth();
@@ -57,8 +65,9 @@ export async function GET(req: NextRequest) {
     const categorySet = new Set<string>();
     const categoryStats: Record<string, number> = {};
     
-    (data.matches || []).forEach((match: any) => {
-      const metadata = match.metadata || {};
+    (data.matches || []).forEach((match: unknown) => {
+      const typedMatch = match as PineconeMatch;
+      const metadata = typedMatch.metadata || {};
       let categories: string[] = [];
       
       // Handle different category formats

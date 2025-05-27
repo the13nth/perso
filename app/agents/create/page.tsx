@@ -73,7 +73,7 @@ export default function CreateAgentPage() {
             submitData.append('contextFiles', file);
           });
         } else if (key === 'triggers') {
-          submitData.append(key, value.split(',').map((t: string) => t.trim()).join(','));
+          submitData.append(key, typeof value === 'string' ? value.split(',').map((t) => t.trim()).join(',') : '');
         } else {
           submitData.append(key, value.toString());
         }

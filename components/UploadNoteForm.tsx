@@ -6,7 +6,7 @@ import { Textarea } from "./ui/textarea";
 import { useUser } from "@clerk/nextjs";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, StickyNote, PenTool } from "lucide-react";
+import { CheckCircle2, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Paintbrush, Star, DollarSign, HelpCircle, StickyNote, PenTool } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 export interface UploadNoteFormProps {

@@ -199,7 +199,7 @@ export function UploadDocumentsForm({
           toast.error("Failed to extract text from document");
           return;
         }
-      } catch (error) {
+      } catch {
         setDocument("Error extracting text from document");
         setIsLoading(false);
         toast.error("Failed to extract text from document");

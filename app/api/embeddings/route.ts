@@ -11,7 +11,7 @@ interface EmbeddingMetadata {
   category?: string;
   docType?: string;
   userId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface NormalizedEmbeddingMetadata extends Omit<EmbeddingMetadata, 'categories'> {
@@ -22,6 +22,12 @@ interface Embedding {
   id: string;
   vector: number[];
   metadata: NormalizedEmbeddingMetadata;
+}
+
+interface PineconeMatch {
+  id: string;
+  values: number[];
+  metadata: Record<string, unknown>;
 }
 
 export async function GET(req: NextRequest) {
@@ -54,7 +60,7 @@ export async function GET(req: NextRequest) {
     const cleanHost = host.replace(/^https?:\/\//, '');
     
     // Prepare filter with user ID
-    const filter: Record<string, any> = { userId };
+    const filter: Record<string, unknown> = { userId };
     
     // Add category filter if specified
     if (category && category !== 'all') {
@@ -113,15 +119,16 @@ export async function GET(req: NextRequest) {
       
       // Filter out any duplicates based on lastId to handle pagination overlap
       const newMatches = lastId 
-        ? matches.filter((match: any) => match.id > lastId)
+        ? matches.filter((match: unknown) => (match as PineconeMatch).id > lastId)
         : matches;
       
       console.log(`Got ${matches.length} matches, ${newMatches.length} new ones`);
       
       // Process new matches and add to results
-      newMatches.forEach((match: any) => {
+      newMatches.forEach((match: unknown) => {
+        const typedMatch = match as PineconeMatch;
         // Normalize the metadata to handle categories consistently
-        const rawMetadata: EmbeddingMetadata = { ...match.metadata };
+        const rawMetadata: EmbeddingMetadata = { ...typedMatch.metadata };
         let normalizedCategories: string[] = [];
         
         // Handle different category formats
@@ -154,8 +161,8 @@ export async function GET(req: NextRequest) {
         };
         
         allEmbeddings.push({
-          id: match.id,
-          vector: match.values,
+          id: typedMatch.id,
+          vector: typedMatch.values,
           metadata
         });
       });

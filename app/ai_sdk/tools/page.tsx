@@ -7,9 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 
+type StreamItem = {
+  event?: string;
+  data: unknown;
+};
+
 export default function Page() {
   const [input, setInput] = useState("");
-  const [data, setData] = useState<Record<string, any>[]>([]);
+  const [data, setData] = useState<StreamItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [options, setOptions] = useState({
     wso: false,

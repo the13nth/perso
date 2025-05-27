@@ -5,11 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Bot, Send } from "lucide-react";
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { type Message } from "ai/react";
 
 interface AgentInterfaceProps {
   agentId: string;
@@ -28,7 +24,7 @@ export function AgentInterface({ agentId, agentName, agentDescription }: AgentIn
 
     const userMessage = input;
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setMessages(prev => [...prev, { id: String(prev.length), role: 'user', content: userMessage }]);
     setIsLoading(true);
 
     try {
@@ -46,10 +42,11 @@ export function AgentInterface({ agentId, agentName, agentDescription }: AgentIn
         throw new Error(data.error || 'Failed to get response from agent');
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+      setMessages(prev => [...prev, { id: String(prev.length), role: 'assistant', content: data.response }]);
     } catch (error) {
       console.error('Error getting agent response:', error);
       setMessages(prev => [...prev, { 
+        id: String(prev.length),
         role: 'assistant', 
         content: 'Sorry, I encountered an error while processing your request.' 
       }]);
@@ -70,9 +67,9 @@ export function AgentInterface({ agentId, agentName, agentDescription }: AgentIn
       <CardContent>
         <div className="space-y-4">
           <div className="h-[400px] overflow-y-auto space-y-4 p-4 border rounded-lg">
-            {messages.map((message, index) => (
+            {messages.map((message) => (
               <div
-                key={index}
+                key={message.id}
                 className={`flex ${
                   message.role === 'user' ? 'justify-end' : 'justify-start'
                 }`}

@@ -1,25 +1,32 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import type { Message as VercelChatMessage } from "ai";
-import { StreamingTextResponse } from "ai";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { Document } from "@langchain/core/documents";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { initializeGeminiModel } from "@/app/utils/modelInit";
 import {
-  BytesOutputParser,
   StringOutputParser,
 } from "@langchain/core/output_parsers";
-import { Pinecone, type Index, type ScoredPineconeRecord, type RecordMetadata } from "@pinecone-database/pinecone";
+import { HttpResponseOutputParser } from "langchain/output_parsers";
+import { Pinecone, type Index, type RecordMetadata } from "@pinecone-database/pinecone";
 import { auth } from "@clerk/nextjs/server";
 
-interface PineconeMatch {
-  id: string;
-  score: number;
-  values: number[];
-  metadata: { [key: string]: unknown };
-}
+// Define proper types for metadata
+type DocumentMetadata = Partial<{
+  text: string;
+  userId: string;
+  type: string;
+  sessionId: string;
+  title: string;
+  query: string;
+  response: string;
+  activity: string;
+  category: string;
+  activityDate: string;
+  duration: string;
+}> & RecordMetadata;
 
 const CONDENSE_QUESTION_TEMPLATE = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
 
@@ -70,14 +77,15 @@ async function searchPinecone(
   sessionId?: string,
   topK = 10
 ) {
-  // Get the embedding for the query
   const queryEmbedding = await embeddings.embedQuery(query);
 
-  // Search for similar documents in Pinecone with user filtering
-  // Include conversation history if sessionId is provided
-  const filter: any = {
+  const filter: Record<string, string> = {
     userId: userId
   };
+
+  if (sessionId) {
+    filter.sessionId = sessionId;
+  }
 
   const results = await pineconeIndex.query({
     vector: queryEmbedding,
@@ -86,59 +94,36 @@ async function searchPinecone(
     filter
   });
 
-  // Convert the matches to Document objects
-  return results.matches.map((match: ScoredPineconeRecord<RecordMetadata>) => {
-    const metadata = match.metadata ?? {};
+  return results.matches.map((match) => {
+    const metadata = match.metadata as DocumentMetadata ?? {};
     
-    // Extract text content
-    let text = "";
-    if (typeof (metadata as { text?: unknown }).text === "string") {
-      text = (metadata as { text?: unknown }).text as string;
-    }
+    const text = metadata.text || "";
     
-    // Create enhanced metadata for different content types
-    let enhancedMetadata: any = {
+    const enhancedMetadata: Record<string, unknown> = {
       ...metadata,
       similarity: match.score ?? 0,
       owner: metadata.userId === userId ? "You" : "Other user"
     };
     
-    // Special handling for conversations
     if (metadata.type === "conversation") {
-      const conversationMeta = metadata as any;
-      enhancedMetadata = {
-        ...enhancedMetadata,
-        contentType: "Conversation",
-        query: conversationMeta.query || "Unknown query",
-        response: conversationMeta.response || "Unknown response", 
-        sessionId: conversationMeta.sessionId || "Unknown session",
-        title: conversationMeta.title || "Previous conversation"
-      };
-    }
-    // Special handling for activities
-    else if (metadata.type === "comprehensive_activity") {
-      const activityMeta = metadata as any;
-      enhancedMetadata = {
-        ...enhancedMetadata,
-        contentType: "Activity",
-        activityType: activityMeta.activity || "Unknown",
-        category: activityMeta.category || "Unknown",
-        date: activityMeta.activityDate || "Unknown date",
-        duration: activityMeta.duration || "Unknown duration",
-        title: activityMeta.title || "Activity"
-      };
+      enhancedMetadata.contentType = "Conversation";
+      enhancedMetadata.query = metadata.query || "Unknown query";
+      enhancedMetadata.response = metadata.response || "Unknown response";
+      enhancedMetadata.sessionId = metadata.sessionId || "Unknown session";
+      enhancedMetadata.title = metadata.title || "Previous conversation";
+    } else if (metadata.type === "comprehensive_activity") {
+      enhancedMetadata.contentType = "Activity";
+      enhancedMetadata.activityType = metadata.activity || "Unknown";
+      enhancedMetadata.category = metadata.category || "Unknown";
+      enhancedMetadata.date = metadata.activityDate || "Unknown date";
+      enhancedMetadata.duration = metadata.duration || "Unknown duration";
+      enhancedMetadata.title = metadata.title || "Activity";
     } else if (metadata.type === "note") {
-      enhancedMetadata = {
-        ...enhancedMetadata,
-        contentType: "Note",
-        title: metadata.title || "Note"
-      };
+      enhancedMetadata.contentType = "Note";
+      enhancedMetadata.title = metadata.title || "Note";
     } else {
-      enhancedMetadata = {
-        ...enhancedMetadata,
-        contentType: "Document",
-        title: metadata.title || "Document"
-      };
+      enhancedMetadata.contentType = "Document";
+      enhancedMetadata.title = metadata.title || "Document";
     }
     
     return new Document({
@@ -146,6 +131,13 @@ async function searchPinecone(
       metadata: enhancedMetadata
     });
   });
+}
+
+interface ChainInput {
+  question: string;
+  chat_history: string | string[];
+  standalone_question?: string;
+  original_input?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -194,44 +186,47 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const retrievalChain = async (query: string) => {
-      const docs = await retriever.invoke(query);
-      return docs.map((doc: Document) => {
-        const meta = doc.metadata;
-        let contextLine = doc.pageContent;
-        
-        // Add context information for different content types
-        if (meta.contentType === "Conversation") {
-          contextLine = `[PREVIOUS CONVERSATION - Session ${meta.sessionId}]\nQuery: ${meta.query}\nResponse: ${meta.response}`;
-        } else if (meta.contentType === "Activity") {
-          contextLine = `[ACTIVITY - ${meta.category}/${meta.activityType} on ${meta.date}]\n${contextLine}`;
-        } else if (meta.contentType === "Note") {
-          contextLine = `[NOTE - ${meta.title}]\n${contextLine}`;
-        } else if (meta.contentType === "Document") {
-          contextLine = `[DOCUMENT - ${meta.title}]\n${contextLine}`;
-        }
-        
-        return contextLine;
-      }).join('\n\n---\n\n');
+    const retrievalChain = async (query: string): Promise<Document[]> => {
+      return await retriever.invoke(query);
     };
 
-    const answerChain = RunnableSequence.from([
+    const chain = RunnableSequence.from([
       {
-        context: RunnableSequence.from([
-          (input) => input.question,
-          retrievalChain,
-        ]),
-        chat_history: (input) => input.chat_history,
-        question: (input) => input.question,
+        standalone_question: async (input: unknown) => {
+          const { question, chat_history } = input as ChainInput;
+          const model = await initializeGeminiModel({
+            maxOutputTokens: 2048,
+            temperature: 0.2,
+          });
+          const standaloneQuestionChain = condenseQuestionPrompt
+            .pipe(model)
+            .pipe(new StringOutputParser());
+          return standaloneQuestionChain.invoke({
+            chat_history: Array.isArray(chat_history) ? chat_history.join("\n") : chat_history,
+            question,
+          });
+        },
+        original_input: (input: unknown) => (input as ChainInput).question,
+        chat_history: (input: unknown) => (input as ChainInput).chat_history,
+      },
+      {
+        context: async (input: unknown) => {
+          const relevantDocs = await retrievalChain((input as ChainInput).standalone_question || '');
+          return relevantDocs
+            .map((doc) => formatDocument(doc))
+            .join("\n\n");
+        },
+        chat_history: (input: unknown) => (input as ChainInput).chat_history,
+        question: (input: unknown) => (input as ChainInput).original_input,
       },
       answerPrompt,
       model,
-      new BytesOutputParser(),
+      new HttpResponseOutputParser(),
     ]);
 
-    const stream = await answerChain.stream({
-      question: currentMessageContent,
+    const stream = await chain.stream({
       chat_history: formatMessages(previousMessages),
+      question: currentMessageContent,
     });
 
     const documents = await documentPromise;
@@ -249,16 +244,16 @@ export async function POST(req: NextRequest) {
       ),
     ).toString("base64");
 
-    return new StreamingTextResponse(stream, {
+    return new Response(stream, {
       headers: {
         "x-message-index": (previousMessages.length + 1).toString(),
         "x-sources": serializedSources,
       },
     });
-  } catch (error) {
-    console.error("Retrieval QA error:", error);
+  } catch (error: Error | unknown) {
+    console.error("Error in chat/retrieval:", error);
     return NextResponse.json(
-      { error: "An error occurred while processing your request." },
+      { error: error instanceof Error ? error.message : 'An unknown error occurred' },
       { status: 500 }
     );
   }
@@ -268,4 +263,22 @@ function formatMessages(messages: VercelChatMessage[]) {
   return messages
     .map((m) => `${m.role}: ${m.content}`)
     .join('\n');
+}
+
+function formatDocument(doc: Document) {
+  let formattedDoc = doc.pageContent;
+  const meta = doc.metadata;
+  
+  // Add context information for different content types
+  if (meta.contentType === "Conversation") {
+    formattedDoc = `[PREVIOUS CONVERSATION - Session ${meta.sessionId}]\nQuery: ${meta.query}\nResponse: ${meta.response}`;
+  } else if (meta.contentType === "Activity") {
+    formattedDoc = `[ACTIVITY - ${meta.category}/${meta.activityType} on ${meta.date}]\n${formattedDoc}`;
+  } else if (meta.contentType === "Note") {
+    formattedDoc = `[NOTE - ${meta.title}]\n${formattedDoc}`;
+  } else if (meta.contentType === "Document") {
+    formattedDoc = `[DOCUMENT - ${meta.title}]\n${formattedDoc}`;
+  }
+  
+  return formattedDoc;
 }
