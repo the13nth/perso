@@ -10,10 +10,6 @@ if (!process.env.PINECONE_INDEX) {
   throw new Error("Missing PINECONE_INDEX environment variable");
 }
 
-if (!process.env.PINECONE_ENVIRONMENT) {
-  throw new Error("Missing PINECONE_ENVIRONMENT environment variable");
-}
-
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
 });
