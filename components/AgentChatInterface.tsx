@@ -2,7 +2,7 @@
 
 import { type Message, type ToolCall } from "ai";
 import { useChat } from "ai/react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import type { FormEvent } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -289,12 +289,11 @@ function ChatMessages({
   messages, 
   aiEmoji, 
   sourcesForMessages, 
-  sessionId, 
+  sessionId,
   onSaveResponse, 
   savingStates, 
   savedResponses,
-  processingSteps,
-  isProcessing 
+  processingSteps
 }: {
   messages: Message[];
   aiEmoji?: string;
@@ -304,8 +303,11 @@ function ChatMessages({
   savingStates: Record<string, boolean>;
   savedResponses: Set<string>;
   processingSteps: ProcessStep[];
-  isProcessing: boolean;
 }) {
+  // Keep track of the last user message to show the graph after
+  const lastUserMessageIndex = [...messages].reverse().findIndex(m => m.role === 'user');
+  const lastUserMessage = lastUserMessageIndex !== -1 ? messages[messages.length - 1 - lastUserMessageIndex] : null;
+
   return (
     <LayoutGroup>
       <AnimatePresence mode="popLayout">
@@ -315,6 +317,8 @@ function ChatMessages({
           const messageKey = previousUserMessage && message.role === "assistant" 
             ? `${previousUserMessage.content}-${message.content}` 
             : `${message.id}`;
+          
+          const isLastUserMessage = message === lastUserMessage;
           
           return (
             <div key={message.id} className="flex flex-col gap-4">
@@ -328,7 +332,7 @@ function ChatMessages({
                 isSaving={savingStates[messageKey] || false}
                 isSaved={savedResponses.has(messageKey)}
               />
-              {message.role === 'user' && i === messages.length - 1 && isProcessing && (
+              {isLastUserMessage && (
                 <LangGraphUI 
                   steps={processingSteps}
                   className="mt-4"
@@ -348,6 +352,7 @@ export function AgentChatInterface(props: {
   emoji?: string;
   showIntermediateStepsToggle?: boolean;
   uploadButton?: React.ReactNode;
+  initialQuestion?: string;
 }) {
   const [showIntermediateSteps, setShowIntermediateSteps] = useState(
     !!props.showIntermediateStepsToggle,
@@ -365,7 +370,6 @@ export function AgentChatInterface(props: {
   } | null>(null);
   const { user } = useUser();
   const [processingSteps, setProcessingSteps] = useState<ProcessStep[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   const chat = useChat({
     api: props.endpoint,
@@ -391,6 +395,192 @@ export function AgentChatInterface(props: {
         description: e.message,
       }),
   });
+
+  const sendMessage = useCallback(async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (chat.isLoading || intermediateStepsLoading) return;
+
+    // Initialize processing steps
+    const initializeProcessingSteps = () => {
+      const steps: ProcessStep[] = [
+        {
+          id: uuidv4(),
+          label: 'Query Analysis',
+          type: 'input',
+          status: 'running',
+          details: 'Analyzing user query and context requirements',
+          timestamp: Date.now()
+        },
+        {
+          id: uuidv4(),
+          label: 'Context Retrieval',
+          type: 'process',
+          status: 'pending',
+          details: 'Searching for relevant information in the knowledge base',
+          timestamp: Date.now()
+        },
+        {
+          id: uuidv4(),
+          label: 'Response Generation',
+          type: 'process',
+          status: 'pending',
+          details: 'Generating contextual response using AI',
+          timestamp: Date.now()
+        },
+        {
+          id: uuidv4(),
+          label: 'Final Response',
+          type: 'output',
+          status: 'pending',
+          details: 'Formatting and delivering the response',
+          timestamp: Date.now()
+        }
+      ];
+      setProcessingSteps(steps);
+      return steps;
+    };
+
+    const steps = initializeProcessingSteps();
+
+    if (!showIntermediateSteps) {
+      try {
+        // Update Query Analysis step
+        updateProcessingStep(steps[0].id, { 
+          status: 'completed',
+          details: `Analyzed query: "${chat.input}"`,
+          timestamp: Date.now()
+        });
+
+        // Update Context Retrieval step
+        updateProcessingStep(steps[1].id, { 
+          status: 'running',
+          timestamp: Date.now()
+        });
+
+        chat.handleSubmit(e);
+
+        // Simulate steps completion (you can replace these with actual progress from the backend)
+        setTimeout(() => {
+          updateProcessingStep(steps[1].id, { 
+            status: 'completed',
+            details: 'Retrieved relevant context from knowledge base',
+            timestamp: Date.now()
+          });
+          updateProcessingStep(steps[2].id, { 
+            status: 'running',
+            timestamp: Date.now()
+          });
+        }, 2000);
+
+        setTimeout(() => {
+          updateProcessingStep(steps[2].id, { 
+            status: 'completed',
+            details: 'Generated response using AI model',
+            timestamp: Date.now()
+          });
+          updateProcessingStep(steps[3].id, { 
+            status: 'running',
+            timestamp: Date.now()
+          });
+        }, 4000);
+
+        setTimeout(() => {
+          updateProcessingStep(steps[3].id, { 
+            status: 'completed',
+            details: 'Response formatted and ready',
+            timestamp: Date.now()
+          });
+        }, 5000);
+
+      } catch (error: unknown) {
+        // Handle error state in steps
+        console.error('Processing error:', error);
+        setProcessingSteps(steps => 
+          steps.map(step => ({
+            ...step,
+            status: step.status === 'running' ? 'error' : step.status,
+            details: step.status === 'running' ? 'An error occurred during processing' : step.details
+          }))
+        );
+      }
+      return;
+    }
+
+    // Handle intermediate steps
+    setIntermediateStepsLoading(true);
+    chat.setInput("");
+    const messagesWithUserReply = chat.messages.concat({
+      id: chat.messages.length.toString(),
+      content: chat.input,
+      role: "user",
+    });
+    chat.setMessages(messagesWithUserReply);
+
+    const response = await fetch(props.endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        messages: messagesWithUserReply,
+        sessionId: sessionId,
+        show_intermediate_steps: true,
+      }),
+    });
+    
+    const json = await response.json();
+    setIntermediateStepsLoading(false);
+
+    if (!response.ok) {
+      toast.error(`Error while processing your request`, {
+        description: json.error,
+      });
+      return;
+    }
+
+    const responseMessages: ExtendedMessage[] = json.messages;
+    const toolCallMessages = responseMessages.filter(
+      (responseMessage: ExtendedMessage) => {
+        return responseMessage.role === "assistant" && !!responseMessage.tool_calls?.length;
+      },
+    );
+
+    const intermediateStepMessages = [];
+    for (let i = 0; i < toolCallMessages.length; i += 2) {
+      const aiMessage = toolCallMessages[i] as ExtendedMessage;
+      const toolMessage = toolCallMessages[i + 1];
+      intermediateStepMessages.push({
+        id: (messagesWithUserReply.length + i / 2).toString(),
+        role: "system" as const,
+        content: JSON.stringify({
+          action: aiMessage.tool_calls?.[0],
+          observation: toolMessage.content,
+        }),
+      });
+    }
+    
+    const newMessages = messagesWithUserReply;
+    for (const message of intermediateStepMessages) {
+      newMessages.push(message);
+      chat.setMessages([...newMessages]);
+      await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 1000));
+    }
+
+    chat.setMessages([
+      ...newMessages,
+      {
+        id: newMessages.length.toString(),
+        content: responseMessages[responseMessages.length - 1].content,
+        role: "assistant",
+      },
+    ]);
+  }, [chat, intermediateStepsLoading, showIntermediateSteps, props.endpoint, sessionId, setProcessingSteps]);
+
+  // Effect to handle initial question
+  useEffect(() => {
+    if (props.initialQuestion && chat.messages.length === 0) {
+      chat.setInput(props.initialQuestion);
+      const fakeEvent = new Event('submit') as unknown as FormEvent<HTMLFormElement>;
+      sendMessage(fakeEvent);
+    }
+  }, [props.initialQuestion, chat, sendMessage]);
 
   useEffect(() => {
     setSessionId(uuidv4());
@@ -474,187 +664,6 @@ export function AgentChatInterface(props: {
     );
   };
 
-  // Function to initialize processing steps
-  const initializeProcessingSteps = () => {
-    const steps: ProcessStep[] = [
-      {
-        id: uuidv4(),
-        label: 'Query Analysis',
-        type: 'input',
-        status: 'running',
-        details: 'Analyzing user query and context requirements',
-        timestamp: Date.now()
-      },
-      {
-        id: uuidv4(),
-        label: 'Context Retrieval',
-        type: 'process',
-        status: 'pending',
-        details: 'Searching for relevant information in the knowledge base',
-        timestamp: Date.now()
-      },
-      {
-        id: uuidv4(),
-        label: 'Response Generation',
-        type: 'process',
-        status: 'pending',
-        details: 'Generating contextual response using AI',
-        timestamp: Date.now()
-      },
-      {
-        id: uuidv4(),
-        label: 'Final Response',
-        type: 'output',
-        status: 'pending',
-        details: 'Formatting and delivering the response',
-        timestamp: Date.now()
-      }
-    ];
-    setProcessingSteps(steps);
-    return steps;
-  };
-
-  async function sendMessage(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (chat.isLoading || intermediateStepsLoading) return;
-
-    // Initialize processing steps
-    const steps = initializeProcessingSteps();
-    setIsProcessing(true);
-
-    if (!showIntermediateSteps) {
-      try {
-        // Update Query Analysis step
-        updateProcessingStep(steps[0].id, { 
-          status: 'completed',
-          details: `Analyzed query: "${chat.input}"`,
-          timestamp: Date.now()
-        });
-
-        // Update Context Retrieval step
-        updateProcessingStep(steps[1].id, { 
-          status: 'running',
-          timestamp: Date.now()
-        });
-
-        chat.handleSubmit(e);
-
-        // Simulate steps completion (you can replace these with actual progress from the backend)
-        setTimeout(() => {
-          updateProcessingStep(steps[1].id, { 
-            status: 'completed',
-            details: 'Retrieved relevant context from knowledge base',
-            timestamp: Date.now()
-          });
-          updateProcessingStep(steps[2].id, { 
-            status: 'running',
-            timestamp: Date.now()
-          });
-        }, 2000);
-
-        setTimeout(() => {
-          updateProcessingStep(steps[2].id, { 
-            status: 'completed',
-            details: 'Generated response using AI model',
-            timestamp: Date.now()
-          });
-          updateProcessingStep(steps[3].id, { 
-            status: 'running',
-            timestamp: Date.now()
-          });
-        }, 4000);
-
-        setTimeout(() => {
-          updateProcessingStep(steps[3].id, { 
-            status: 'completed',
-            details: 'Response formatted and ready',
-            timestamp: Date.now()
-          });
-          setIsProcessing(false);
-        }, 5000);
-
-      } catch (error: unknown) {
-        // Handle error state in steps
-        console.error('Processing error:', error);
-        setProcessingSteps(steps => 
-          steps.map(step => ({
-            ...step,
-            status: step.status === 'running' ? 'error' : step.status,
-            details: step.status === 'running' ? 'An error occurred during processing' : step.details
-          }))
-        );
-        setIsProcessing(false);
-      }
-      return;
-    }
-
-    // Handle intermediate steps
-    setIntermediateStepsLoading(true);
-    chat.setInput("");
-    const messagesWithUserReply = chat.messages.concat({
-      id: chat.messages.length.toString(),
-      content: chat.input,
-      role: "user",
-    });
-    chat.setMessages(messagesWithUserReply);
-
-    const response = await fetch(props.endpoint, {
-      method: "POST",
-      body: JSON.stringify({
-        messages: messagesWithUserReply,
-        sessionId: sessionId,
-        show_intermediate_steps: true,
-      }),
-    });
-    
-    const json = await response.json();
-    setIntermediateStepsLoading(false);
-
-    if (!response.ok) {
-      toast.error(`Error while processing your request`, {
-        description: json.error,
-      });
-      return;
-    }
-
-    const responseMessages: ExtendedMessage[] = json.messages;
-    const toolCallMessages = responseMessages.filter(
-      (responseMessage: ExtendedMessage) => {
-        return responseMessage.role === "assistant" && !!responseMessage.tool_calls?.length;
-      },
-    );
-
-    const intermediateStepMessages = [];
-    for (let i = 0; i < toolCallMessages.length; i += 2) {
-      const aiMessage = toolCallMessages[i] as ExtendedMessage;
-      const toolMessage = toolCallMessages[i + 1];
-      intermediateStepMessages.push({
-        id: (messagesWithUserReply.length + i / 2).toString(),
-        role: "system" as const,
-        content: JSON.stringify({
-          action: aiMessage.tool_calls?.[0],
-          observation: toolMessage.content,
-        }),
-      });
-    }
-    
-    const newMessages = messagesWithUserReply;
-    for (const message of intermediateStepMessages) {
-      newMessages.push(message);
-      chat.setMessages([...newMessages]);
-      await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 1000));
-    }
-
-    chat.setMessages([
-      ...newMessages,
-      {
-        id: newMessages.length.toString(),
-        content: responseMessages[responseMessages.length - 1].content,
-        role: "assistant",
-      },
-    ]);
-  }
-
   // If no messages, show the initial info card
   if (chat.messages.length === 0) {
     return (
@@ -724,7 +733,6 @@ export function AgentChatInterface(props: {
         savingStates={savingStates}
         savedResponses={savedResponses}
         processingSteps={processingSteps}
-        isProcessing={isProcessing}
       />
       
       <ChatInput

@@ -18,6 +18,7 @@
   "dependencies": {
     "@ai-sdk/langchain": "^1.0.0-canary.12",
     "@clerk/nextjs": "^6.19.4",
+    "@google/genai": "^1.1.0",
     "@langchain/community": "^0.3.37",
     "@langchain/core": "^0.3.57",
     "@langchain/google-genai": "^0.2.9",

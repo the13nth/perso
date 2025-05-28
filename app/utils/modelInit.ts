@@ -1,7 +1,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 const MODEL_VERSIONS = [
-  "gemini-pro",   // Current stable version
+  //"gemini-pro",   // Current stable version
   // "gemini-2.5-pro",     // Highest capability model
   //"gemini-2.5-flash",   // Fast model with good capabilities
   "gemini-2.0-flash",   // Fallback to older version

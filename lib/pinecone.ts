@@ -1,12 +1,26 @@
 import { Pinecone, Index, RecordMetadata, PineconeRecord, RecordMetadataValue } from '@pinecone-database/pinecone';
 import { Document } from 'langchain/document';
+import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 
 if (!process.env.PINECONE_API_KEY) {
   throw new Error('Missing PINECONE_API_KEY environment variable');
 }
 
-const pc = new Pinecone({
+if (!process.env.PINECONE_INDEX) {
+  throw new Error('Missing PINECONE_INDEX environment variable');
+}
+
+if (!process.env.GOOGLE_API_KEY) {
+  throw new Error('Missing GOOGLE_API_KEY environment variable');
+}
+
+const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
+});
+
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: process.env.GOOGLE_API_KEY!,
+  modelName: "embedding-001",
 });
 
 // Vector dimension must match the Pinecone index dimension
@@ -65,8 +79,8 @@ export async function initIndexes() {
     throw new Error('Missing PINECONE_INDEX environment variable');
   }
   
-  index = pc.index(process.env.PINECONE_INDEX);
-  contextIndex = pc.index(process.env.PINECONE_INDEX);
+  index = pinecone.index(process.env.PINECONE_INDEX!);
+  contextIndex = pinecone.index(process.env.PINECONE_INDEX!);
 }
 
 // Create a placeholder vector with a single non-zero value
@@ -255,21 +269,42 @@ export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
   return agent.metadata as AgentMetadata;
 }
 
-export async function getAgentContext(agentId: string): Promise<Document[]> {
+export async function getAgentContext(agentId: string, query?: string): Promise<Document[]> {
   if (!contextIndex) await initIndexes();
+
+  // First get the agent config to get selectedContextIds
+  const agentConfig = await getAgentConfig(agentId);
+  
+  // Get embeddings for the query if provided
+  let queryVector;
+  if (query) {
+    const embedding = await embeddings.embedQuery(query);
+    queryVector = embedding;
+  } else {
+    queryVector = createPlaceholderVector();
+  }
 
   // Get all context documents for the agent
   const response = await contextIndex.query({
-    vector: createPlaceholderVector(),
-    filter: { agentId },
-    topK: 100
+    vector: queryVector,
+    filter: {
+      $or: [
+        // Include documents directly linked to the agent
+        { agentId },
+        // Include documents from selected context categories
+        { id: { $in: agentConfig.selectedContextIds || [] } }
+      ]
+    },
+    topK: 10, // Limit to top 10 most relevant results
+    includeMetadata: true
   });
 
   return response.matches.map(match => new Document({
     pageContent: String(match.metadata?.content || ''),
     metadata: {
       source: match.metadata?.source,
-      title: match.metadata?.title
+      title: match.metadata?.title,
+      score: match.score // Include the relevance score
     }
   }));
 }

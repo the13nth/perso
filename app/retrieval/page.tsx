@@ -246,10 +246,7 @@ export default function RetrievalPage() {
   return (
     <div className="container py-4 px-4 sm:py-6 space-y-6 sm:space-y-8">
       <div className="space-y-3 sm:space-y-4">
-        <h1 className="text-2xl sm:text-3xl font-bold">Document Retrieval</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          Retrieval systems let you chat with your documents. Upload documents and ask questions about their content.
-        </p>
+       
 
         <Tabs defaultValue="features" className="mt-4 sm:mt-6">
           <TabsList className="grid w-full grid-cols-2 sticky top-0 z-50 bg-background h-11 sm:h-12">
@@ -353,8 +350,8 @@ export default function RetrievalPage() {
               </div>
             </TabsContent>
             
-            <TabsContent value="chat" className="space-y-4 sm:space-y-6">
-              <AgentChatInterface
+                      <TabsContent value="chat" className="space-y-4 sm:space-y-6">
+            <AgentChatInterface
                 endpoint="api/chat/retrieval"
                 placeholder="Hi! I'm your personal assistant. How can I help you today?"
                 emoji="🤖"

@@ -45,11 +45,20 @@ function AgentCard({ agent }: { agent: AgentMetadata }) {
           )}
         </div>
       </CardContent>
-      <CardFooter className="pt-4">
-        <Link href={`/agents/${agent.agentId}`} className="w-full">
+      <CardFooter className="pt-4 flex gap-2">
+        <Link href={`/agents/${agent.agentId}`} className="flex-1">
           <Button className="w-full group-hover:bg-primary/90 transition-colors" size="sm">
             View Agent
             <ExternalLink className="w-4 h-4 ml-2 opacity-70" />
+          </Button>
+        </Link>
+        <Link 
+          href={`/agent-chat?agentId=${agent.agentId}&agentName=${encodeURIComponent(agent.name)}&agentDescription=${encodeURIComponent(agent.description)}`} 
+          className="flex-1"
+        >
+          <Button variant="outline" className="w-full" size="sm">
+            Chat
+            <Bot className="w-4 h-4 ml-2 opacity-70" />
           </Button>
         </Link>
       </CardFooter>
