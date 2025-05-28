@@ -4,7 +4,6 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { initializeGeminiModel } from "@/app/utils/modelInit";
-import '@/app/utils/fetch'; // Import fetch implementation
 
 export const runtime = "edge";
 
