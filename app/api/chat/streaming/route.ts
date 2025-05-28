@@ -9,7 +9,6 @@ const model = new ChatGoogleGenerativeAI({
   streaming: true,
 });
 
-// IMPORTANT! Set the runtime to edge
 export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
