@@ -1,68 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Message as VercelChatMessage } from "ai";
-
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { SerpAPI } from "@langchain/community/tools/serpapi";
-import { Calculator } from "@langchain/community/tools/calculator";
-import {
-  AIMessage,
-  BaseMessage,
-  ChatMessage,
-  HumanMessage,
-  SystemMessage,
-} from "@langchain/core/messages";
-
-import { DocumentAnalysisTool, WeatherTool, DatabaseQueryTool, ImageGeneratorTool, CodeInterpreterTool } from "@/lib/tools";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { initializeGeminiModel } from "@/app/utils/modelInit";
+import '@/app/utils/fetch'; // Import fetch implementation
 
 export const runtime = "edge";
 
-const convertVercelMessageToLangChainMessage = (message: VercelChatMessage) => {
-  if (message.role === "user") {
-    return new HumanMessage(message.content);
-  } else if (message.role === "assistant") {
-    return new AIMessage(message.content);
-  } else {
-    return new ChatMessage(message.content, message.role);
-  }
-};
+const TEMPLATE = `You are Ubumuntu AI, a personal AI assistant. You have access to several tools to help users:
 
-const convertLangChainMessageToVercelMessage = (message: BaseMessage) => {
-  if (message._getType() === "human") {
-    return { content: message.content, role: "user" };
-  } else if (message._getType() === "ai") {
-    return {
-      content: message.content,
-      role: "assistant",
-      tool_calls: (message as AIMessage).tool_calls,
-    };
-  } else {
-    return { content: message.content, role: message._getType() };
-  }
-};
+Core Capabilities:
+- Analyze documents and extract information (use "document_analysis" tool)
+- Execute database queries and get insights (use "database_query" tool)
+- Generate images from descriptions (use "image_generator" tool)
+- Execute and explain code (use "code_interpreter" tool)
 
-const AGENT_SYSTEM_TEMPLATE = `You are an AI assistant with access to a variety of tools to help users.
+Instructions:
+1. Use the provided tools when relevant to the user's request
+2. If no tool is needed, respond directly using your knowledge
+3. Format responses in markdown with clear sections
+4. Always provide context and explanations for tool outputs
 
-IMPORTANT TOOL SELECTION GUIDELINES:
-- For weather queries (forecast, temperature, conditions, etc.), ALWAYS use the "weather" tool first
-- For calculations and math problems, use the "calculator" tool
-- For document analysis and text processing, use the "document-analysis" tool
-- For database queries, use the "database-query" tool
-- For image generation, use the "image-generator" tool
-- For code execution, use the "code-interpreter" tool
-- Only use web search ("serpapi") if the information is not available through specialized tools
+Chat History:
+{history}
 
-You can use tools to:
-- Get real-time weather information for any location (use "weather" tool)
-- Perform mathematical calculations
-- Analyze document text and extract insights
-- Query databases with natural language
-- Generate images from descriptions
-- Execute code to solve problems
-- Search the web for information (as a last resort)
+User's query: {query}`;
 
-Think through what tools would be most helpful for solving the user's request and use them appropriately.
-Always be helpful, accurate, and user-focused.`;
+const prompt = PromptTemplate.fromTemplate(TEMPLATE);
+
+function formatMessage(message: VercelChatMessage) {
+  return `${message.role}: ${message.content}`;
+}
 
 /**
  * This handler initializes and calls an tool caling ReAct agent.
@@ -73,101 +42,42 @@ Always be helpful, accurate, and user-focused.`;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const returnIntermediateSteps = body.show_intermediate_steps;
-    /**
-     * We represent intermediate steps as system messages for display purposes,
-     * but don't want them in the chat history.
-     */
-    const messages = (body.messages ?? [])
-      .filter(
-        (message: VercelChatMessage) =>
-          message.role === "user" || message.role === "assistant",
-      )
-      .map(convertVercelMessageToLangChainMessage);
+    const messages = body.messages ?? [];
 
-    // Initialize tools in priority order
-    const tools = [
-      new WeatherTool(),
-      new Calculator(),
-      new DocumentAnalysisTool(),
-      new DatabaseQueryTool(),
-      new ImageGeneratorTool(),
-      new CodeInterpreterTool(),
-    ];
-    
-    if (process.env.SERPAPI_API_KEY) {
-      tools.push(new SerpAPI());
-    }
+    const formattedPreviousMessages = messages.slice(0, -1).map(formatMessage);
+    const currentMessageContent = messages[messages.length - 1].content;
 
-    const chat = new ChatGoogleGenerativeAI({
-      model: "gemini-pro",
+    const model = await initializeGeminiModel({
       maxOutputTokens: 2048,
-      temperature: 0,
+      temperature: 0.7,
     });
 
-    /**
-     * Use a prebuilt LangGraph agent.
-     */
-    const agent = createReactAgent({
-      llm: chat,
-      tools,
-      /**
-       * Modify the stock prompt in the prebuilt agent. See docs
-       * for how to customize your agent:
-       *
-       * https://langchain-ai.github.io/langgraphjs/tutorials/quickstart/
-       */
-      messageModifier: new SystemMessage(AGENT_SYSTEM_TEMPLATE),
-    });
+    const chain = RunnableSequence.from([
+      {
+        history: () => formattedPreviousMessages.join("\n"),
+        query: () => currentMessageContent,
+      },
+      prompt,
+      model,
+      new StringOutputParser(),
+    ]);
 
-    if (!returnIntermediateSteps) {
-      /**
-       * Stream back all generated tokens and steps from their runs.
-       *
-       * We do some filtering of the generated events and only stream back
-       * the final response as a string.
-       *
-       * For this specific type of tool calling ReAct agents with OpenAI, we can tell when
-       * the agent is ready to stream back final output when it no longer calls
-       * a tool and instead streams back content.
-       *
-       * See: https://langchain-ai.github.io/langgraphjs/how-tos/stream-tokens/
-       */
-      const eventStream = await agent.streamEvents(
-        { messages },
-        { version: "v2" },
-      );
+    const response = await chain.invoke({});
 
-      const stream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder();
-          for await (const { event, data } of eventStream) {
-            if (event === "on_chat_model_stream" && data.chunk.content) {
-              controller.enqueue(encoder.encode(data.chunk.content));
-            }
-          }
-          controller.close();
-        },
-      });
-
-      return new Response(stream);
-    } else {
-      /**
-       * We could also pick intermediate steps out from `streamEvents` chunks, but
-       * they are generated as JSON objects, so streaming and displaying them with
-       * the AI SDK is more complicated.
-       */
-      const result = await agent.invoke({ messages });
-
-      return NextResponse.json(
+    return NextResponse.json({
+      messages: [
+        ...messages,
         {
-          messages: result.messages.map(convertLangChainMessageToVercelMessage),
-        },
-        { status: 200 },
-      );
-    }
+          role: "assistant",
+          content: response.trim()
+        }
+      ]
+    });
   } catch (error) {
-    const status = error instanceof Error && 'status' in error ? error.status as number : 500;
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'An error occurred' }, { status });
+    console.error("Error in chat route:", error);
+    return NextResponse.json(
+      { error: "There was an error processing your request" },
+      { status: 500 }
+    );
   }
 }

@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { StructuredOutputParser } from "@langchain/core/output_parsers";
+import { JsonOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { z } from "zod";
 import { initializeGeminiModel } from "@/app/utils/modelInit";
 import { auth } from '@clerk/nextjs/server';
 
-const insightOutputSchema = z.object({
-  summary: z.string().describe("A concise summary of the key patterns observed in the documents"),
-  trends: z.array(z.string()).describe("List of notable trends observed in the documents"),
-  keyTopics: z.array(z.string()).describe("Key topics that appear frequently across the documents"),
-  recommendations: z.array(z.string()).describe("Actionable recommendations based on document analysis"),
-  connections: z.array(z.string()).describe("Interesting connections between documents or concepts"),
-});
+interface InsightOutput {
+  summary: string;
+  trends: string[];
+  keyTopics: string[];
+  recommendations: string[];
+  connections: string[];
+}
 
-const parser = StructuredOutputParser.fromZodSchema(insightOutputSchema);
+const parser = new JsonOutputParser<InsightOutput>();
 
-const formatInstructions = parser.getFormatInstructions();
+const formatInstructions = "Return a JSON object with the following fields: summary (string), trends (string[]), keyTopics (string[]), recommendations (string[]), and connections (string[]).";
 
 // Function to fetch embeddings from Pinecone for a specific category
 async function fetchCategoryEmbeddings(category: string, userId: string, limit: number = 50, useAllDocuments: boolean = false) {

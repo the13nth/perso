@@ -42,9 +42,9 @@ export default function Page() {
     <div className="mx-auto w-full max-w-4xl py-12 flex flex-col stretch gap-3">
       <form onSubmit={handleSubmit} className="flex flex-col gap-2">
         <Input
-          placeholder="What's the weather like in..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask me anything..."
         />
         <Button type="submit" disabled={isLoading}>
           Submit

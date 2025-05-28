@@ -1,6 +1,7 @@
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { NextRequest } from 'next/server';
+import '@/app/utils/fetch'; // Import fetch implementation
 
 // Create a Gemini API client
 const model = new ChatGoogleGenerativeAI({
@@ -9,7 +10,6 @@ const model = new ChatGoogleGenerativeAI({
   streaming: true,
 });
 
-// IMPORTANT! Set the runtime to edge
 export const runtime = "edge";
 
 export async function POST(req: NextRequest) {

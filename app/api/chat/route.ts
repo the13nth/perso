@@ -3,6 +3,7 @@ import { Message as VercelChatMessage } from "ai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { HttpResponseOutputParser } from "langchain/output_parsers";
 import { initializeGeminiModel } from "@/app/utils/modelInit";
+import '@/app/utils/fetch'; // Import fetch implementation
 
 export const runtime = "edge";
 

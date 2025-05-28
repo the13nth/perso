@@ -1,8 +1,8 @@
 "use client";
 
-import { type Message } from "ai";
+import { type Message, type ToolCall } from "ai";
 import { useChat } from "ai/react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,9 +14,13 @@ import { IntermediateStep } from "./IntermediateStep";
 import { CategorySelectionModal } from "./CategorySelectionModal";
 import { v4 as uuidv4 } from 'uuid';
 import { useUser } from "@clerk/nextjs";
+import ReactMarkdown from 'react-markdown';
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { format } from "date-fns";
+import { LangGraphUI, ProcessStep } from './LangGraphUI';
 
 interface ExtendedMessage extends Message {
-  tool_calls?: { name: string; arguments: string }[];
+  tool_calls?: ToolCall[];
 }
 
 interface Source {
@@ -42,7 +46,7 @@ interface ChatCardProps {
   isSaved?: boolean;
 }
 
-function ChatCard({ message, aiEmoji, sources, sessionId, onSaveResponse, previousUserMessage, isSaving, isSaved }: ChatCardProps) {
+const ChatCard = React.memo(({ message, aiEmoji, sources, sessionId, onSaveResponse, previousUserMessage, isSaving, isSaved }: ChatCardProps) => {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const isAssistant = message.role === "assistant";
@@ -51,83 +55,181 @@ function ChatCard({ message, aiEmoji, sources, sessionId, onSaveResponse, previo
     return <IntermediateStep message={message} />;
   }
 
+  // Helper function to clean and parse nested responses
+  const cleanAndParseResponse = (content: string): string => {
+    try {
+      // Check if the content is a nested JSON response
+      if (content.startsWith('{"messages":[')) {
+        const parsed = JSON.parse(content);
+        // Get the last assistant message
+        const lastAssistantMessage = parsed.messages
+          .filter((m: { role: string; content?: string }) => m.role === 'assistant')
+          .pop();
+        return lastAssistantMessage?.content || content;
+      }
+      return content;
+    } catch {
+      return content;
+    }
+  };
+
+  // Process the message content
+  const processedContent = isAssistant ? cleanAndParseResponse(message.content) : message.content;
+
   return (
-    <Card className={cn("mb-3 sm:mb-4", isUser ? "ml-auto max-w-[85%] sm:max-w-[80%]" : "mr-auto max-w-[95%] sm:max-w-[90%]")}>
-      <CardHeader className="pb-2 sm:pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          {isUser ? (
-            <>
-              <div className="w-6 h-6 sm:w-6 sm:h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <User className="w-3 h-3" />
-              </div>
-              <span className="text-sm font-medium">You</span>
-            </>
-          ) : (
-            <>
-              <div className="w-6 h-6 sm:w-6 sm:h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                {aiEmoji || <Bot className="w-3 h-3" />}
-              </div>
-              <span className="text-sm font-medium">AI Assistant</span>
-              {isAssistant && onSaveResponse && previousUserMessage && sessionId && (
-                <div className="ml-auto flex items-center gap-2">
-                  {isSaved ? (
-                    <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                      Saved to Memory
-                    </div>
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="w-full"
+    >
+      <Card className={cn(
+        "mb-3 sm:mb-4 transition-shadow duration-200 hover:shadow-md",
+        isUser ? "ml-auto max-w-[85%] sm:max-w-[80%] bg-primary/5" : "mr-auto max-w-[95%] sm:max-w-[90%]"
+      )}>
+        <CardHeader className="pb-2 sm:pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            {isUser ? (
+              <>
+                <div className="w-6 h-6 sm:w-6 sm:h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <User className="w-3 h-3" />
+                </div>
+                <span className="text-sm font-medium">You</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {format(new Date(), 'HH:mm')}
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="w-6 h-6 sm:w-6 sm:h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  {aiEmoji ? (
+                    <span className="text-sm">{aiEmoji}</span>
                   ) : (
-                    <Button
-                      onClick={() => onSaveResponse(previousUserMessage.content, message.content, sessionId)}
-                      size="sm"
-                      variant="outline"
-                      className="h-6 px-2 text-xs"
-                      disabled={isSaving}
+                    <Bot className="w-3 h-3" />
+                  )}
+                </div>
+                <span className="text-sm font-medium">AI Assistant</span>
+                <span className="text-xs text-muted-foreground">
+                  {format(new Date(), 'HH:mm')}
+                </span>
+                {isAssistant && onSaveResponse && previousUserMessage && sessionId && (
+                  <div className="ml-auto flex items-center gap-2">
+                    {isSaved ? (
+                      <motion.div 
+                        initial={{ scale: 0.8 }}
+                        animate={{ scale: 1 }}
+                        className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        Saved to Memory
+                      </motion.div>
+                    ) : (
+                      <Button
+                        onClick={() => onSaveResponse(previousUserMessage.content, processedContent, sessionId)}
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-xs hover:bg-primary/5 transition-colors"
+                        disabled={isSaving}
+                      >
+                        {isSaving ? (
+                          <LoaderCircle className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <>
+                            <Save className="w-3 h-3 mr-1" />
+                            Save Response
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className={cn(
+            "prose prose-sm dark:prose-invert max-w-none",
+            isUser ? "text-primary" : ""
+          )}>
+            {isUser ? (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                {processedContent}
+              </div>
+            ) : (
+              <ReactMarkdown
+                components={{
+                  h3: ({ children }) => (
+                    <h3 className="text-base font-semibold mt-4 mb-2 text-primary dark:text-primary-foreground">{children}</h3>
+                  ),
+                  ul: ({ children }) => (
+                    <ul className="my-2 space-y-2">{children}</ul>
+                  ),
+                  li: ({ children }) => (
+                    <motion.li 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-start"
                     >
-                      {isSaving ? (
-                        <LoaderCircle className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <>
-                          <Save className="w-3 h-3 mr-1" />
-                          Save Response
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="whitespace-pre-wrap text-sm leading-relaxed">
-          {message.content}
-        </div>
-        
-        {sources && sources.length > 0 && (
-          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-xs font-medium text-muted-foreground">Sources</span>
-            </div>
-            <div className="space-y-2">
-              {sources.map((source, i) => (
-                <div key={`source-${i}`} className="text-xs bg-muted/50 p-2 sm:p-2 rounded">
-                  <div className="font-medium break-words">{i + 1}. &ldquo;{source.pageContent}&rdquo;</div>
-                  {source.metadata?.loc?.lines && (
-                    <div className="text-muted-foreground mt-1">
-                      Lines {source.metadata.loc.lines.from} to {source.metadata.loc.lines.to}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                      <span className="mr-2 text-primary dark:text-primary-foreground">•</span>
+                      <span>{children}</span>
+                    </motion.li>
+                  ),
+                  p: ({ children }) => (
+                    <p className="mb-2 leading-relaxed">{children}</p>
+                  ),
+                  strong: ({ children }) => (
+                    <strong className="font-semibold text-primary dark:text-primary-foreground">{children}</strong>
+                  ),
+                  code: ({ children }) => (
+                    <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono">{children}</code>
+                  ),
+                }}
+              >
+                {processedContent}
+              </ReactMarkdown>
+            )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+          
+          {sources && sources.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground">Sources</span>
+              </div>
+              <div className="space-y-2">
+                {sources.map((source, i) => (
+                  <motion.div
+                    key={`source-${i}`}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="text-xs bg-muted/50 p-2 sm:p-2 rounded hover:bg-muted/70 transition-colors"
+                  >
+                    <div className="font-medium break-words">{i + 1}. &ldquo;{source.pageContent}&rdquo;</div>
+                    {source.metadata?.loc?.lines && (
+                      <div className="text-muted-foreground mt-1">
+                        Lines {source.metadata.loc.lines.from} to {source.metadata.loc.lines.to}
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
-}
+});
+
+ChatCard.displayName = 'ChatCard';
 
 function ChatInput(props: {
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
@@ -182,6 +284,64 @@ function ChatInput(props: {
   );
 }
 
+// Wrap the chat messages list in LayoutGroup
+function ChatMessages({ 
+  messages, 
+  aiEmoji, 
+  sourcesForMessages, 
+  sessionId, 
+  onSaveResponse, 
+  savingStates, 
+  savedResponses,
+  processingSteps,
+  isProcessing 
+}: {
+  messages: Message[];
+  aiEmoji?: string;
+  sourcesForMessages: Record<string, Source[]>;
+  sessionId: string;
+  onSaveResponse: (query: string, response: string, sessionId: string) => void;
+  savingStates: Record<string, boolean>;
+  savedResponses: Set<string>;
+  processingSteps: ProcessStep[];
+  isProcessing: boolean;
+}) {
+  return (
+    <LayoutGroup>
+      <AnimatePresence mode="popLayout">
+        {messages.map((message, i) => {
+          const sourceKey = (messages.length - 1 - i).toString();
+          const previousUserMessage = messages[i - 1];
+          const messageKey = previousUserMessage && message.role === "assistant" 
+            ? `${previousUserMessage.content}-${message.content}` 
+            : `${message.id}`;
+          
+          return (
+            <div key={message.id} className="flex flex-col gap-4">
+              <ChatCard
+                message={message}
+                aiEmoji={aiEmoji}
+                sources={sourcesForMessages[sourceKey]}
+                sessionId={sessionId}
+                onSaveResponse={onSaveResponse}
+                previousUserMessage={previousUserMessage as Message}
+                isSaving={savingStates[messageKey] || false}
+                isSaved={savedResponses.has(messageKey)}
+              />
+              {message.role === 'user' && i === messages.length - 1 && isProcessing && (
+                <LangGraphUI 
+                  steps={processingSteps}
+                  className="mt-4"
+                />
+              )}
+            </div>
+          );
+        })}
+      </AnimatePresence>
+    </LayoutGroup>
+  );
+}
+
 export function AgentChatInterface(props: {
   endpoint: string;
   placeholder?: string;
@@ -204,6 +364,8 @@ export function AgentChatInterface(props: {
     sessionId: string;
   } | null>(null);
   const { user } = useUser();
+  const [processingSteps, setProcessingSteps] = useState<ProcessStep[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const chat = useChat({
     api: props.endpoint,
@@ -303,12 +465,126 @@ export function AgentChatInterface(props: {
     setPendingSaveData(null);
   };
 
+  // Function to update processing steps
+  const updateProcessingStep = (stepId: string, update: Partial<ProcessStep>) => {
+    setProcessingSteps(steps => 
+      steps.map(step => 
+        step.id === stepId ? { ...step, ...update } : step
+      )
+    );
+  };
+
+  // Function to initialize processing steps
+  const initializeProcessingSteps = () => {
+    const steps: ProcessStep[] = [
+      {
+        id: uuidv4(),
+        label: 'Query Analysis',
+        type: 'input',
+        status: 'running',
+        details: 'Analyzing user query and context requirements',
+        timestamp: Date.now()
+      },
+      {
+        id: uuidv4(),
+        label: 'Context Retrieval',
+        type: 'process',
+        status: 'pending',
+        details: 'Searching for relevant information in the knowledge base',
+        timestamp: Date.now()
+      },
+      {
+        id: uuidv4(),
+        label: 'Response Generation',
+        type: 'process',
+        status: 'pending',
+        details: 'Generating contextual response using AI',
+        timestamp: Date.now()
+      },
+      {
+        id: uuidv4(),
+        label: 'Final Response',
+        type: 'output',
+        status: 'pending',
+        details: 'Formatting and delivering the response',
+        timestamp: Date.now()
+      }
+    ];
+    setProcessingSteps(steps);
+    return steps;
+  };
+
   async function sendMessage(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (chat.isLoading || intermediateStepsLoading) return;
 
+    // Initialize processing steps
+    const steps = initializeProcessingSteps();
+    setIsProcessing(true);
+
     if (!showIntermediateSteps) {
-      chat.handleSubmit(e);
+      try {
+        // Update Query Analysis step
+        updateProcessingStep(steps[0].id, { 
+          status: 'completed',
+          details: `Analyzed query: "${chat.input}"`,
+          timestamp: Date.now()
+        });
+
+        // Update Context Retrieval step
+        updateProcessingStep(steps[1].id, { 
+          status: 'running',
+          timestamp: Date.now()
+        });
+
+        chat.handleSubmit(e);
+
+        // Simulate steps completion (you can replace these with actual progress from the backend)
+        setTimeout(() => {
+          updateProcessingStep(steps[1].id, { 
+            status: 'completed',
+            details: 'Retrieved relevant context from knowledge base',
+            timestamp: Date.now()
+          });
+          updateProcessingStep(steps[2].id, { 
+            status: 'running',
+            timestamp: Date.now()
+          });
+        }, 2000);
+
+        setTimeout(() => {
+          updateProcessingStep(steps[2].id, { 
+            status: 'completed',
+            details: 'Generated response using AI model',
+            timestamp: Date.now()
+          });
+          updateProcessingStep(steps[3].id, { 
+            status: 'running',
+            timestamp: Date.now()
+          });
+        }, 4000);
+
+        setTimeout(() => {
+          updateProcessingStep(steps[3].id, { 
+            status: 'completed',
+            details: 'Response formatted and ready',
+            timestamp: Date.now()
+          });
+          setIsProcessing(false);
+        }, 5000);
+
+      } catch (error: unknown) {
+        // Handle error state in steps
+        console.error('Processing error:', error);
+        setProcessingSteps(steps => 
+          steps.map(step => ({
+            ...step,
+            status: step.status === 'running' ? 'error' : step.status,
+            details: step.status === 'running' ? 'An error occurred during processing' : step.details
+          }))
+        );
+        setIsProcessing(false);
+      }
       return;
     }
 
@@ -319,10 +595,6 @@ export function AgentChatInterface(props: {
       id: chat.messages.length.toString(),
       content: chat.input,
       role: "user",
-      parts: [{
-        type: 'text',
-        text: chat.input
-      }]
     });
     chat.setMessages(messagesWithUserReply);
 
@@ -363,16 +635,6 @@ export function AgentChatInterface(props: {
           action: aiMessage.tool_calls?.[0],
           observation: toolMessage.content,
         }),
-        parts: [{
-          type: 'tool-invocation' as const,
-          toolInvocation: {
-            state: 'result' as const,
-            toolCallId: `tool_${i}`,
-            toolName: aiMessage.tool_calls?.[0].name ?? '',
-            args: aiMessage.tool_calls?.[0].arguments ?? '',
-            result: toolMessage.content
-          }
-        }]
       });
     }
     
@@ -419,7 +681,7 @@ export function AgentChatInterface(props: {
           onChange={chat.handleInputChange}
           onSubmit={sendMessage}
           loading={chat.isLoading || intermediateStepsLoading}
-          placeholder={props.placeholder ?? "I&apos;m an AI assistant with access to many tools. How can I help you today?"}
+          placeholder={props.placeholder ?? "I'm an AI assistant with access to many tools. How can I help you today?"}
           showIntermediateStepsToggle={props.showIntermediateStepsToggle}
           showIntermediateSteps={showIntermediateSteps}
           onToggleIntermediateSteps={setShowIntermediateSteps}
@@ -453,36 +715,24 @@ export function AgentChatInterface(props: {
         </CardContent>
       </Card>
       
-      {chat.messages.map((message, i) => {
-        const sourceKey = (chat.messages.length - 1 - i).toString();
-        const previousUserMessage = chat.messages[i - 1];
-        const messageKey = previousUserMessage && message.role === "assistant" 
-          ? `${previousUserMessage.content}-${message.content}` 
-          : `${message.id}`;
-        
-        return (
-          <ChatCard
-            key={message.id}
-            message={message}
-            aiEmoji={props.emoji}
-            sources={sourcesForMessages[sourceKey]}
-            sessionId={sessionId}
-            onSaveResponse={(query, response, sessionId) => {
-              initiateSaveResponse(query, response, sessionId);
-            }}
-            previousUserMessage={previousUserMessage as Message}
-            isSaving={savingStates[messageKey] || false}
-            isSaved={savedResponses.has(messageKey)}
-          />
-        );
-      })}
+      <ChatMessages
+        messages={chat.messages}
+        aiEmoji={props.emoji}
+        sourcesForMessages={sourcesForMessages}
+        sessionId={sessionId}
+        onSaveResponse={initiateSaveResponse}
+        savingStates={savingStates}
+        savedResponses={savedResponses}
+        processingSteps={processingSteps}
+        isProcessing={isProcessing}
+      />
       
       <ChatInput
         value={chat.input}
         onChange={chat.handleInputChange}
         onSubmit={sendMessage}
         loading={chat.isLoading || intermediateStepsLoading}
-        placeholder={props.placeholder ?? "I&apos;m an AI assistant with access to many tools. How can I help you today?"}
+        placeholder={props.placeholder ?? "I'm an AI assistant with access to many tools. How can I help you today?"}
         showIntermediateStepsToggle={props.showIntermediateStepsToggle}
         showIntermediateSteps={showIntermediateSteps}
         onToggleIntermediateSteps={setShowIntermediateSteps}
