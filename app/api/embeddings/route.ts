@@ -3,14 +3,21 @@ export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import '@/app/utils/fetch'; // Import fetch implementation
 
 interface EmbeddingMetadata {
   text?: string;
-  categories?: string[] | string;
-  category?: string;
-  docType?: string;
   userId?: string;
+  type?: string;
+  sessionId?: string;
+  title?: string;
+  query?: string;
+  response?: string;
+  activity?: string;
+  category?: string;
+  categories?: string[] | string;
+  activityDate?: string;
+  duration?: string;
+  docType?: string;
   [key: string]: unknown;
 }
 
