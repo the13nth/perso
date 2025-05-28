@@ -96,30 +96,6 @@ export function LangGraphUI({ steps, className, ...props }: LangGraphUIProps) {
             <Controls />
           </ReactFlow>
         </div>
-        <div className="border-t p-4 space-y-2">
-          {steps.map((step) => (
-            <motion.div
-              key={step.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-start gap-2"
-            >
-              <Badge variant="outline" className={statusColors[step.status]}>
-                {step.status === 'running' && (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                )}
-                {step.status}
-              </Badge>
-              <div>
-                <p className="text-sm font-medium">{step.label}</p>
-                <p className="text-xs text-muted-foreground">{step.details}</p>
-              </div>
-              <span className="ml-auto text-xs text-muted-foreground">
-                {new Date(step.timestamp).toLocaleTimeString()}
-              </span>
-            </motion.div>
-          ))}
-        </div>
       </motion.div>
     </AnimatePresence>
   );

@@ -8,8 +8,9 @@ import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
-import { CheckCircle2, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock, Upload, FileText, AlertTriangle } from "lucide-react";
+import { CheckCircle2, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Vote, Paintbrush, Star, DollarSign, HelpCircle, Globe, Lock, Upload, FileText, AlertTriangle, X } from "lucide-react";
 import { Checkbox } from "./ui/checkbox";
+import { Badge } from "./ui/badge";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
@@ -546,6 +547,55 @@ export function UploadDocumentsForm({
                       </Label>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="bg-muted/30 p-4 rounded-lg">
+                <h4 className="text-lg font-medium mb-3">Custom Category</h4>
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Input
+                        type="text"
+                        placeholder="Enter a custom category..."
+                        className="h-10"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const value = e.currentTarget.value.trim().toLowerCase().replace(/\s+/g, '_');
+                            if (value && !selectedCategories.includes(value)) {
+                              setSelectedCategories(prev => [...prev, value]);
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Press Enter to add the category</p>
+                    </div>
+                  </div>
+                  {selectedCategories.filter(cat => 
+                    !Object.values(categoryGroups).flat().some(group => group.value === cat)
+                  ).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCategories.filter(cat => 
+                        !Object.values(categoryGroups).flat().some(group => group.value === cat)
+                      ).map(customCat => (
+                        <div key={customCat} className="flex items-center gap-2 bg-background p-2 rounded">
+                          <Badge variant="outline" className="gap-1">
+                            <Star className="h-3 w-3" />
+                            {customCat.replace(/_/g, ' ')}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCategories(prev => prev.filter(c => c !== customCat))}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

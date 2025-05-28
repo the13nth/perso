@@ -2,18 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Bot, ArrowLeft, Globe, BookOpen, LineChart, Pencil, HeadsetIcon, Code, Boxes, Wallet, Dumbbell, Activity, StickyNote, Cpu, Brain, Building2, Gamepad, ChartLine, ClipboardList } from 'lucide-react';
+import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
-import { toast } from 'sonner';
-import { useUser } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Bot, Globe, BookOpen, LineChart, Pencil, Headset, Code, Boxes, Wallet, Dumbbell, Activity, StickyNote, Cpu, Brain, Building2, Gamepad, ClipboardCheck } from "lucide-react";
+import { toast } from 'sonner';
 
 // Predefined categories for agents
 const AGENT_CATEGORIES = [
@@ -30,32 +29,31 @@ const AGENT_CATEGORIES = [
 
 // Function to get icon for category
 function getCategoryIcon(categoryName: string) {
-  const iconMap: Record<string, React.ReactNode> = {
-    'General Purpose': <Globe className="w-4 h-4" />,
-    'Research': <BookOpen className="w-4 h-4" />,
+  const icons = {
+    'General': <Globe className="w-4 h-4" />,
+    'Education': <BookOpen className="w-4 h-4" />,
     'Data Analysis': <LineChart className="w-4 h-4" />,
     'Writing': <Pencil className="w-4 h-4" />,
-    'Customer Service': <HeadsetIcon className="w-4 h-4" />,
+    'Customer Service': <Headset className="w-4 h-4" />,
     'Development': <Code className="w-4 h-4" />,
     'Other': <Boxes className="w-4 h-4" />,
-    'finances': <Wallet className="w-4 h-4" />,
-    'physical': <Dumbbell className="w-4 h-4" />,
-    'running': <Activity className="w-4 h-4" />,
-    'notes': <StickyNote className="w-4 h-4" />,
-    'technology': <Cpu className="w-4 h-4" />,
-    'thoughts': <Brain className="w-4 h-4" />,
-    'business': <Building2 className="w-4 h-4" />,
-    'entertainment': <Gamepad className="w-4 h-4" />,
-    'running insights': <ChartLine className="w-4 h-4" />,
-    'plans': <ClipboardList className="w-4 h-4" />
+    'Finance': <Wallet className="w-4 h-4" />,
+    'Fitness': <Dumbbell className="w-4 h-4" />,
+    'Health': <Activity className="w-4 h-4" />,
+    'Notes': <StickyNote className="w-4 h-4" />,
+    'AI': <Cpu className="w-4 h-4" />,
+    'Research': <Brain className="w-4 h-4" />,
+    'Business': <Building2 className="w-4 h-4" />,
+    'Gaming': <Gamepad className="w-4 h-4" />,
+    'Analytics': <LineChart className="w-4 h-4" />,
+    'Tasks': <ClipboardCheck className="w-4 h-4" />,
   };
-
-  return iconMap[categoryName.toLowerCase()] || <Boxes className="w-4 h-4" />;
+  return icons[categoryName as keyof typeof icons] || <Bot className="w-4 h-4" />;
 }
 
 export default function CreateAgentPage() {
   const router = useRouter();
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [availableCategories, setAvailableCategories] = useState<Array<{ name: string; count: number }>>([]);
@@ -176,21 +174,19 @@ export default function CreateAgentPage() {
 
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Select
+              <select
+                id="category"
                 value={formData.category}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AGENT_CATEGORIES.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="">Select a category</option>
+                {AGENT_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
