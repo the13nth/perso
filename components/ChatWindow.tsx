@@ -5,7 +5,27 @@ import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { toast } from "sonner";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
-import type { UIMessage } from "@ai-sdk/ui-utils";
+
+// Define UIMessage type locally
+type UIMessage = Message & {
+  sources?: Array<{
+    pageContent: string;
+    metadata?: {
+      loc?: { lines: { from: number; to: number; }; };
+    };
+  }>;
+  parts?: Array<{
+    type: 'tool-invocation' | 'text';
+    text?: string;
+    toolInvocation?: {
+      state: 'result';
+      toolCallId: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      result: Record<string, unknown> | string;
+    };
+  }>;
+};
 
 import { ChatMessageBubble } from "@/components/ChatMessageBubble";
 import { IntermediateStep } from "./IntermediateStep";

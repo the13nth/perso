@@ -1,61 +1,38 @@
-import type { NextRequest } from "next/server";
+// Remove edge runtime for now since we're using Node.js features
+// export const runtime = 'edge';
+
 import { NextResponse } from "next/server";
-import { Message as VercelChatMessage, LangChainAdapter } from "ai";
+import { Message as VercelChatMessage } from "ai";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { Document } from "@langchain/core/documents";
-import { RunnableSequence } from "@langchain/core/runnables";
+import { RunnableLambda, RunnableSequence } from "@langchain/core/runnables";
 import { initializeGeminiModel } from "@/app/utils/modelInit";
-import {
-  StringOutputParser,
-} from "@langchain/core/output_parsers";
-import { Pinecone, type Index, type RecordMetadata } from "@pinecone-database/pinecone";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { Pinecone, Index, ScoredPineconeRecord, RecordMetadata } from "@pinecone-database/pinecone";
 import { auth } from "@clerk/nextjs/server";
 
-// Define proper types for metadata
-type DocumentMetadata = Partial<{
-  text: string;
-  userId: string;
-  type: string;
-  sessionId: string;
-  title: string;
-  query: string;
-  response: string;
-  activity: string;
-  category: string;
-  activityDate: string;
-  duration: string;
-  score: number;
-}> & RecordMetadata;
-
-// Add type definition at the top with other types
-type PineconeFilter = {
-  userId: string;
-  [key: string]: string | number | boolean;
-};
-
-const ANSWER_TEMPLATE = `You are Ubumuntu AI, a personal AI assistant. You have access to a knowledge base of documents and information.
+const TEMPLATE = `You are Ubumuntu AI, a personal AI assistant. You have access to a knowledge base of documents and information.
 
 Instructions:
-1. Use ONLY the provided context to answer the question
-2. If the context doesn't contain relevant information, say "I don't have any information about that in my knowledge base"
-3. Do not make up or infer information not present in the context
-4. If the context is irrelevant to the question, ignore it and say you don't have relevant information
+1. Use the provided context to enhance your response when relevant
+2. If the context doesn't contain relevant information, use your general knowledge
+3. Format your response in markdown with clear sections and bullet points when appropriate
 
 Context from knowledge base:
 {context}
 
 Chat History:
-{chat_history}
+{history}
 
-Current Question: {question}
-Assistant: Let me check the provided context and answer your question.`;
+User's query: {query}`;
+
+const prompt = PromptTemplate.fromTemplate(TEMPLATE);
 
 function formatDocument(doc: Document) {
   const meta = doc.metadata;
   let formattedContent = "";
 
-  // Format based on document type
   if (meta.type === "note") {
     formattedContent = `NOTE [${meta.title || 'Untitled'}]:\n${doc.pageContent}`;
   } else if (meta.type === "activity") {
@@ -66,7 +43,6 @@ function formatDocument(doc: Document) {
     formattedContent = doc.pageContent;
   }
 
-  // Add relevance score if available
   if (meta.score) {
     formattedContent += `\nRelevance: ${(meta.score * 100).toFixed(2)}%`;
   }
@@ -75,17 +51,16 @@ function formatDocument(doc: Document) {
 }
 
 async function searchPinecone(
-  pineconeIndex: Index,
+  pineconeIndex: Index<RecordMetadata>,
   embeddings: GoogleGenerativeAIEmbeddings,
   query: string,
   userId: string
-) {
+): Promise<Document[]> {
   const queryEmbedding = await embeddings.embedQuery(query);
   console.log('🔍 Searching for:', query);
 
   try {
-    // Simple filter - just use userId
-    const filter: PineconeFilter = {
+    const filter = {
       userId: userId
     };
 
@@ -101,26 +76,13 @@ async function searchPinecone(
       return [];
     }
 
-    // Debug log all matches
-    results.matches.forEach((match, idx) => {
-      console.log(`Match ${idx + 1} (score: ${match.score}):`, {
-        metadata: match.metadata,
-        score: match.score
-      });
-    });
-
-    // Less strict relevance filtering (0.5 instead of 0.7)
-    const relevantMatches = results.matches.filter(match => (match.score || 0) > 0.5);
+    const relevantMatches = results.matches.filter((match: ScoredPineconeRecord<RecordMetadata>) => (match.score || 0) > 0.5);
     console.log(`📊 Found ${relevantMatches.length} relevant matches above 0.5 threshold`);
 
-    return relevantMatches.map(match => {
-      const metadata = match.metadata as DocumentMetadata;
+    return relevantMatches.map((match: ScoredPineconeRecord<RecordMetadata>) => {
       return new Document({
-        pageContent: metadata.text || "",
-        metadata: {
-          ...metadata,
-          score: match.score
-        }
+        pageContent: match.metadata?.text as string || "",
+        metadata: { ...match.metadata, score: match.score }
       });
     });
   } catch (error) {
@@ -133,7 +95,7 @@ const formatMessage = (message: VercelChatMessage) => {
   return `${message.role}: ${message.content}`;
 };
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -143,14 +105,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const messages = body.messages ?? [];
-    const previousMessages = messages.slice(0, -1);
-    const currentMessageContent = messages[messages.length - 1].content;
+    const body = await request.json();
+    const { messages } = body;
 
     const model = await initializeGeminiModel({
       maxOutputTokens: 2048,
-      temperature: 0.2,
+      temperature: 0.7,
     });
 
     const pinecone = new Pinecone({
@@ -159,58 +119,62 @@ export async function POST(req: NextRequest) {
 
     const embeddings = new GoogleGenerativeAIEmbeddings({
       apiKey: process.env.GOOGLE_API_KEY || "",
-      modelName: "text-embedding-004",
+      modelName: "embedding-001",
     });
 
-    console.log('🌲 Initializing Pinecone index...');
     const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX || "");
-    console.log('✅ Pinecone index initialized:', process.env.PINECONE_INDEX);
 
-    const retriever = {
-      invoke: async (query: string) => {
+    const retrieverRunnable = new RunnableLambda({
+      func: async (query: string) => {
         console.log('🔍 Retriever Query:', query);
         const documents = await searchPinecone(pineconeIndex, embeddings, query, userId);
         console.log('📄 Retrieved Documents:', documents.length);
-        console.log('📝 First Document Sample:', documents[0]?.pageContent.slice(0, 100));
         return documents;
-      },
-    };
+      }
+    });
 
-    const prompt = PromptTemplate.fromTemplate(ANSWER_TEMPLATE);
+    const contextChain = RunnableSequence.from([
+      (input: { question: string; chat_history: string }) => input.question,
+      retrieverRunnable,
+      (docs: Document[]) => {
+        if (!Array.isArray(docs)) {
+          console.error("Docs is not an array in contextChain:", docs);
+          return "Error: Could not retrieve context properly.";
+        }
+        return docs.map((doc) => formatDocument(doc)).join("\n\n");
+      }
+    ]);
 
     const chain = RunnableSequence.from([
       {
-        context: async (input: { question: string; chat_history: string }) => {
-          console.log('🔍 Original Question:', input.question);
-          const docs = await retriever.invoke(input.question);
-          const formattedDocs = docs.map((doc: Document) => formatDocument(doc)).join('\n\n');
-          console.log('📚 Context Sample:', formattedDocs.slice(0, 200));
-          return formattedDocs;
-        },
-        chat_history: (input: { chat_history: string }) => {
-          console.log('💬 Chat History Length:', input.chat_history.length);
-          return input.chat_history;
-        },
-        question: (input: { question: string }) => {
-          console.log('❓ Final Question:', input.question);
-          return input.question;
-        },
+        context: contextChain,
+        history: (input: { question: string; chat_history: string }) => input.chat_history,
+        query: (input: { question: string; chat_history: string }) => input.question,
       },
       prompt,
       model,
       new StringOutputParser(),
     ]);
 
-    const stream = await chain.stream({
-      question: currentMessageContent,
-      chat_history: previousMessages.map(formatMessage).join('\n'),
+    const response = await chain.invoke({
+      question: messages[messages.length - 1].content,
+      chat_history: messages.slice(0, -1).map(formatMessage).join('\n'),
     });
 
-    return LangChainAdapter.toDataStreamResponse(stream);
-  } catch (error: Error | unknown) {
-    console.error("Error in chat/retrieval:", error);
+    return NextResponse.json({
+      messages: [
+        ...messages,
+        {
+          role: "assistant",
+          content: response.trim()
+        }
+      ]
+    });
+
+  } catch (error) {
+    console.error("Error in chat route:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'An unknown error occurred' },
+      { error: "There was an error processing your request" },
       { status: 500 }
     );
   }

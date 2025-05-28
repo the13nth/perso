@@ -9,6 +9,42 @@ import { UploadNoteForm } from "@/components/UploadNoteForm";
 import { UploadComprehensiveActivityForm } from "@/components/UploadComprehensiveActivityForm";
 import { ArrowLeft, Upload, Search, FileText, Database, Bot, StickyNote, Plus, X, Activity, Briefcase, BookOpen, Clock } from "lucide-react";
 import { AgentChatInterface } from "@/components/AgentChatInterface";
+import { LangGraphUI, ProcessStep } from "@/components/LangGraphUI";
+
+const demoSteps: ProcessStep[] = [
+  {
+    id: '1',
+    label: 'User Input',
+    type: 'input' as const,
+    status: 'completed' as const,
+    details: 'Query processing and validation',
+    timestamp: Date.now()
+  },
+  {
+    id: '2',
+    label: 'Context Retrieval',
+    type: 'process' as const,
+    status: 'completed' as const,
+    details: 'Searching relevant documents',
+    timestamp: Date.now()
+  },
+  {
+    id: '3',
+    label: 'LLM Processing',
+    type: 'process' as const,
+    status: 'completed' as const,
+    details: 'Generating response with context',
+    timestamp: Date.now()
+  },
+  {
+    id: '4',
+    label: 'Response',
+    type: 'output' as const,
+    status: 'completed' as const,
+    details: 'Final formatted output',
+    timestamp: Date.now()
+  }
+];
 
 export default function RetrievalPage() {
   const [showUploadForm, setShowUploadForm] = useState(false);
@@ -228,6 +264,8 @@ export default function RetrievalPage() {
                 Our retrieval system uses advanced AI to understand your documents/contexts and answer questions about them.
               </p>
               
+              <LangGraphUI steps={demoSteps} />
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Document Processing */}
                 <Card className="h-full">
@@ -318,8 +356,8 @@ export default function RetrievalPage() {
             <TabsContent value="chat" className="space-y-4 sm:space-y-6">
               <AgentChatInterface
                 endpoint="api/chat/retrieval"
-                placeholder={`Hello!I am Bumuntu, your personal shadow. What are we doing today?`}
-                emoji="🐶"
+                placeholder="Hi! I'm your personal assistant. How can I help you today?"
+                emoji="🤖"
                 uploadButton={
                   <div className="mb-3">
                     {!showUploadOptions ? (

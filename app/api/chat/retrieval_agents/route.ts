@@ -1,3 +1,6 @@
+// Remove edge runtime for now since we're using Node.js features
+// export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from "next/server";
 import { Message as VercelChatMessage } from "ai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
@@ -10,11 +13,6 @@ import { formatDocumentsAsString } from "langchain/util/document";
 import { Document } from "@langchain/core/documents";
 import { BaseRetriever } from "@langchain/core/retrievers";
 import { auth } from "@clerk/nextjs/server";
-
-const embeddings = new GoogleGenerativeAIEmbeddings({
-  apiKey: process.env.GOOGLE_API_KEY || "",
-  modelName: "embedding-latest",
-});
 
 interface PineconeMatch {
   metadata: {
@@ -31,8 +29,6 @@ interface PineconeMatch {
   score?: number;
 }
 
-export const runtime = "edge";
-
 const convertVercelMessageToLangChainMessage = (message: VercelChatMessage) => {
   if (message.role === "user") {
     return new HumanMessage(message.content);
@@ -46,6 +42,10 @@ const convertVercelMessageToLangChainMessage = (message: VercelChatMessage) => {
 // Custom Pinecone retriever using fetch API instead of Node.js SDK
 async function searchPineconeViaAPI(query: string, userId: string, topK = 5) {
   // Get embedding for the query
+  const embeddings = new GoogleGenerativeAIEmbeddings({
+    apiKey: process.env.GOOGLE_API_KEY || "",
+    modelName: "embedding-001",
+  });
 
   const queryEmbedding = await embeddings.embedQuery(query);
 

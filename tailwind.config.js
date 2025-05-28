@@ -80,7 +80,33 @@ module.exports = {
         "fade-in": "fade-in 1s ease-out forwards",
         "fade-in-up": "fade-in-up 0.5s ease-out forwards",
       },
+      typography: {
+        DEFAULT: {
+          css: {
+            maxWidth: 'none',
+            color: 'inherit',
+            a: {
+              color: 'inherit',
+              textDecoration: 'none',
+              fontWeight: '500',
+            },
+            strong: {
+              color: 'inherit',
+            },
+            code: {
+              color: 'inherit',
+              background: 'hsl(var(--muted))',
+              padding: '0.2em 0.4em',
+              borderRadius: '3px',
+              fontWeight: '400',
+            },
+          },
+        },
+      },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@tailwindcss/typography"),
+  ],
 }
