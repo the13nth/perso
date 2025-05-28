@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@clerk/nextjs/server';
+import '@/app/utils/fetch'; // Import fetch implementation
 
 interface EmbeddingMetadata {
   text?: string;

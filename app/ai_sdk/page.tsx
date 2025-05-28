@@ -41,7 +41,7 @@ export default function Home() {
       <GuideInfoBox>
         <div className="flex flex-col gap-4 items-stretch">
           <p>
-            The below section contains two examples using the LangChain.js
+            The below section demonstrates using the LangChain.js
             framework, along with helper functions from the experimental AI SDK
             RSC showing off how to create complex, full stack streaming
             applications with React Server Components.
@@ -65,18 +65,6 @@ export default function Home() {
             <Button asChild variant="outline">
               <Link href="/ai_sdk/agent">
                 <span>Go to Agents</span>
-                <ExternalLinkSVG className="inline" height={16} width={16} />
-              </Link>
-            </Button>
-
-            <p className="text-left m-0">
-              The <strong>Tools</strong> example shows how to invoke a simple
-              tool calling model, and stream back the result.
-            </p>
-
-            <Button asChild variant="outline">
-              <Link href="/ai_sdk/tools">
-                <span>Go to Tools</span>
                 <ExternalLinkSVG className="inline" height={16} width={16} />
               </Link>
             </Button>

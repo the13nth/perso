@@ -7,7 +7,8 @@ const filesToCheck = [
   'app/page.tsx',
   'app/api/retrieval/save-response/route.ts',
   'components/ChatWindow.tsx',
-  'components/UploadComprehensiveActivityForm.tsx'
+  'components/UploadComprehensiveActivityForm.tsx',
+  'lib/tools.ts'
 ];
 
 const unusedVars = {
@@ -16,7 +17,8 @@ const unusedVars = {
   'app/page.tsx': ['Building2', 'PieChart'],
   'app/api/retrieval/save-response/route.ts': ['uuidv4'],
   'components/ChatWindow.tsx': ['setShowIntermediateSteps'],
-  'components/UploadComprehensiveActivityForm.tsx': ['data']
+  'components/UploadComprehensiveActivityForm.tsx': ['data'],
+  'lib/tools.ts': ['_input']
 };
 
 // Fix each file

@@ -1,6 +1,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 const MODEL_VERSIONS = [
+  "gemini-pro",   // Current stable version
   // "gemini-2.5-pro",     // Highest capability model
   //"gemini-2.5-flash",   // Fast model with good capabilities
   "gemini-2.0-flash",   // Fallback to older version
@@ -11,11 +12,17 @@ export async function initializeGeminiModel(options: {
   temperature?: number;
   maxOutputTokens?: number;
 }) {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error("GOOGLE_API_KEY is not set in environment variables");
+  }
+
   let lastError: Error | null = null;
   
   for (const modelVersion of MODEL_VERSIONS) {
     try {
       const model = new ChatGoogleGenerativeAI({
+        apiKey,
         model: modelVersion,
         maxOutputTokens: options.maxOutputTokens ?? 2048,
         temperature: options.temperature ?? 0.7,
