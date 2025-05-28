@@ -58,17 +58,31 @@ const ChatCard = React.memo(({ message, aiEmoji, sources, sessionId, onSaveRespo
   // Helper function to clean and parse nested responses
   const cleanAndParseResponse = (content: string): string => {
     try {
-      // Check if the content is a nested JSON response
-      if (content.startsWith('{"messages":[')) {
-        const parsed = JSON.parse(content);
-        // Get the last assistant message
+      // First try to parse as JSON
+      const parsed = JSON.parse(content);
+      
+      // Case 1: Messages array format
+      if (parsed.messages) {
         const lastAssistantMessage = parsed.messages
           .filter((m: { role: string; content?: string }) => m.role === 'assistant')
           .pop();
-        return lastAssistantMessage?.content || content;
+        if (lastAssistantMessage?.content) return lastAssistantMessage.content;
       }
-      return content;
+      
+      // Case 2: Direct message format
+      if (parsed.role === 'assistant' && parsed.content) {
+        return parsed.content;
+      }
+      
+      // Case 3: Nested content format
+      if (parsed.content) {
+        return typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content);
+      }
+      
+      // If no recognized format, stringify the parsed JSON
+      return typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
     } catch {
+      // If not valid JSON, return as is
       return content;
     }
   };

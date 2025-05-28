@@ -236,17 +236,48 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Get the embedding ID from the request
-    const { embeddingId } = await req.json();
+    const { embeddingId, deleteAll } = await req.json();
+    
+    // Remove any protocol prefix from the host if it exists
+    const cleanHost = host.replace(/^https?:\/\//, '');
+
+    if (deleteAll) {
+      // Delete all embeddings for the user
+      const deleteResponse = await fetch(
+        `https://${cleanHost}/vectors/delete`,
+        {
+          method: 'POST',
+          headers: {
+            'Api-Key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            filter: { userId }
+          }),
+        }
+      );
+
+      if (!deleteResponse.ok) {
+        const errorData = await deleteResponse.text();
+        console.error("Pinecone delete all failed:", errorData);
+        return NextResponse.json(
+          { error: "Failed to delete all embeddings" },
+          { status: deleteResponse.status }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "All embeddings deleted successfully"
+      });
+    }
+
     if (!embeddingId) {
       return NextResponse.json(
         { error: "Missing embeddingId" },
         { status: 400 }
       );
     }
-
-    // Remove any protocol prefix from the host if it exists
-    const cleanHost = host.replace(/^https?:\/\//, '');
     
     // First, verify the embedding belongs to the user
     const queryResponse = await fetch(

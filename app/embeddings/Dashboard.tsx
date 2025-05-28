@@ -10,6 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Embedding {
   id: string;
@@ -44,6 +52,8 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [categoryDistributionExpanded, setCategoryDistributionExpanded] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Update local embeddings when props change
   useEffect(() => {
@@ -250,6 +260,38 @@ export default function Dashboard({ embeddings }: DashboardProps) {
     };
   }, [normalizedEmbeddings, allCategories]);
 
+  // Delete all embeddings function
+  const deleteAllEmbeddings = async () => {
+    try {
+      setIsDeletingAll(true);
+      
+      const response = await fetch('/api/embeddings', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ deleteAll: true }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete all embeddings');
+      }
+
+      // Clear all local embeddings
+      setLocalEmbeddings([]);
+      setSelectedIds(new Set());
+      setShowDeleteConfirm(false);
+      
+      toast.success('All embeddings deleted successfully');
+    } catch (error) {
+      console.error('Error deleting all embeddings:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete all embeddings');
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   return (
     <div className="w-full min-h-screen p-4 sm:p-6 bg-background">
       <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
@@ -257,10 +299,33 @@ export default function Dashboard({ embeddings }: DashboardProps) {
         {/* Summary Statistics */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg sm:text-xl">Embeddings Overview</CardTitle>
-            <CardDescription>
-              Complete statistics for your embedding collection
-            </CardDescription>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-lg sm:text-xl">Embeddings Overview</CardTitle>
+                <CardDescription>
+                  Complete statistics for your embedding collection
+                </CardDescription>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isDeletingAll || embeddings.length === 0}
+                className="flex items-center gap-2"
+              >
+                {isDeletingAll ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting All...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Delete All
+                  </>
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -380,10 +445,20 @@ export default function Dashboard({ embeddings }: DashboardProps) {
           
           <div className="mt-4 sm:mt-6">
             <TabsContent value="visualization" className="space-y-4 sm:space-y-6">
-              {normalizedEmbeddings.length > 0 && (
+              {normalizedEmbeddings.length > 0 ? (
                 <div className="mb-6 sm:mb-8">
                   <Embeddings3DPlot data={plotData} />
                 </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="text-center">
+                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No embeddings found</h3>
+                      <p className="text-muted-foreground">Upload some documents or create embeddings to see them visualized in 3D space.</p>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </TabsContent>
             
@@ -591,6 +666,45 @@ export default function Dashboard({ embeddings }: DashboardProps) {
             </TabsContent>
           </div>
         </Tabs>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete All Embeddings</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete ALL your embeddings? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeletingAll}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={deleteAllEmbeddings}
+                disabled={isDeletingAll}
+                className="gap-2"
+              >
+                {isDeletingAll ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Delete All
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -21,6 +21,16 @@ interface AgentDetails {
   ownerId: string;
 }
 
+function FormattedDate({ date }: { date: number }) {
+  const [formattedDate, setFormattedDate] = useState<string>('');
+
+  useEffect(() => {
+    setFormattedDate(new Date(date).toLocaleDateString());
+  }, [date]);
+
+  return <span>{formattedDate}</span>;
+}
+
 export default function AgentDetailsPage() {
   const { agentId } = useParams();
   const router = useRouter();
@@ -157,7 +167,7 @@ export default function AgentDetailsPage() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground pt-4 border-t">
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4" />
-              Created {new Date(agent.createdAt).toLocaleDateString()}
+              Created <FormattedDate date={agent.createdAt} />
             </div>
             <div className="flex items-center gap-1">
               <User className="w-4 h-4" />

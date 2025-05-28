@@ -13,7 +13,7 @@ import { redirect } from 'next/navigation';
 
 function AgentCard({ agent }: { agent: AgentMetadata }) {
   return (
-    <Card className="group relative flex flex-col hover:border-primary/50 hover:shadow-lg transition-all">
+    <Card className="group relative flex flex-col hover:border-primary/50 hover:shadow-lg transition-all duration-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 group-hover:text-primary transition-colors">
           <Bot className="h-5 w-5" />
@@ -164,7 +164,7 @@ function AgentsContent() {
               <p>Loading your agents...</p>
             </div>
           ) : userAgents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
               {userAgents.map((agent) => (
                 <AgentCard key={agent.agentId} agent={agent} />
               ))}
@@ -191,7 +191,7 @@ function AgentsContent() {
               <p>Loading public agents...</p>
             </div>
           ) : publicAgents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
               {publicAgents.map((agent) => (
                 <AgentCard key={agent.agentId} agent={agent} />
               ))}
@@ -201,7 +201,7 @@ function AgentsContent() {
               <CardContent className="pt-6">
                 <div className="text-center space-y-2">
                   <Bot className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-muted-foreground">No public agents available yet</p>
+                  <p className="text-muted-foreground">No public agents available</p>
                 </div>
               </CardContent>
             </Card>
@@ -217,13 +217,8 @@ export default function AgentsPage() {
 
   if (!isLoaded) {
     return (
-      <div className="flex justify-center items-center min-h-screen px-4">
-        <div className="text-center space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-          <p className="text-base sm:text-lg text-muted-foreground">
-            Loading...
-          </p>
-        </div>
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -233,21 +228,12 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-background">
-      <Suspense 
-        fallback={
-          <div className="flex justify-center items-center min-h-screen px-4">
-            <div className="text-center space-y-3">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-              <p className="text-base sm:text-lg text-muted-foreground">
-                Loading agents...
-              </p>
-            </div>
-          </div>
-        }
-      >
-        <AgentsContent />
-      </Suspense>
-    </div>
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <AgentsContent />
+    </Suspense>
   );
 }
