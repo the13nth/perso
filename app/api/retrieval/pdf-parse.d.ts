@@ -3,15 +3,15 @@ declare module 'pdf-parse/lib/pdf-parse.js' {
     text: string;
     numpages: number;
     numrender: number;
-    info: any;
-    metadata: any;
+    info: Record<string, unknown>;
+    metadata: Record<string, unknown>;
     version: string;
   }
 
   export default function parse(
     dataBuffer: Buffer, 
     options?: { 
-      pagerender?: (pageData: any) => string; 
+      pagerender?: (pageData: Record<string, unknown>) => string; 
       max?: number;
     }
   ): Promise<PDFParseResult>;
@@ -22,15 +22,15 @@ declare module 'pdf-parse/lib/pdf-parse' {
     text: string;
     numpages: number;
     numrender: number;
-    info: any;
-    metadata: any;
+    info: Record<string, unknown>;
+    metadata: Record<string, unknown>;
     version: string;
   }
 
   export default function parse(
     dataBuffer: Buffer, 
     options?: { 
-      pagerender?: (pageData: any) => string; 
+      pagerender?: (pageData: Record<string, unknown>) => string; 
       max?: number;
     }
   ): Promise<PDFParseResult>;
@@ -41,15 +41,15 @@ declare module 'pdf-parse' {
     text: string;
     numpages: number;
     numrender: number;
-    info: any;
-    metadata: any;
+    info: Record<string, unknown>;
+    metadata: Record<string, unknown>;
     version: string;
   }
 
   export default function parse(
     dataBuffer: Buffer, 
     options?: { 
-      pagerender?: (pageData: any) => string; 
+      pagerender?: (pageData: Record<string, unknown>) => string; 
       max?: number;
     }
   ): Promise<PDFParseResult>;
