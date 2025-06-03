@@ -8,7 +8,12 @@ module.exports = {
   parser: '@typescript-eslint/parser',
   plugins: ['@typescript-eslint'],
   rules: {
-    '@typescript-eslint/no-unused-vars': 'error',
+    '@typescript-eslint/no-unused-vars': ['error', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_'
+    }],
+    '@typescript-eslint/no-explicit-any': 'warn',
+    'no-case-declarations': 'warn',
     'no-unused-vars': 'off'
   },
   overrides: [
@@ -20,5 +25,5 @@ module.exports = {
       }
     }
   ],
-  ignorePatterns: ['.next/*', 'node_modules/*']
+  ignorePatterns: ['node_modules/', '.next/', 'out/']
 };

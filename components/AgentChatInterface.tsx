@@ -61,25 +61,29 @@ const ChatCard = React.memo(({ message, aiEmoji, sources, sessionId, onSaveRespo
       // First try to parse as JSON
       const parsed = JSON.parse(content);
       
-      // Case 1: Messages array format
-      if (parsed.messages) {
-        const lastAssistantMessage = parsed.messages
-          .filter((m: { role: string; content?: string }) => m.role === 'assistant')
-          .pop();
-        if (lastAssistantMessage?.content) return lastAssistantMessage.content;
+      // Case 1: Response with success and response fields
+      if (parsed.success && parsed.response) {
+        return parsed.response;
       }
-      
-      // Case 2: Direct message format
-      if (parsed.role === 'assistant' && parsed.content) {
-        return parsed.content;
+
+      // Case 2: Response with formattedContent array
+      if (parsed.formattedContent && Array.isArray(parsed.formattedContent)) {
+        return parsed.formattedContent
+          .map((item: { type: string; content: string }) => item.content)
+          .join('\n');
       }
-      
-      // Case 3: Nested content format
+
+      // Case 3: Direct text content
+      if (typeof parsed === 'string') {
+        return parsed;
+      }
+
+      // Case 4: Nested content field
       if (parsed.content) {
         return typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content);
       }
-      
-      // If no recognized format, stringify the parsed JSON
+
+      // If no recognized format, return the stringified JSON but formatted nicely
       return typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
     } catch {
       // If not valid JSON, return as is

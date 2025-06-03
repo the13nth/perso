@@ -25,7 +25,7 @@ const pinecone = new Pinecone({
  */
 function sanitizeText(text: string): string {
   // Replace null characters and other control characters
-  // eslint-disable-next-line no-control-regex
+   
   let sanitized = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   
   // Replace non-printable characters outside standard ASCII

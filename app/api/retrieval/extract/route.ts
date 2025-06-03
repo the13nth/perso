@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
           // Use the CJS helper for PDF parsing - this is designed to work on Netlify
           try {
             // With commonjs as default, we can safely use require
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
+             
             const pdfParse = require('pdf-parse/lib/pdf-parse');
             const pdfData = await pdfParse(buffer);
             extractedText += `Content:\n${pdfData.text}`;
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
           const json = XLSX.utils.sheet_to_json(worksheet);
           
           extractedText += `Sheet: ${sheetName}\n`;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           json.forEach((row: unknown) => {
             extractedText += JSON.stringify(row) + "\n";
           });
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
  */
 function sanitizeText(text: string): string {
   // Replace null characters and other control characters
-  // eslint-disable-next-line no-control-regex
+   
   let sanitized = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   
   // Replace non-printable characters outside standard ASCII
