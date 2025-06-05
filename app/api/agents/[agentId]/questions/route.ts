@@ -323,32 +323,49 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         throw new Error('LLM generation timed out');
       }
 
+      console.log('🔍 Raw LLM response:', response);
+
       // Quick JSON parsing
       const jsonMatch = response.trim().match(/\{[\s\S]*\}/);
+      console.log('🔍 JSON match found:', !!jsonMatch);
+      
       if (jsonMatch) {
-        const questionsData = JSON.parse(jsonMatch[0]);
-        if (questionsData.questions && Array.isArray(questionsData.questions)) {
-          const validQuestions = questionsData.questions
-            .filter((q: string) => q && typeof q === 'string' && q.trim().length > 0)
-            .slice(0, 3);
+        console.log('🔍 Matched JSON:', jsonMatch[0]);
+        try {
+          const questionsData = JSON.parse(jsonMatch[0]);
+          console.log('🔍 Parsed data:', questionsData);
+          
+          if (questionsData.questions && Array.isArray(questionsData.questions)) {
+            const validQuestions = questionsData.questions
+              .filter((q: string) => q && typeof q === 'string' && q.trim().length > 0)
+              .slice(0, 3);
 
-          if (validQuestions.length > 0) {
-            console.log('✅ LLM generation successful');
-            return NextResponse.json({
-              success: true,
-              questions: validQuestions,
-              agentId,
-              agentName: agentConfig.name,
-              fallback: false,
-              timeElapsed: Date.now() - startTime,
-              fieldInfo: {
-                availableFields: fields.slice(0, 15),
-                totalFieldCount: fields.length,
-                categoriesAnalyzed: agentConfig.selectedContextIds || []
-              }
-            });
+            console.log('🔍 Valid questions found:', validQuestions.length, validQuestions);
+
+            if (validQuestions.length > 0) {
+              console.log('✅ LLM generation successful');
+              return NextResponse.json({
+                success: true,
+                questions: validQuestions,
+                agentId,
+                agentName: agentConfig.name,
+                fallback: false,
+                timeElapsed: Date.now() - startTime,
+                fieldInfo: {
+                  availableFields: fields.slice(0, 15),
+                  totalFieldCount: fields.length,
+                  categoriesAnalyzed: agentConfig.selectedContextIds || []
+                }
+              });
+            }
+          } else {
+            console.log('❌ Questions field missing or not array:', questionsData);
           }
+        } catch (parseError) {
+          console.log('❌ JSON parse error:', parseError);
         }
+      } else {
+        console.log('❌ No JSON found in response');
       }
 
       throw new Error('Invalid LLM response format');
