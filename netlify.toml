@@ -4,13 +4,14 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Increase function timeout for LLM endpoints
-[[functions]]
-  path = "app/api/agents/*/questions/*"
+# Function configurations
+[functions]
+  node_bundler = "esbuild"
+
+[functions."app/api/agents/*/questions/*"]
   timeout = 30
 
-[[functions]]
-  path = "app/api/**"
+[functions."app/api/**"]
   timeout = 26
 
 # Environment variables that must be set on Netlify
