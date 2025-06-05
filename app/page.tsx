@@ -266,39 +266,39 @@ export default function HomePage() {
         {/* Pricing Section */}
         <section className="w-full py-16 lg:py-24 bg-muted/20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-center text-primary">Choose Your Plan</h2>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-center text-primary">Choose Your AI Plan</h2>
             <p className="text-lg md:text-xl text-muted-foreground mb-12 text-center max-w-3xl mx-auto">
-              Start free and scale as you grow. Unlock unlimited potential with our Pro plan.
+              Start free and scale with AI that grows with you. From personal productivity to enterprise automation.
             </p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Free Tier */}
-          <div className="relative p-8 border rounded-2xl hover:border-primary transition-all duration-300 hover:scale-105 bg-background">
+          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background">
             <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold mb-2">Free Tier</h3>
-              <div className="text-4xl font-bold mb-2">$0</div>
-              <p className="text-muted-foreground">Perfect for getting started</p>
+              <h3 className="text-xl font-bold mb-2">Starter</h3>
+              <div className="text-3xl font-bold mb-2">Free</div>
+              <p className="text-muted-foreground">Perfect for exploring AI</p>
             </div>
             
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>1MB document processing</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>500MB document processing</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Basic AI chat functionality</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Basic AI chat (50 messages/month)</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <span>Personal knowledge base</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Standard response times</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>1 AI workflow automation</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <span>Community support</span>
               </li>
             </ul>
@@ -311,8 +311,51 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Pro Plan */}
-          <div className="relative p-8 border-2 border-primary rounded-2xl hover:scale-105 transition-all duration-300 bg-primary/5">
+          {/* Growth Tier - NEW */}
+          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-bold mb-2">Growth</h3>
+              <div className="text-3xl font-bold mb-2">$19<span className="text-lg text-muted-foreground">/month</span></div>
+              <p className="text-muted-foreground">For individuals & small teams</p>
+            </div>
+            
+            <ul className="space-y-3 mb-8">
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>5GB document processing</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Unlimited AI chat</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Health & productivity AI agents</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>5 AI workflow automations</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Basic integrations (10 apps)</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Email + chat support</span>
+              </li>
+            </ul>
+            
+            <Link
+              href="/retrieval"
+              className="w-full block text-center bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              Start Growing
+            </Link>
+          </div>
+
+          {/* Professional Plan - UPDATED */}
+          <div className="relative p-6 border-2 border-primary rounded-2xl hover:scale-105 transition-all duration-300 bg-primary/5">
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
               <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                 <Star className="w-4 h-4" />
@@ -321,39 +364,39 @@ export default function HomePage() {
             </div>
             
             <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold mb-2">Pro Plan</h3>
-              <div className="text-4xl font-bold mb-2">$29<span className="text-lg text-muted-foreground">/month</span></div>
-              <p className="text-muted-foreground">For power users and businesses</p>
+              <h3 className="text-xl font-bold mb-2">Scale</h3>
+              <div className="text-3xl font-bold mb-2">$49<span className="text-lg text-muted-foreground">/month</span></div>
+              <p className="text-muted-foreground">For growing businesses</p>
             </div>
             
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span className="font-medium">Unlimited document processing</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span className="font-medium">25GB document processing</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Advanced AI agents & workflows</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Unlimited AI chat + voice mode</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Priority processing & faster responses</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>All personal + business AI agents</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Advanced analytics & insights</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Unlimited AI workflow automations</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>API access & integrations</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Advanced integrations (100+ apps)</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Priority email support</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Custom AI model training</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Custom automation workflows</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Priority support & API access</span>
               </li>
             </ul>
             
@@ -361,46 +404,46 @@ export default function HomePage() {
               href="/pricing"
               className="w-full block text-center bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-medium transition-colors"
             >
-              Upgrade to Pro
+              Scale Your Business
             </Link>
           </div>
 
           {/* Enterprise */}
-          <div className="relative p-8 border rounded-2xl hover:border-primary transition-all duration-300 hover:scale-105 bg-background">
+          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background">
             <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold mb-2">Enterprise</h3>
-              <div className="text-4xl font-bold mb-2">Custom</div>
+              <h3 className="text-xl font-bold mb-2">Enterprise</h3>
+              <div className="text-3xl font-bold mb-2">Custom</div>
               <p className="text-muted-foreground">For large organizations</p>
             </div>
             
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Everything in Pro</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Everything in Scale</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Custom deployment options</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Unlimited document processing</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>White-label & custom deployment</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>Custom AI model development</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <span>Advanced security & compliance</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <span>Dedicated account manager</span>
               </li>
               <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>Custom integrations</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>24/7 phone & email support</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <span>SLA guarantees</span>
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>24/7 phone support & SLA</span>
               </li>
             </ul>
             
@@ -414,22 +457,42 @@ export default function HomePage() {
         </div>
         
         <div className="text-center mt-12">
-          <p className="text-muted-foreground mb-4">
-            All plans include our core AI capabilities and secure data handling
+          <p className="text-muted-foreground mb-6">
+            All plans include enterprise-grade security, GDPR compliance, and 99.9% uptime guarantee
           </p>
-          <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Enterprise-grade security
-            </span>
-            <span className="flex items-center gap-2">
-              <Globe2 className="w-4 h-4" />
-              99.9% uptime guarantee
-            </span>
-            <span className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              GDPR compliant
-            </span>
+          
+          {/* Value Props */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
+                <Shield className="w-6 h-6" />
+              </div>
+              <h4 className="font-semibold mb-2">Enterprise Security</h4>
+              <p className="text-sm text-muted-foreground">SOC 2 compliant with end-to-end encryption</p>
+            </div>
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
+                <Globe2 className="w-6 h-6" />
+              </div>
+              <h4 className="font-semibold mb-2">Global Reach</h4>
+              <p className="text-sm text-muted-foreground">Available in 50+ countries with local data centers</p>
+            </div>
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
+                <Users className="w-6 h-6" />
+              </div>
+              <h4 className="font-semibold mb-2">Expert Support</h4>
+              <p className="text-sm text-muted-foreground">Dedicated AI specialists to help you succeed</p>
+            </div>
+          </div>
+
+          {/* Comparison Note */}
+          <div className="mt-12 p-6 bg-primary/5 rounded-lg border border-primary/20">
+            <h4 className="font-semibold text-primary mb-2">Why choose Ubumuntu AI over competitors?</h4>
+            <p className="text-muted-foreground">
+              Unlike HubSpot's expensive tiers ($800+/month) or ActiveCampaign's limited AI features, 
+              we provide enterprise-grade AI automation at transparent, affordable pricing.
+            </p>
           </div>
           </div>
           </div>

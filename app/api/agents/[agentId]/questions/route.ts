@@ -4,15 +4,16 @@ import { getAgentConfig } from "@/lib/pinecone";
 import { initializeGeminiModel } from "@/app/utils/modelInit";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
+import { Pinecone } from "@pinecone-database/pinecone";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 
 // Increase timeout for Netlify - max execution time tracking
-const NETLIFY_TIMEOUT_MS = 25000; // 25 seconds, giving 1 second buffer
-const startTime = Date.now();
+const NETLIFY_TIMEOUT_MS = 30000; // 30 seconds
 
 // Helper function to check if we're running out of time
-function isTimeoutApproaching(): boolean {
-  const elapsed = Date.now() - startTime;
-  return elapsed > (NETLIFY_TIMEOUT_MS - 3000); // Leave 3 seconds buffer
+function isTimeoutApproaching(requestStartTime: number): boolean {
+  const elapsed = Date.now() - requestStartTime;
+  return elapsed > (NETLIFY_TIMEOUT_MS - 2000); // Leave 2 seconds buffer
 }
 
 // Optimized timeout wrapper for async operations
@@ -29,117 +30,40 @@ async function withTimeout<T>(
   ]);
 }
 
-// Category to data fields mapping based on the application's data structure
-const CATEGORY_FIELD_MAPPINGS: Record<string, {
-  fields: string[];
-  description: string;
-  sampleQuestions: string[];
-}> = {
-  'physical': {
-    fields: ['activity', 'distance', 'duration', 'intensity', 'feeling', 'productivity', 'goalSet', 'goalAchieved', 'location', 'activityDate'],
-    description: 'Physical activities and exercise data with metrics like distance, intensity, and personal feelings',
-    sampleQuestions: [
-      'What correlations exist between my intensity levels and how I felt during workouts?',
-      'Based on my distance and duration data, what pace improvements can you identify over time?',
-      'How does my goal achievement rate vary across different activity types and locations?'
-    ]
-  },
-  'running': {
-    fields: ['distance', 'duration', 'pace', 'feeling', 'intensity', 'goalAchieved', 'location', 'weather', 'route'],
-    description: 'Running-specific data with detailed metrics and environmental factors',
-    sampleQuestions: [
-      'What\'s the correlation between my pace and how I felt during runs over the past month?',
-      'Based on my running history, what distance and pace should I target for my next race?',
-      'Which days of the week show my best running performance, and what patterns can you identify?'
-    ]
-  },
-  'work': {
-    fields: ['activity', 'projectName', 'duration', 'productivity', 'focusLevel', 'collaborators', 'workTools', 'tasksCompleted', 'feeling', 'goalAchieved'],
-    description: 'Work activities and professional task data with productivity and collaboration metrics',
-    sampleQuestions: [
-      'How does my focus level correlate with productivity across different projects?',
-      'Which time periods show peak productivity, and what work tools were most effective?',
-      'What project types require more collaboration, and how does this affect task completion rates?'
-    ]
-  },
-  'study': {
-    fields: ['activity', 'subject', 'duration', 'studyMaterial', 'comprehensionLevel', 'notesCreated', 'productivity', 'feeling', 'goalAchieved'],
-    description: 'Learning and study session data with comprehension and material tracking',
-    sampleQuestions: [
-      'What study methods have been most effective based on my comprehension level data?',
-      'How does study duration correlate with my comprehension across different subjects?',
-      'Which subjects show the best learning outcomes, and what study materials were most helpful?'
-    ]
-  },
-  'routine': {
-    fields: ['activity', 'routineSteps', 'duration', 'consistency', 'moodBefore', 'moodAfter', 'feeling', 'productivity', 'goalAchieved'],
-    description: 'Daily routines and habits with mood and consistency tracking',
-    sampleQuestions: [
-      'How does routine consistency affect my mood changes throughout different activities?',
-      'What routine steps correlate with the biggest positive mood shifts?',
-      'Based on my routine data, what time of day am I most consistent with habit formation?'
-    ]
-  },
-  'notes': {
-    fields: ['title', 'content', 'category', 'tags', 'createdAt', 'sentiment', 'topics', 'connections'],
-    description: 'Personal notes and thoughts with categorization and topic analysis',
-    sampleQuestions: [
-      'What themes and patterns can you identify across my personal notes and thoughts?',
-      'Based on my note-taking history, what topics do I return to most frequently?',
-      'How can you help me organize and connect related ideas from my knowledge base?'
-    ]
-  },
-  'learning': {
-    fields: ['topic', 'duration', 'method', 'comprehension', 'retention', 'difficulty', 'resources', 'notes', 'progress'],
-    description: 'Learning activities with comprehension and retention tracking',
-    sampleQuestions: [
-      'What learning methods show the highest comprehension rates across different topics?',
-      'How does study duration correlate with retention for various difficulty levels?',
-      'Which learning resources have been most effective for different types of content?'
-    ]
-  },
-  'professional': {
-    fields: ['taskType', 'duration', 'complexity', 'outcome', 'collaboration', 'tools', 'efficiency', 'satisfaction'],
-    description: 'Professional work tasks with efficiency and satisfaction metrics',
-    sampleQuestions: [
-      'What task types show the highest efficiency rates, and what tools were used?',
-      'How does collaboration level affect task outcomes and personal satisfaction?',
-      'What patterns exist between task complexity and the time required for completion?'
-    ]
-  },
-  'general': {
-    fields: ['content', 'category', 'type', 'timestamp', 'relevance', 'importance', 'context'],
-    description: 'General content and information with contextual metadata',
-    sampleQuestions: [
-      'What content categories appear most frequently in your data?',
-      'Based on timestamp analysis, what patterns exist in your information consumption?',
-      'How can I help you find connections between different types of content in your knowledge base?'
-    ]
-  }
-};
-
-// Optimized single-step question generation template
-const OPTIMIZED_QUESTION_TEMPLATE = `You are a helpful assistant that generates 3 specific, data-driven example questions for an AI agent.
+// Updated question generation template that uses actual user data content
+const DATA_DRIVEN_QUESTION_TEMPLATE = `You are a helpful assistant that generates 3 specific, data-driven example questions for an AI agent based on the user's actual data content.
 
 Agent: {agentName}
 Description: {agentDescription}
 Category: {agentCategory}
 Data Access: {selectedContextIds}
 
-Available Data Fields: {availableFields}
+ACTUAL USER DATA SAMPLES:
+{actualDataSamples}
+
+USER'S DATA CATEGORIES:
+{userCategories}
+
+USER'S CONTENT TYPES:
+{userContentTypes}
 
 Generate 3 questions that:
-1. Reference specific field names from the available data
-2. Are relevant to the agent's purpose and category
-3. Would require the agent's actual data to answer properly
-4. Vary in type: analytical, task-oriented, and insight-focused
+1. Reference specific content, patterns, or insights from the actual user data samples above
+2. Are relevant to the agent's purpose and the user's actual data
+3. Would require analysis of the user's real data to answer
+4. Vary in type: analytical (patterns/trends), actionable (recommendations), and exploratory (connections/insights)
+
+Make the questions specific to what you can see in their actual data. For example:
+- If you see fitness data, ask about specific activities or patterns you observe
+- If you see work data, ask about projects, productivity patterns, or collaboration insights
+- If you see learning data, ask about study methods, comprehension patterns, or subject performance
 
 Return as JSON:
 {{
   "questions": [
-    "Question using specific field names like {sampleFields}...",
-    "Question for actionable insights from the data fields...",
-    "Question for optimization based on data relationships..."
+    "Analytical question based on patterns in the actual data samples...",
+    "Actionable question for recommendations based on real user content...",
+    "Exploratory question about connections and insights from their data..."
   ]
 }}`;
 
@@ -149,86 +73,162 @@ type RouteContext = {
   }>;
 };
 
-// Fast field analysis without complex processing
-function getRelevantFields(selectedContextIds: string[]): {
-  fields: string[];
-} {
-  if (isTimeoutApproaching()) {
-    return { fields: ['activity', 'date', 'content'] };
+// Initialize Pinecone and embeddings for data fetching
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY || "",
+});
+
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: process.env.GOOGLE_API_KEY || "",
+  modelName: "embedding-001",
+});
+
+// Fetch actual user data samples from their selected contexts
+async function fetchUserDataSamples(selectedContextIds: string[], userId: string, requestStartTime: number): Promise<{
+  sampleData: string[];
+  categories: string[];
+  contentTypes: string[];
+}> {
+  if (isTimeoutApproaching(requestStartTime)) {
+    return { sampleData: [], categories: [], contentTypes: [] };
   }
 
-  const allFields = new Set<string>();
-  
-  selectedContextIds.forEach(contextId => {
-    const normalizedId = contextId.toLowerCase().trim();
+  try {
+    const index = pinecone.index(process.env.PINECONE_INDEX || "");
     
-    // Direct mapping check
-    if (CATEGORY_FIELD_MAPPINGS[normalizedId]) {
-      const mapping = CATEGORY_FIELD_MAPPINGS[normalizedId];
-      mapping.fields.forEach(field => allFields.add(field));
-    } else {
-      // Quick partial match for the most common categories
-      const quickMatches = ['physical', 'work', 'study', 'notes', 'routine'];
-      const matched = quickMatches.find(cat => 
-        normalizedId.includes(cat) || cat.includes(normalizedId)
-      );
-      
-      if (matched && CATEGORY_FIELD_MAPPINGS[matched]) {
-        const mapping = CATEGORY_FIELD_MAPPINGS[matched];
-        mapping.fields.forEach(field => allFields.add(field));
-      }
+    // Create a query to get diverse samples from user's data
+    const queryEmbedding = await embeddings.embedQuery("data content sample");
+    
+    // Query for user's data across their selected contexts
+    const response = await withTimeout(
+      index.query({
+        vector: queryEmbedding,
+        filter: {
+          $and: [
+            { userId },
+            {
+              $or: [
+                { category: { $in: selectedContextIds } },
+                { type: { $in: selectedContextIds } },
+                { id: { $in: selectedContextIds.map(id => `${userId}_${id}`) } }
+              ]
+            }
+          ]
+        },
+        topK: 15, // Get diverse samples
+        includeMetadata: true,
+        includeValues: false
+      }),
+      10000, // 10 second timeout
+      null
+    );
+
+    if (!response || !response.matches?.length) {
+      return { sampleData: [], categories: [], contentTypes: [] };
     }
-  });
-  
-  // Fallback to general if no matches
-  if (allFields.size === 0) {
-    CATEGORY_FIELD_MAPPINGS['general'].fields.forEach(field => allFields.add(field));
+
+    // Extract actual data content, categories, and types
+    const sampleData: string[] = [];
+    const categories = new Set<string>();
+    const contentTypes = new Set<string>();
+
+    response.matches.forEach(match => {
+      const metadata = match.metadata;
+      if (!metadata) return;
+
+      // Extract content sample
+      if (metadata.text || metadata.content) {
+        const content = String(metadata.text || metadata.content);
+        if (content.length > 20) { // Only meaningful content
+          sampleData.push(content.substring(0, 200)); // First 200 chars
+        }
+      }
+
+      // Extract categories
+      if (metadata.category) {
+        categories.add(String(metadata.category));
+      }
+      if (metadata.categories && Array.isArray(metadata.categories)) {
+        metadata.categories.forEach(cat => categories.add(String(cat)));
+      }
+
+      // Extract content types
+      if (metadata.type) {
+        contentTypes.add(String(metadata.type));
+      }
+      if (metadata.documentType) {
+        contentTypes.add(String(metadata.documentType));
+      }
+    });
+
+    return {
+      sampleData: sampleData.slice(0, 10), // Limit to 10 samples
+      categories: Array.from(categories).slice(0, 5),
+      contentTypes: Array.from(contentTypes).slice(0, 5)
+    };
+  } catch (error) {
+    console.log('⚠️ Error fetching user data samples:', error);
+    return { sampleData: [], categories: [], contentTypes: [] };
   }
-  
-  return {
-    fields: Array.from(allFields)
-  };
 }
 
-// Fast fallback question generation
-function generateFastFallbackQuestions(agentConfig: Record<string, unknown>, fields: string[]): string[] {
+// Data-driven fallback question generation using actual user content
+function generateDataDrivenFallbackQuestions(
+  agentConfig: Record<string, unknown>, 
+  userDataSamples: { sampleData: string[]; categories: string[]; contentTypes: string[] }
+): string[] {
   const category = (agentConfig.category as string)?.toLowerCase() || '';
   const contextIds = (agentConfig.selectedContextIds as string[]) || [];
+  const { sampleData, categories, contentTypes } = userDataSamples;
   
-  // Quick category-based question generation
+  // If we have actual user data, use it to generate specific questions
+  if (sampleData.length > 0 || categories.length > 0) {
+    const dataMention = categories.length > 0 ? categories.join(' and ') : 'your data';
+    const typeMention = contentTypes.length > 0 ? contentTypes.join(' and ') : 'content';
+    
+    return [
+      `What patterns and insights can you identify in my ${dataMention} based on the content you have access to?`,
+      `How can you help me optimize my activities based on the ${typeMention} in my knowledge base?`,
+      `What connections and trends do you see across my ${dataMention} and how can I use these insights?`
+    ];
+  }
+  
+  // Fallback to category-based questions if no user data
   if (category.includes('physical') || category.includes('fitness')) {
     return [
-      `What patterns can you identify in my ${fields.includes('activity') ? 'activity' : 'fitness'} data?`,
-      `How can you help optimize my physical performance based on ${fields.includes('intensity') ? 'intensity and feeling' : 'available'} metrics?`,
-      `What correlations exist between my ${fields.includes('goalAchieved') ? 'goal achievement' : 'performance'} and other factors?`
+      `What patterns can you identify in my activity data?`,
+      `How can you help optimize my physical performance based on available metrics?`,
+      `What correlations exist between my performance and other factors?`
     ];
   }
   
   if (category.includes('work') || category.includes('productivity')) {
     return [
-      `What insights can you provide about my work ${fields.includes('productivity') ? 'productivity patterns' : 'activities'}?`,
-      `How can you help improve my ${fields.includes('focusLevel') ? 'focus and task completion' : 'work efficiency'}?`,
-      `What trends do you see in my ${fields.includes('projectName') ? 'project work' : 'professional'} data?`
+      `What insights can you provide about my work productivity patterns?`,
+      `How can you help improve my focus and task completion?`,
+      `What trends do you see in my professional data?`
     ];
   }
   
   if (category.includes('learning') || category.includes('study')) {
     return [
-      `What learning patterns can you identify in my ${fields.includes('comprehension') ? 'comprehension' : 'study'} data?`,
-      `How can you help optimize my study sessions based on ${fields.includes('studyMaterial') ? 'materials and methods' : 'available'} data?`,
-      `What subjects or topics show the best ${fields.includes('retention') ? 'retention rates' : 'learning outcomes'}?`
+      `What learning patterns can you identify in my study data?`,
+      `How can you help optimize my study sessions based on available data?`,
+      `What subjects or topics show the best learning outcomes?`
     ];
   }
   
   // Generic fallback
   return [
     `What patterns and insights can you identify in my ${contextIds.join(' and ') || 'available'} data?`,
-    `How can you help me optimize my activities based on the ${fields.length} data fields you have access to?`,
+    `How can you help me optimize my activities based on the information you have access to?`,
     `What connections and trends do you see across my ${category || 'personal'} information?`
   ];
 }
 
 export async function GET(_request: NextRequest, context: RouteContext) {
+  const startTime = Date.now(); // Set start time per request
+  
   try {
     const { agentId } = await context.params;
     
@@ -241,12 +241,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     }
 
     console.log('🚀 Starting optimized question generation for agent:', agentId);
-    console.log('⏱️ Timeout buffer: 25 seconds');
+    console.log('⏱️ Timeout buffer: 30 seconds');
 
     // Quick agent config retrieval
     const agentConfig = await withTimeout(
       getAgentConfig(agentId),
-      5000, // 5 second timeout
+      30000, // 30 second timeout
       null
     );
     
@@ -259,14 +259,19 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     console.log('✅ Agent config retrieved:', agentConfig.name);
 
-    // Fast field analysis
-    const { fields } = getRelevantFields(agentConfig.selectedContextIds || []);
-    console.log('📊 Field analysis completed:', fields.length, 'fields identified');
+    // Fetch actual user data samples for question generation
+    console.log('📊 Fetching user data samples...');
+    const userDataSamples = await fetchUserDataSamples(agentConfig.selectedContextIds || [], userId, startTime);
+    console.log('📊 Data samples retrieved:', {
+      sampleCount: userDataSamples.sampleData.length,
+      categoriesCount: userDataSamples.categories.length,
+      contentTypesCount: userDataSamples.contentTypes.length
+    });
 
     // Check if we need to use fast fallback due to time constraints
-    if (isTimeoutApproaching()) {
+    if (isTimeoutApproaching(startTime)) {
       console.log('⚡ Using fast fallback due to time constraints');
-      const fallbackQuestions = generateFastFallbackQuestions(agentConfig, fields);
+      const fallbackQuestions = generateDataDrivenFallbackQuestions(agentConfig, userDataSamples);
       
       return NextResponse.json({
         success: true,
@@ -276,10 +281,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         fallback: true,
         fastMode: true,
         timeElapsed: Date.now() - startTime,
-        fieldInfo: {
-          availableFields: fields.slice(0, 10),
-          totalFieldCount: fields.length,
-          categoriesAnalyzed: agentConfig.selectedContextIds || []
+        dataInfo: {
+          sampleDataCount: userDataSamples.sampleData.length,
+          categories: userDataSamples.categories,
+          contentTypes: userDataSamples.contentTypes
         }
       });
     }
@@ -293,7 +298,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           maxOutputTokens: 512, // Reduced for faster generation
           temperature: 0.7, // Balanced creativity/speed
         }),
-        8000, // 8 second timeout for model init
+        30000, // 30 second timeout for model init
         null
       );
 
@@ -301,10 +306,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         throw new Error('Model initialization timed out');
       }
 
-      const prompt = PromptTemplate.fromTemplate(OPTIMIZED_QUESTION_TEMPLATE);
+      const prompt = PromptTemplate.fromTemplate(DATA_DRIVEN_QUESTION_TEMPLATE);
       const chain = prompt.pipe(questionModel).pipe(new StringOutputParser());
 
-      const sampleFields = fields.slice(0, 3).join(', ') || 'activity, date, content';
+      const sampleFields = userDataSamples.categories.slice(0, 3).join(', ') || 'general content';
 
       const response = await withTimeout(
         chain.invoke({
@@ -312,10 +317,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           agentDescription: agentConfig.description || "A helpful AI assistant",
           agentCategory: agentConfig.category || "General",
           selectedContextIds: agentConfig.selectedContextIds?.join(', ') || 'general data',
-          availableFields: fields.slice(0, 15).join(', '), // Limit for performance
+          actualDataSamples: userDataSamples.sampleData.join('\n'),
+          userCategories: userDataSamples.categories.join('\n'),
+          userContentTypes: userDataSamples.contentTypes.join('\n'),
           sampleFields
         }),
-        10000, // 10 second timeout for generation
+        30000, // 30 second timeout for generation
         null
       );
 
@@ -351,10 +358,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
                 agentName: agentConfig.name,
                 fallback: false,
                 timeElapsed: Date.now() - startTime,
-                fieldInfo: {
-                  availableFields: fields.slice(0, 15),
-                  totalFieldCount: fields.length,
-                  categoriesAnalyzed: agentConfig.selectedContextIds || []
+                dataInfo: {
+                  sampleDataCount: userDataSamples.sampleData.length,
+                  categories: userDataSamples.categories,
+                  contentTypes: userDataSamples.contentTypes
                 }
               });
             }
@@ -374,7 +381,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       console.warn('⚠️ LLM generation failed, using smart fallback:', llmError);
       
       // Smart fallback with category-aware questions
-      const fallbackQuestions = generateFastFallbackQuestions(agentConfig, fields);
+      const fallbackQuestions = generateDataDrivenFallbackQuestions(agentConfig, userDataSamples);
       
       return NextResponse.json({
         success: true,
@@ -384,10 +391,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         fallback: true,
         reason: 'LLM generation failed',
         timeElapsed: Date.now() - startTime,
-        fieldInfo: {
-          availableFields: fields.slice(0, 15),
-          totalFieldCount: fields.length,
-          categoriesAnalyzed: agentConfig.selectedContextIds || []
+        dataInfo: {
+          sampleDataCount: userDataSamples.sampleData.length,
+          categories: userDataSamples.categories,
+          contentTypes: userDataSamples.contentTypes
         }
       });
     }

@@ -17,7 +17,7 @@ export default clerkMiddleware(async (auth, req) => {
   // Add timeout headers for API routes to help with Netlify
   if (req.nextUrl.pathname.startsWith('/api/')) {
     const response = NextResponse.next()
-    response.headers.set('X-Function-Timeout', '26')
+    response.headers.set('X-Function-Timeout', '30')
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
   }
 

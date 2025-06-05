@@ -8,7 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CheckCircle2, Activity, Bike, Dumbbell, Heart, Zap, Trophy, Target, Mountain, Clock, MapPin, Briefcase, BookOpen, Coffee, Monitor, Users, Calendar, FileText, Brain, Home, Moon, Sun, Utensils, Gamepad2 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import Select, { StylesConfig } from 'react-select';
 
 export interface UploadComprehensiveActivityFormProps {
   onSuccess?: () => void;
@@ -18,13 +18,8 @@ export interface UploadComprehensiveActivityFormProps {
 interface BaseActivityData {
   category: string;
   activityDate: string;
-  duration: string;
-  feeling: string;
-  productivity: string;
-  goalSet: string;
-  goalAchieved: string;
-  additionalNotes: string;
-  location: string;
+  activityTime: string;
+  notes: string;
   activity: string;
 }
 
@@ -82,7 +77,7 @@ export function UploadComprehensiveActivityForm({
   // Physical activity specific
   const [selectedPhysicalActivity, setSelectedPhysicalActivity] = useState("running");
   const [distance, setDistance] = useState("");
-  const [distanceUnit, setDistanceUnit] = useState("miles");
+  const [distanceUnit, setDistanceUnit] = useState("km");
   const [intensity, setIntensity] = useState("moderate");
   
   // Work activity specific
@@ -231,12 +226,7 @@ export function UploadComprehensiveActivityForm({
   ];
 
   const distanceUnits = [
-    { value: "miles", label: "Miles" },
     { value: "km", label: "Kilometers" },
-    { value: "meters", label: "Meters" },
-    { value: "yards", label: "Yards" },
-    { value: "laps", label: "Laps" },
-    { value: "floors", label: "Floors" },
   ];
 
   // Work activity specific options
@@ -315,13 +305,8 @@ export function UploadComprehensiveActivityForm({
     const baseData: BaseActivityData = {
       category: activityCategory,
       activityDate: activityDate,
-      duration: getFormattedDuration(),
-      feeling: howYouFeel,
-      productivity: productivity,
-      goalSet: goalSet,
-      goalAchieved: goalAchieved,
-      additionalNotes: additionalNotes,
-      location: location,
+      activityTime: getFormattedDuration(),
+      notes: additionalNotes,
       activity: "",
     };
 
@@ -509,7 +494,7 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
     // Reset physical activity fields
     setSelectedPhysicalActivity("running");
     setDistance("");
-    setDistanceUnit("miles");
+    setDistanceUnit("km");
     setIntensity("moderate");
     
     // Reset work activity fields
@@ -564,6 +549,42 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
     }
   };
 
+  // Create a reusable styles configuration
+  const selectStyles: StylesConfig<{value: string, label: string}, false> = {
+    control: (provided, state) => ({
+      ...provided,
+      minHeight: '44px',
+      border: '1px solid hsl(var(--border))',
+      borderRadius: '6px',
+      backgroundColor: 'hsl(var(--background))',
+      boxShadow: state.isFocused ? '0 0 0 2px hsl(var(--ring))' : 'none',
+      borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--border))'
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected 
+        ? 'hsl(var(--accent))' 
+        : state.isFocused 
+          ? 'hsl(var(--accent) / 0.5)' 
+          : 'transparent',
+      color: 'hsl(var(--foreground))',
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: 'hsl(var(--foreground))'
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: 'hsl(var(--muted-foreground))'
+    }),
+    menu: (provided) => ({
+      ...provided,
+      backgroundColor: 'hsl(var(--popover))',
+      border: '1px solid hsl(var(--border))',
+      borderRadius: '6px'
+    })
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
@@ -604,21 +625,20 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
           <Label htmlFor="activity" className="text-sm font-medium">
             {activityCategories.find(c => c.value === activityCategory)?.label} Activity
           </Label>
-          <Select value={getCurrentSelectedActivity()} onValueChange={setCurrentSelectedActivity}>
-            <SelectTrigger className="w-full h-11 text-sm">
-              <SelectValue placeholder="Select an activity" />
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              {getCurrentActivityList().map((activity) => (
-                <SelectItem key={activity.value} value={activity.value} className="py-3">
-                  <div className="flex items-center gap-2">
-                    {activity.icon}
-                    <span className="text-sm">{activity.label}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Select
+            options={getCurrentActivityList().map(activity => ({
+              value: activity.value,
+              label: activity.label
+            }))}
+            value={getCurrentActivityList().map(activity => ({
+              value: activity.value,
+              label: activity.label
+            })).find(option => option.value === getCurrentSelectedActivity()) || null}
+            onChange={(option) => setCurrentSelectedActivity(option?.value || "")}
+            placeholder="Select an activity"
+            isDisabled={isLoading}
+            styles={selectStyles}
+          />
         </div>
 
         {/* Common Fields */}
@@ -644,61 +664,20 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
               <Clock className="h-4 w-4" />
               Duration
             </Label>
-            <Select value={duration} onValueChange={setDuration}>
-              <SelectTrigger className="w-full h-11 text-sm">
-                <SelectValue placeholder="How long?" />
-              </SelectTrigger>
-              <SelectContent>
-                {durations.map((dur) => (
-                  <SelectItem key={dur.value} value={dur.value} className="py-2">
-                    <span className="text-sm">{dur.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {duration === "custom" && (
-              <div className="mt-3 p-3 bg-muted/30 rounded-lg border">
-                <Label className="text-xs font-medium text-muted-foreground mb-2 block">
-                  Custom Duration
-                </Label>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="23"
-                      placeholder="0"
-                      value={customHours}
-                      onChange={(e) => setCustomHours(e.target.value)}
-                      className="w-16 h-9 text-sm text-center"
-                      disabled={isLoading}
-                    />
-                    <span className="text-xs text-muted-foreground">hrs</span>
-                  </div>
-                  <span className="text-muted-foreground">:</span>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="59"
-                      placeholder="0"
-                      value={customMinutes}
-                      onChange={(e) => setCustomMinutes(e.target.value)}
-                      className="w-16 h-9 text-sm text-center"
-                      disabled={isLoading}
-                    />
-                    <span className="text-xs text-muted-foreground">min</span>
-                  </div>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {customHours || customMinutes ? (
-                    `Total: ${customHours || '0'} hour${(customHours || '0') === '1' ? '' : 's'} ${customMinutes || '0'} minute${(customMinutes || '0') === '1' ? '' : 's'}`
-                  ) : (
-                    'Enter hours and/or minutes'
-                  )}
-                </div>
-              </div>
-            )}
+            <Select
+              options={durations.map(dur => ({
+                value: dur.value,
+                label: dur.label
+              }))}
+              value={durations.map(dur => ({
+                value: dur.value,
+                label: dur.label
+              })).find(option => option.value === duration) || null}
+              onChange={(option) => setDuration(option?.value || "")}
+              placeholder="How long?"
+              isDisabled={isLoading}
+              styles={selectStyles}
+            />
           </div>
 
           <div className="space-y-2">
@@ -711,7 +690,7 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
               placeholder="Where did this take place?"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="h-11 text-sm"
+              className="w-full h-11 text-sm"
               disabled={isLoading}
             />
           </div>
@@ -736,41 +715,41 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
                     placeholder="0.0"
                     value={distance}
                     onChange={(e) => setDistance(e.target.value)}
-                    className="h-11 text-sm"
+                    className="flex-1 h-11 text-sm"
                     disabled={isLoading}
                   />
-                  <Select value={distanceUnit} onValueChange={setDistanceUnit}>
-                    <SelectTrigger className="w-24 h-11 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {distanceUnits.map((unit) => (
-                        <SelectItem key={unit.value} value={unit.value}>
-                          <span className="text-sm">{unit.label}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Select
+                    options={distanceUnits.map(unit => ({
+                      value: unit.value,
+                      label: unit.label
+                    }))}
+                    value={distanceUnits.map(unit => ({
+                      value: unit.value,
+                      label: unit.label
+                    })).find(option => option.value === distanceUnit) || null}
+                    onChange={(option) => setDistanceUnit(option?.value || "")}
+                    isDisabled={isLoading}
+                    styles={selectStyles}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="intensity" className="text-sm font-medium">Intensity Level</Label>
-                <Select value={intensity} onValueChange={setIntensity}>
-                  <SelectTrigger className="w-full h-11 text-sm">
-                    <SelectValue placeholder="Select intensity" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {intensityLevels.map((level) => (
-                      <SelectItem key={level.value} value={level.value} className="py-3">
-                        <div>
-                          <div className="text-sm font-medium">{level.label}</div>
-                          <div className="text-xs text-muted-foreground">{level.description}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Select
+                  options={intensityLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  }))}
+                  value={intensityLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  })).find(option => option.value === intensity) || null}
+                  onChange={(option) => setIntensity(option?.value || "")}
+                  placeholder="Select intensity"
+                  isDisabled={isLoading}
+                  styles={selectStyles}
+                />
               </div>
             </div>
           </div>
@@ -795,21 +774,20 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
 
               <div className="space-y-2">
                 <Label htmlFor="focusLevel" className="text-sm font-medium">Focus Level</Label>
-                <Select value={focusLevel} onValueChange={setFocusLevel}>
-                  <SelectTrigger className="w-full h-11 text-sm">
-                    <SelectValue placeholder="How focused were you?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {focusLevels.map((level) => (
-                      <SelectItem key={level.value} value={level.value} className="py-3">
-                        <div>
-                          <div className="text-sm font-medium">{level.label}</div>
-                          <div className="text-xs text-muted-foreground">{level.description}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Select
+                  options={focusLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  }))}
+                  value={focusLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  })).find(option => option.value === focusLevel) || null}
+                  onChange={(option) => setFocusLevel(option?.value || "")}
+                  placeholder="How focused were you?"
+                  isDisabled={isLoading}
+                  styles={selectStyles}
+                />
               </div>
 
               <div className="space-y-2">
@@ -871,21 +849,20 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
 
               <div className="space-y-2">
                 <Label htmlFor="comprehensionLevel" className="text-sm font-medium">Comprehension Level</Label>
-                <Select value={comprehensionLevel} onValueChange={setComprehensionLevel}>
-                  <SelectTrigger className="w-full h-11 text-sm">
-                    <SelectValue placeholder="How well did you understand?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {comprehensionLevels.map((level) => (
-                      <SelectItem key={level.value} value={level.value} className="py-3">
-                        <div>
-                          <div className="text-sm font-medium">{level.label}</div>
-                          <div className="text-xs text-muted-foreground">{level.description}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Select
+                  options={comprehensionLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  }))}
+                  value={comprehensionLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  })).find(option => option.value === comprehensionLevel) || null}
+                  onChange={(option) => setComprehensionLevel(option?.value || "")}
+                  placeholder="How well did you understand?"
+                  isDisabled={isLoading}
+                  styles={selectStyles}
+                />
               </div>
 
               <div className="space-y-2">
@@ -922,59 +899,56 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="consistency" className="text-sm font-medium">Consistency Level</Label>
-                <Select value={consistency} onValueChange={setConsistency}>
-                  <SelectTrigger className="w-full h-11 text-sm">
-                    <SelectValue placeholder="How well did you follow the routine?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {consistencyLevels.map((level) => (
-                      <SelectItem key={level.value} value={level.value} className="py-3">
-                        <div>
-                          <div className="text-sm font-medium">{level.label}</div>
-                          <div className="text-xs text-muted-foreground">{level.description}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Select
+                  options={consistencyLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  }))}
+                  value={consistencyLevels.map(level => ({
+                    value: level.value,
+                    label: `${level.label} - ${level.description}`
+                  })).find(option => option.value === consistency) || null}
+                  onChange={(option) => setConsistency(option?.value || "")}
+                  placeholder="How well did you follow the routine?"
+                  isDisabled={isLoading}
+                  styles={selectStyles}
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="moodBefore" className="text-sm font-medium">Mood Before</Label>
-                <Select value={moodBefore} onValueChange={setMoodBefore}>
-                  <SelectTrigger className="w-full h-11 text-sm">
-                    <SelectValue placeholder="How did you feel before?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {moodOptions.map((mood) => (
-                      <SelectItem key={mood.value} value={mood.value} className="py-2">
-                        <div className="flex items-center gap-2">
-                          <span>{mood.icon}</span>
-                          <span className="text-sm">{mood.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Select
+                  options={moodOptions.map(mood => ({
+                    value: mood.value,
+                    label: `${mood.icon} ${mood.label}`
+                  }))}
+                  value={moodOptions.map(mood => ({
+                    value: mood.value,
+                    label: `${mood.icon} ${mood.label}`
+                  })).find(option => option.value === moodBefore) || null}
+                  onChange={(option) => setMoodBefore(option?.value || "")}
+                  placeholder="How did you feel before?"
+                  isDisabled={isLoading}
+                  styles={selectStyles}
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="moodAfter" className="text-sm font-medium">Mood After</Label>
-                <Select value={moodAfter} onValueChange={setMoodAfter}>
-                  <SelectTrigger className="w-full h-11 text-sm">
-                    <SelectValue placeholder="How did you feel after?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {moodOptions.map((mood) => (
-                      <SelectItem key={mood.value} value={mood.value} className="py-2">
-                        <div className="flex items-center gap-2">
-                          <span>{mood.icon}</span>
-                          <span className="text-sm">{mood.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Select
+                  options={moodOptions.map(mood => ({
+                    value: mood.value,
+                    label: `${mood.icon} ${mood.label}`
+                  }))}
+                  value={moodOptions.map(mood => ({
+                    value: mood.value,
+                    label: `${mood.icon} ${mood.label}`
+                  })).find(option => option.value === moodAfter) || null}
+                  onChange={(option) => setMoodAfter(option?.value || "")}
+                  placeholder="How did you feel after?"
+                  isDisabled={isLoading}
+                  styles={selectStyles}
+                />
               </div>
             </div>
 
@@ -997,40 +971,38 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="feeling" className="text-sm font-medium">How You Feel</Label>
-            <Select value={howYouFeel} onValueChange={setHowYouFeel}>
-              <SelectTrigger className="w-full h-11 text-sm">
-                <SelectValue placeholder="How do you feel?" />
-              </SelectTrigger>
-              <SelectContent>
-                {feelingOptions.map((feeling) => (
-                  <SelectItem key={feeling.value} value={feeling.value} className="py-2">
-                    <div className="flex items-center gap-2">
-                      <span>{feeling.icon}</span>
-                      <span className="text-sm">{feeling.label}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Select
+              options={feelingOptions.map(feeling => ({
+                value: feeling.value,
+                label: `${feeling.icon} ${feeling.label}`
+              }))}
+              value={feelingOptions.map(feeling => ({
+                value: feeling.value,
+                label: `${feeling.icon} ${feeling.label}`
+              })).find(option => option.value === howYouFeel) || null}
+              onChange={(option) => setHowYouFeel(option?.value || "")}
+              placeholder="How do you feel?"
+              isDisabled={isLoading}
+              styles={selectStyles}
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="productivity" className="text-sm font-medium">Productivity Level</Label>
-            <Select value={productivity} onValueChange={setProductivity}>
-              <SelectTrigger className="w-full h-11 text-sm">
-                <SelectValue placeholder="How productive were you?" />
-              </SelectTrigger>
-              <SelectContent>
-                {productivityLevels.map((level) => (
-                  <SelectItem key={level.value} value={level.value} className="py-3">
-                    <div>
-                      <div className="text-sm font-medium">{level.label}</div>
-                      <div className="text-xs text-muted-foreground">{level.description}</div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Select
+              options={productivityLevels.map(level => ({
+                value: level.value,
+                label: `${level.label} - ${level.description}`
+              }))}
+              value={productivityLevels.map(level => ({
+                value: level.value,
+                label: `${level.label} - ${level.description}`
+              })).find(option => option.value === productivity) || null}
+              onChange={(option) => setProductivity(option?.value || "")}
+              placeholder="How productive were you?"
+              isDisabled={isLoading}
+              styles={selectStyles}
+            />
           </div>
         </div>
 
@@ -1053,18 +1025,20 @@ ${additionalNotes ? `Notes: ${additionalNotes}` : ''}
           {goalSet && (
             <div className="space-y-2">
               <Label htmlFor="goalAchieved" className="text-sm font-medium">Goal Achievement</Label>
-              <Select value={goalAchieved} onValueChange={setGoalAchieved}>
-                <SelectTrigger className="w-full h-11 text-sm">
-                  <SelectValue placeholder="Did you achieve your goal?" />
-                </SelectTrigger>
-                <SelectContent>
-                  {goalAchievements.map((achievement) => (
-                    <SelectItem key={achievement.value} value={achievement.value} className="py-2">
-                      <span className="text-sm">{achievement.label}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Select
+                options={goalAchievements.map(achievement => ({
+                  value: achievement.value,
+                  label: achievement.label
+                }))}
+                value={goalAchievements.map(achievement => ({
+                  value: achievement.value,
+                  label: achievement.label
+                })).find(option => option.value === goalAchieved) || null}
+                onChange={(option) => setGoalAchieved(option?.value || "")}
+                placeholder="Did you achieve your goal?"
+                isDisabled={isLoading}
+                styles={selectStyles}
+              />
             </div>
           )}
         </div>
