@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Bot, Tag, Calendar, User, Globe, Lock } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Bot, Tag, Calendar, User, Globe, Lock, Edit } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
@@ -19,6 +22,12 @@ interface AgentDetails {
   isPublic: boolean;
   createdAt: number;
   ownerId: string;
+  selectedContextIds?: string[];
+}
+
+interface Category {
+  name: string;
+  count: number;
 }
 
 function FormattedDate({ date }: { date: number }) {
@@ -37,6 +46,10 @@ export default function AgentDetailsPage() {
   const { isLoaded, isSignedIn, user } = useUser();
   const [agent, setAgent] = useState<AgentDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [isEditingCategories, setIsEditingCategories] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     async function fetchAgentDetails() {
@@ -47,6 +60,7 @@ export default function AgentDetailsPage() {
         }
         const data = await response.json();
         setAgent(data);
+        setSelectedCategories(data.selectedContextIds || []);
       } catch (error) {
         console.error('Error fetching agent details:', error);
         toast.error('Failed to load agent details');
@@ -59,6 +73,61 @@ export default function AgentDetailsPage() {
       fetchAgentDetails();
     }
   }, [agentId]);
+
+  useEffect(() => {
+    async function fetchAvailableCategories() {
+      try {
+        const response = await fetch('/api/retrieval/categories');
+        if (!response.ok) throw new Error('Failed to fetch categories');
+        const data = await response.json();
+        setAvailableCategories(data.categories || []);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    }
+    fetchAvailableCategories();
+  }, []);
+
+  const handleUpdateCategories = async () => {
+    if (!agent) return;
+    
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/agents/${agentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...agent,
+          selectedContextIds: selectedCategories,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update categories');
+      }
+
+      const updatedAgent = await response.json();
+      setAgent(updatedAgent);
+      setIsEditingCategories(false);
+      toast.success('Categories updated successfully!');
+    } catch (error) {
+      console.error('Error updating categories:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update categories');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const toggleCategory = (categoryName: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(categoryName)
+        ? prev.filter(c => c !== categoryName)
+        : [...prev, categoryName]
+    );
+  };
 
   if (!isLoaded || isLoading) {
     return (
@@ -164,6 +233,85 @@ export default function AgentDetailsPage() {
             </div>
           )}
 
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-medium">Available Categories</h3>
+              {isOwner && (
+                <Dialog open={isEditingCategories} onOpenChange={setIsEditingCategories}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit Categories
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Edit Categories</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <Label className="text-sm font-medium mb-3 block">
+                        Select categories this agent can access:
+                      </Label>
+                      <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+                        {availableCategories.map((category) => (
+                          <div key={category.name} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`category-${category.name}`}
+                              checked={selectedCategories.includes(category.name)}
+                              onCheckedChange={() => toggleCategory(category.name)}
+                            />
+                            <Label 
+                              htmlFor={`category-${category.name}`} 
+                              className="flex-1 text-sm cursor-pointer"
+                            >
+                              {category.name}
+                              <span className="text-xs text-muted-foreground ml-1">({category.count})</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setSelectedCategories(agent.selectedContextIds || []);
+                          setIsEditingCategories(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleUpdateCategories} disabled={isUpdating}>
+                        {isUpdating ? 'Updating...' : 'Update Categories'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+            {agent.selectedContextIds && agent.selectedContextIds.length > 0 ? (
+              <div>
+                <div className="flex flex-wrap gap-2">
+                  {agent.selectedContextIds.map((contextId, index) => (
+                    <div
+                      key={index}
+                      className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"
+                    >
+                      {contextId}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  These are the knowledge categories this agent can access for generating insights and responses.
+                </p>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No categories selected. {isOwner && 'Click "Edit Categories" to select knowledge categories for this agent.'}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-4 text-sm text-muted-foreground pt-4 border-t">
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4" />
@@ -178,4 +326,4 @@ export default function AgentDetailsPage() {
       </Card>
     </div>
   );
-} 
+}
