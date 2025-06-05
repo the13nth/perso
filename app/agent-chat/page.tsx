@@ -1,34 +1,124 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AgentChatInterface } from "@/components/AgentChatInterface";
-import { Bot, ArrowLeft, MessageSquare } from "lucide-react";
+import { Bot, ArrowLeft, MessageSquare, RefreshCw, Loader2 } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 
-// Example questions component
-function ExampleQuestions({ onAskQuestion }: { onAskQuestion: (question: string) => void }) {
-  const questions = [
-    "What is your main purpose?",
-    "What specific tasks can you help with?",
-    "Can you show me an example of your capabilities?"
-  ];
+// Dynamic questions component with LLM generation
+function ExampleQuestions({ 
+  agentId, 
+  onAskQuestion 
+}: { 
+  agentId: string;
+  onAskQuestion: (question: string) => void;
+}) {
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const generateQuestions = async (showRefreshLoader = false) => {
+    if (showRefreshLoader) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const response = await fetch(`/api/agents/${agentId}/questions`);
+      const data = await response.json();
+
+      if (data.success) {
+        setQuestions(data.questions);
+        
+        if (data.fallback) {
+          toast.info("Using fallback questions", {
+            description: "Generated custom questions based on agent info"
+          });
+        }
+        
+        if (data.clarified) {
+          toast.success("Smart questions generated", {
+            description: "Questions tailored to your agent's specific data access"
+          });
+        }
+      } else {
+        throw new Error(data.error || "Failed to generate questions");
+      }
+    } catch (error) {
+      console.error("Error generating questions:", error);
+      toast.error("Failed to generate questions");
+      
+      // Fallback to basic questions
+      setQuestions([
+        "What is your main purpose?",
+        "What specific tasks can you help with?",
+        "Can you show me an example of your capabilities?"
+      ]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (agentId) {
+      generateQuestions();
+    }
+  }, [agentId]);
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="animate-pulse">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-4 h-4 bg-muted rounded"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-muted rounded w-3/4"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {questions.map((question, index) => (
-        <Card 
-          key={index} 
-          className="cursor-pointer hover:shadow-md transition-shadow duration-200"
-          onClick={() => onAskQuestion(question)}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-muted-foreground">Example Questions</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => generateQuestions(true)}
+          disabled={refreshing}
+          className="h-8 px-3"
         >
-          <CardContent className="p-4 flex items-center gap-3">
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">{question}</span>
-          </CardContent>
-        </Card>
-      ))}
+          {refreshing ? (
+            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+          ) : (
+            <RefreshCw className="h-3 w-3 mr-1" />
+          )}
+          {refreshing ? "Generating..." : "New Questions"}
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {questions.map((question, index) => (
+          <Card 
+            key={`${question}-${index}`}
+            className="cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-[1.02]"
+            onClick={() => onAskQuestion(question)}
+          >
+            <CardContent className="p-4 flex items-start gap-3">
+              <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <span className="text-sm text-muted-foreground leading-relaxed">{question}</span>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
@@ -84,7 +174,12 @@ function AgentChatContent() {
           </CardContent>
         </Card>
 
-        <ExampleQuestions onAskQuestion={handleAskQuestion} />
+        {agentId && (
+          <ExampleQuestions 
+            agentId={agentId} 
+            onAskQuestion={handleAskQuestion} 
+          />
+        )}
 
         <AgentChatInterface
           key={selectedQuestion}
@@ -98,16 +193,13 @@ function AgentChatContent() {
   );
 }
 
-// Wrap the content in Suspense in the main page component
 export default function AgentChatPage() {
   return (
     <Suspense fallback={
       <div className="container py-4 px-4 sm:py-6 space-y-6 sm:space-y-8 max-w-7xl">
-        <Card>
-          <CardContent className="p-8 flex justify-center items-center">
-            <div className="animate-pulse">Loading...</div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
       </div>
     }>
       <AgentChatContent />

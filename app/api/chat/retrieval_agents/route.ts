@@ -12,6 +12,7 @@ import { BaseMessage } from "@langchain/core/messages";
 import { formatDocumentsAsString } from "langchain/util/document";
 import { Document } from "@langchain/core/documents";
 import { BaseRetriever } from "@langchain/core/retrievers";
+import { StringOutputParser } from "@langchain/core/output_parsers";
 import { auth } from "@clerk/nextjs/server";
 
 interface PineconeMatch {
@@ -29,6 +30,26 @@ interface PineconeMatch {
   score?: number;
 }
 
+const QUERY_CLARIFICATION_TEMPLATE = `You are a query understanding assistant. Your job is to analyze user queries and make them more explicit and searchable for a document retrieval system.
+
+Given the user's query and chat history, create a clear, standalone search query that captures what the user is really looking for.
+
+Guidelines:
+1. Make implicit references explicit (e.g., "that document" → "the document about X mentioned earlier")
+2. Add relevant context from chat history if needed
+3. Expand abbreviations and unclear terms
+4. If the query is already clear and specific, return it as-is
+5. Focus on what the user wants to find, not how they want it presented
+6. Keep it concise but comprehensive
+7. If the user is asking for analysis or comparison, clarify what they want analyzed
+
+Chat History:
+{chat_history}
+
+Original Query: {original_query}
+
+Clarified Query:`;
+
 const convertVercelMessageToLangChainMessage = (message: VercelChatMessage) => {
   if (message.role === "user") {
     return new HumanMessage(message.content);
@@ -38,6 +59,50 @@ const convertVercelMessageToLangChainMessage = (message: VercelChatMessage) => {
     return new SystemMessage(message.content);
   }
 };
+
+async function clarifyQuery(
+  chatModel: ChatGoogleGenerativeAI,
+  originalQuery: string,
+  chatHistory: BaseMessage[]
+): Promise<string> {
+  console.log('🧠 Clarifying query:', originalQuery);
+  
+  try {
+    const queryClarificationPrompt = PromptTemplate.fromTemplate(QUERY_CLARIFICATION_TEMPLATE);
+    
+    const clarificationChain = RunnableSequence.from([
+      queryClarificationPrompt,
+      chatModel,
+      new StringOutputParser(),
+    ]);
+
+    const chatHistoryText = chatHistory.map(msg => {
+      if (msg instanceof HumanMessage) return `user: ${msg.content}`;
+      if (msg instanceof AIMessage) return `assistant: ${msg.content}`;
+      return `${msg._getType()}: ${msg.content}`;
+    }).join('\n');
+
+    const clarifiedQuery = await clarificationChain.invoke({
+      original_query: originalQuery,
+      chat_history: chatHistoryText
+    });
+
+    const cleanedQuery = clarifiedQuery.trim();
+    console.log('✨ Clarified query:', cleanedQuery);
+    
+    // If the clarified query is too similar to original or seems like it didn't improve, use original
+    if (cleanedQuery.toLowerCase() === originalQuery.toLowerCase() || 
+        cleanedQuery.length < originalQuery.length * 0.8) {
+      console.log('📝 Using original query as clarification didn\'t improve it significantly');
+      return originalQuery;
+    }
+    
+    return cleanedQuery;
+  } catch (error) {
+    console.error('❌ Query clarification failed, using original:', error);
+    return originalQuery;
+  }
+}
 
 // Custom Pinecone retriever using fetch API instead of Node.js SDK
 async function searchPineconeViaAPI(query: string, userId: string, topK = 5) {
@@ -151,20 +216,48 @@ export async function POST(req: NextRequest) {
       temperature: 0.2,
     });
 
-    // Create a custom retriever that implements BaseRetriever
+    // Create a separate model instance for query clarification with lower temperature
+    const clarificationModel = new ChatGoogleGenerativeAI({
+      model: "gemini-pro",
+      maxOutputTokens: 512,
+      temperature: 0.3,
+    });
+
+    // Enhanced Pinecone retriever with query clarification
     class CustomPineconeRetriever extends BaseRetriever {
       lc_namespace = ["langchain", "retrievers", "pinecone"];
       
-      constructor(private userId: string) {
+      constructor(
+        private userId: string,
+        private chatModel: ChatGoogleGenerativeAI,
+        private chatHistory: BaseMessage[]
+      ) {
         super();
       }
 
       async _getRelevantDocuments(query: string) {
-        return await searchPineconeViaAPI(query, this.userId);
+        console.log('🔍 Original Query:', query);
+        
+        // Step 1: Clarify the query using LLM
+        const clarifiedQuery = await clarifyQuery(this.chatModel, query, this.chatHistory);
+        
+        // Step 2: Search using the clarified query
+        const documents = await searchPineconeViaAPI(clarifiedQuery, this.userId);
+        console.log('📄 Retrieved Documents:', documents.length);
+        
+        // If clarified query returns no results, try with original query as fallback
+        if (documents.length === 0 && clarifiedQuery !== query) {
+          console.log('🔄 No results with clarified query, trying original query as fallback');
+          const fallbackDocuments = await searchPineconeViaAPI(query, this.userId);
+          console.log('📄 Fallback Retrieved Documents:', fallbackDocuments.length);
+          return fallbackDocuments;
+        }
+        
+        return documents;
       }
     }
 
-    const retriever = new CustomPineconeRetriever(userId);
+    const retriever = new CustomPineconeRetriever(userId, clarificationModel, formattedPreviousMessages);
 
     const prompt = PromptTemplate.fromTemplate(`
       You are a helpful AI assistant that answers questions based on the provided context. If you 

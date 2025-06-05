@@ -22,14 +22,22 @@ const demoSteps: ProcessStep[] = [
   },
   {
     id: '2',
-    label: 'Context Retrieval',
+    label: 'Query Clarification',
     type: 'process' as const,
     status: 'completed' as const,
-    details: 'Searching relevant documents',
+    details: 'LLM analyzes and clarifies user intent',
     timestamp: Date.now()
   },
   {
     id: '3',
+    label: 'Context Retrieval',
+    type: 'process' as const,
+    status: 'completed' as const,
+    details: 'Searching relevant documents with clarified query',
+    timestamp: Date.now()
+  },
+  {
+    id: '4',
     label: 'LLM Processing',
     type: 'process' as const,
     status: 'completed' as const,
@@ -37,7 +45,7 @@ const demoSteps: ProcessStep[] = [
     timestamp: Date.now()
   },
   {
-    id: '4',
+    id: '5',
     label: 'Response',
     type: 'output' as const,
     status: 'completed' as const,
@@ -313,17 +321,17 @@ export default function RetrievalPage() {
                       <Search className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="text-base sm:text-lg">Question Processing</CardTitle>
-                      <CardDescription className="text-sm">Context-aware rephrasing</CardDescription>
+                      <CardTitle className="text-base sm:text-lg">Query Clarification</CardTitle>
+                      <CardDescription className="text-sm">LLM-powered query understanding</CardDescription>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <p className="text-sm text-muted-foreground">
-                      Rephrases questions into standalone queries, considering chat history and context for better document matching.
+                      Uses AI to understand, clarify and improve user queries before searching. Makes implicit references explicit and adds context from chat history for better document matching.
                     </p>
                   </CardContent>
                   <CardFooter className="text-xs text-muted-foreground border-t pt-3 sm:pt-4">
-                    <p>Step 1 of the retrieval chain</p>
+                    <p>Enhanced query processing with fallback to original</p>
                   </CardFooter>
                 </Card>
                 
