@@ -59,7 +59,7 @@ export function UploadNoteForm({
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/notes", {
+      const response = await fetch("/api/retrieval/notes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
