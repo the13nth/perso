@@ -269,6 +269,80 @@ export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
   return agent.metadata as AgentMetadata;
 }
 
+export async function updateAgentConfig(
+  agentId: string, 
+  updates: Partial<AgentMetadata>
+): Promise<AgentMetadata> {
+  if (!index) await initIndexes();
+
+  // Get current agent configuration
+  const currentAgent = await getAgentConfig(agentId);
+  
+  // Merge updates with current configuration
+  const updatedMetadata: AgentMetadata = {
+    ...currentAgent,
+    ...updates,
+    agentId, // Ensure agentId doesn't change
+    ownerId: currentAgent.ownerId, // Ensure ownership doesn't change
+    createdAt: currentAgent.createdAt, // Preserve creation date
+    updatedAt: Date.now(), // Update timestamp
+    type: 'agent_config' // Ensure type stays consistent
+  };
+
+  // Generate new embedding for updated configuration
+  const configEmbedding = await embeddings.embedQuery(
+    `${updatedMetadata.name} ${updatedMetadata.description} ${updatedMetadata.useCases || ''}`
+  );
+
+  // Update the agent configuration in Pinecone
+  await index.upsert([{
+    id: `agent_${agentId}`,
+    values: configEmbedding,
+    metadata: updatedMetadata
+  }]);
+
+  // If selectedContextIds changed, update context linking
+  if (updates.selectedContextIds && contextIndex) {
+    // Remove old context links (if any)
+    const oldContextLinks = await contextIndex.query({
+      vector: createPlaceholderVector(),
+      filter: { agentId: agentId },
+      topK: 1000
+    });
+
+    if (oldContextLinks.matches.length > 0) {
+      const idsToDelete = oldContextLinks.matches
+        .filter(match => match.id.startsWith(`${agentId}_`) && !match.id.includes('_context_'))
+        .map(match => match.id);
+      
+      if (idsToDelete.length > 0) {
+        await contextIndex.deleteMany(idsToDelete);
+      }
+    }
+
+    // Link new selected contexts
+    if (updates.selectedContextIds.length > 0) {
+      const selectedContexts = await contextIndex.fetch(updates.selectedContextIds);
+      const contextVectors: PineconeRecord<PineconeCompatibleMetadata>[] = Object.values(selectedContexts.records)
+        .filter((record): record is PineconeRecord<PineconeCompatibleMetadata> => record !== null)
+        .map(record => ({
+          id: `${agentId}_${record.id}`,
+          values: createPlaceholderVector(),
+          metadata: {
+            ...record.metadata as PineconeCompatibleMetadata,
+            agentId
+          }
+        }));
+
+      if (contextVectors.length > 0) {
+        await contextIndex.upsert(contextVectors);
+      }
+    }
+  }
+
+  return updatedMetadata;
+}
+
 export async function getAgentContext(agentId: string, query?: string): Promise<Document[]> {
   if (!contextIndex) await initIndexes();
 
