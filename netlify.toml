@@ -12,7 +12,7 @@
   timeout = 30
 
 [functions."app/api/**"]
-  timeout = 26
+  timeout = 30
 
 # Environment variables that must be set on Netlify
 [template.environment]

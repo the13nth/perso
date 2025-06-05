@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useUser } from "@clerk/nextjs";
-import { Label } from "./ui/label";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CheckCircle2, BookOpen, Briefcase, HeartPulse, GraduationCap, Film, Medal, Paintbrush, Star, DollarSign, HelpCircle, StickyNote, PenTool } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import Select, { StylesConfig } from 'react-select';
 
 export interface UploadNoteFormProps {
   onSuccess?: () => void;
@@ -20,150 +20,182 @@ export function UploadNoteForm({
 }: UploadNoteFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [noteText, setNoteText] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("notes");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const { user } = useUser();
 
   const categories = [
-    { value: "notes", label: "Notes", icon: <StickyNote className="h-4 w-4" /> },
-    { value: "thoughts", label: "Thoughts", icon: <PenTool className="h-4 w-4" /> },
-    { value: "goals", label: "Goals", icon: <Star className="h-4 w-4" /> },
-    { value: "plans", label: "Plans", icon: <Star className="h-4 w-4" /> },
-    { value: "journal", label: "Journal", icon: <BookOpen className="h-4 w-4" /> },
-    { value: "routines", label: "Routines", icon: <Star className="h-4 w-4" /> },
-    { value: "work", label: "Work", icon: <Briefcase className="h-4 w-4" /> },
-    { value: "study", label: "Study", icon: <BookOpen className="h-4 w-4" /> },
-    { value: "finances", label: "Finances", icon: <DollarSign className="h-4 w-4" /> },
-    { value: "health", label: "Health", icon: <HeartPulse className="h-4 w-4" /> },
-    { value: "business", label: "Business", icon: <Briefcase className="h-4 w-4" /> },
-    { value: "education", label: "Education", icon: <GraduationCap className="h-4 w-4" /> },
-    { value: "entertainment", label: "Entertainment", icon: <Film className="h-4 w-4" /> },
-    { value: "sports", label: "Sports", icon: <Medal className="h-4 w-4" /> },
-    { value: "arts", label: "Arts", icon: <Paintbrush className="h-4 w-4" /> },
-    { value: "general", label: "General", icon: <Star className="h-4 w-4" /> },
-    { value: "misc", label: "Miscellaneous", icon: <HelpCircle className="h-4 w-4" /> },
+    { value: "general", label: "General Notes", icon: StickyNote },
+    { value: "work", label: "Work", icon: Briefcase },
+    { value: "study", label: "Study", icon: BookOpen },
+    { value: "health", label: "Health", icon: HeartPulse },
+    { value: "learning", label: "Learning", icon: GraduationCap },
+    { value: "entertainment", label: "Entertainment", icon: Film },
+    { value: "achievement", label: "Achievement", icon: Medal },
+    { value: "creative", label: "Creative", icon: Paintbrush },
+    { value: "ideas", label: "Ideas", icon: Star },
+    { value: "financial", label: "Financial", icon: DollarSign },
+    { value: "question", label: "Questions", icon: HelpCircle },
+    { value: "personal", label: "Personal", icon: PenTool }
   ];
 
-  const saveNote = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     
     if (!noteText.trim()) {
-      toast.error("Please enter some note content");
+      toast.error("Please enter your note");
+      return;
+    }
+
+    if (!selectedCategory) {
+      toast.error("Please select a category");
+      return;
+    }
+
+    if (!user) {
+      toast.error("You must be logged in to upload notes");
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
-      const response = await fetch("/api/retrieval/notes", {
+      const response = await fetch("/api/notes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text: noteText.trim(),
+          text: noteText,
           category: selectedCategory,
-          userId: user?.id,
+          userId: user.id,
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        
-        toast.success("Note saved successfully!", {
-          duration: 4000,
-          position: "top-center",
-          icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
-          description: `"${data.title}" has been added to your knowledge base.`
-        });
-
-        // Reset form
-        setNoteText("");
-        setSelectedCategory("notes");
-        
-        // Call success callback
-        if (onSuccess) {
-          setTimeout(() => onSuccess(), 1500);
-        }
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
-        toast.error("Failed to save note", {
-          description: errorData.message || "An error occurred while saving your note.",
-        });
+        throw new Error(errorData.error || "Failed to upload note");
       }
-    } catch (error) {
-      console.error("Error saving note:", error);
-      toast.error("Failed to save note", {
-        description: "An unexpected error occurred. Please try again.",
+
+      await response.json();
+      
+      toast.success("Note uploaded successfully!", {
+        icon: <CheckCircle2 className="h-4 w-4" />,
       });
+      
+      // Reset form
+      setNoteText("");
+      setSelectedCategory("");
+      
+      // Call success callback
+      onSuccess?.();
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload note");
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h2 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">Add a Note</h2>
-        <p className="text-muted-foreground text-sm">
-          Save your thoughts, ideas, or any information you want to be able to search and chat about later.
-        </p>
-      </div>
+  const selectOptions = categories.map(category => ({
+    value: category.value,
+    label: category.label
+  }));
 
-      <form onSubmit={saveNote} className="space-y-4 sm:space-y-4">
+  const customSelectStyles: StylesConfig<{value: string, label: string}, false> = {
+    control: (provided, state) => ({
+      ...provided,
+      minHeight: '44px',
+      border: '1px solid hsl(var(--border))',
+      borderRadius: '6px',
+      backgroundColor: 'hsl(var(--background))',
+      '&:hover': {
+        borderColor: 'hsl(var(--border))'
+      },
+      boxShadow: state.isFocused ? '0 0 0 2px hsl(var(--ring))' : 'none',
+      borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--border))'
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected 
+        ? 'hsl(var(--accent))' 
+        : state.isFocused 
+          ? 'hsl(var(--accent) / 0.5)' 
+          : 'transparent',
+      color: 'hsl(var(--foreground))',
+      '&:hover': {
+        backgroundColor: 'hsl(var(--accent))'
+      }
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: 'hsl(var(--foreground))'
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: 'hsl(var(--muted-foreground))'
+    }),
+    menu: (provided) => ({
+      ...provided,
+      backgroundColor: 'hsl(var(--popover))',
+      border: '1px solid hsl(var(--border))',
+      borderRadius: '6px'
+    })
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto p-6 bg-card rounded-lg border shadow-sm">
+      <h2 className="text-xl font-semibold mb-4">Upload Note</h2>
+      
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="category" className="text-sm font-medium">Category</Label>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full h-11 text-sm">
-              <SelectValue placeholder="Select a category" />
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              {categories.map((category) => (
-                <SelectItem key={category.value} value={category.value} className="py-3">
-                  <div className="flex items-center gap-2">
-                    {category.icon}
-                    <span className="text-sm">{category.label}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="category" className="text-sm font-medium">
+            Category
+          </Label>
+          <Select
+            options={selectOptions}
+            value={selectOptions.find(option => option.value === selectedCategory) || null}
+            onChange={(option) => setSelectedCategory(option?.value || "")}
+            placeholder="Select a category"
+            isDisabled={isLoading}
+            styles={customSelectStyles}
+            className="text-sm"
+          />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="noteText" className="text-sm font-medium">Note Content</Label>
+          <Label htmlFor="note" className="text-sm font-medium">
+            Note Content
+          </Label>
           <Textarea
-            id="noteText"
-            placeholder="Write your note here... (e.g., meeting notes, ideas, reminders, thoughts)"
+            id="note"
+            placeholder="Write your note here..."
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
-            rows={6}
-            className="resize-none text-sm min-h-[140px] sm:min-h-[160px] leading-relaxed"
+            className="min-h-[120px] resize-none"
             disabled={isLoading}
           />
-          <div className="text-xs text-muted-foreground text-right">
-            {noteText.length}/10,000 characters
-          </div>
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2 sm:pt-4">
+        <div className="flex gap-3 pt-2">
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="flex-1"
+          >
+            {isLoading ? "Uploading..." : "Upload Note"}
+          </Button>
+          
           {onCancel && (
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={onCancel}
               disabled={isLoading}
-              className="w-full sm:w-auto h-11 text-sm"
             >
               Cancel
             </Button>
           )}
-          <Button 
-            type="submit" 
-            disabled={isLoading || !noteText.trim()}
-            className="w-full sm:flex-1 h-11 text-sm font-medium"
-          >
-            {isLoading ? "Saving..." : "Save Note"}
-          </Button>
         </div>
       </form>
     </div>
