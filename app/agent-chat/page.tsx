@@ -19,14 +19,50 @@ function ExampleQuestions({
   const [questions, setQuestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+  const [showCountdown, setShowCountdown] = useState(false);
 
   const generateQuestions = async (showRefreshLoader = false) => {
-    if (showRefreshLoader) setRefreshing(true);
-    else setLoading(true);
+    if (showRefreshLoader) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    // Always show countdown when generating
+    setShowCountdown(true);
+    setCountdown(30);
+
+    // Start countdown timer
+    let timeLeft = 30;
+    const countdownInterval = setInterval(() => {
+      timeLeft -= 1;
+      setCountdown(timeLeft);
+      
+      if (timeLeft <= 0) {
+        clearInterval(countdownInterval);
+      }
+    }, 1000);
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/questions`);
+      // Create AbortController for 30-second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 30000); // 30 seconds
+
+      const response = await fetch(`/api/agents/${agentId}/questions`, {
+        signal: controller.signal
+      });
+      
+      // Clear timeout if request completes
+      clearTimeout(timeoutId);
+      
       const data = await response.json();
+
+      // Clear countdown when response is received
+      clearInterval(countdownInterval);
+      setShowCountdown(false);
 
       if (data.success) {
         setQuestions(data.questions);
@@ -47,7 +83,18 @@ function ExampleQuestions({
       }
     } catch (error) {
       console.error("Error generating questions:", error);
-      toast.error("Failed to generate questions");
+      
+      // Clear countdown on error
+      clearInterval(countdownInterval);
+      setShowCountdown(false);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        toast.error("Question generation timed out", {
+          description: "Taking longer than expected. Using fallback questions."
+        });
+      } else {
+        toast.error("Failed to generate questions");
+      }
       
       // Fallback to basic questions
       setQuestions([
@@ -58,6 +105,7 @@ function ExampleQuestions({
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setShowCountdown(false);
     }
   };
 
@@ -69,18 +117,43 @@ function ExampleQuestions({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-4 h-4 bg-muted rounded"></div>
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-muted rounded w-3/4"></div>
-                <div className="h-3 bg-muted rounded w-1/2"></div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-4">
+        {/* Countdown above skeleton */}
+        {showCountdown && (
+          <div className="flex items-center justify-center gap-3 p-4 bg-muted/30 rounded-lg border">
+            <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin"></div>
+            <span className="text-sm text-muted-foreground font-medium">
+              Generating personalized questions... {countdown > 0 ? `${countdown}s remaining` : 'Almost done!'}
+            </span>
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-muted-foreground">Example Questions</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={true}
+            className="h-8 px-3 opacity-50"
+          >
+            <RefreshCw className="h-3 w-3 mr-1" />
+            New Questions
+          </Button>
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-4 h-4 bg-muted rounded"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted rounded w-3/4"></div>
+                  <div className="h-3 bg-muted rounded w-1/2"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -89,20 +162,30 @@ function ExampleQuestions({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground">Example Questions</h3>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => generateQuestions(true)}
-          disabled={refreshing}
-          className="h-8 px-3"
-        >
-          {refreshing ? (
-            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-          ) : (
-            <RefreshCw className="h-3 w-3 mr-1" />
+        <div className="flex items-center gap-3">
+          {showCountdown && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin"></div>
+              <span className="min-w-[80px]">
+                {countdown > 0 ? `${countdown}s left` : 'Almost done...'}
+              </span>
+            </div>
           )}
-          {refreshing ? "Generating..." : "New Questions"}
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => generateQuestions(true)}
+            disabled={refreshing}
+            className="h-8 px-3"
+          >
+            {refreshing ? (
+              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+            ) : (
+              <RefreshCw className="h-3 w-3 mr-1" />
+            )}
+            {refreshing ? "Generating..." : "New Questions"}
+          </Button>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
