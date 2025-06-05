@@ -19,7 +19,7 @@ function ExampleQuestions({
   const [questions, setQuestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(25);
   const [showCountdown, setShowCountdown] = useState(false);
 
   const generateQuestions = async (showRefreshLoader = false) => {
@@ -31,10 +31,10 @@ function ExampleQuestions({
 
     // Always show countdown when generating
     setShowCountdown(true);
-    setCountdown(30);
+    setCountdown(25);
 
     // Start countdown timer
-    let timeLeft = 30;
+    let timeLeft = 25;
     const countdownInterval = setInterval(() => {
       timeLeft -= 1;
       setCountdown(timeLeft);
@@ -45,11 +45,11 @@ function ExampleQuestions({
     }, 1000);
 
     try {
-      // Create AbortController for 30-second timeout
+      // Create AbortController for 25-second timeout to match server
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-      }, 30000); // 30 seconds
+      }, 25000); // 25 seconds to match server timeout
 
       const response = await fetch(`/api/agents/${agentId}/questions`, {
         signal: controller.signal
