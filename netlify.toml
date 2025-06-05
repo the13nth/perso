@@ -4,6 +4,18 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Increase function timeout for LLM endpoints
+[functions]
+  node_bundler = "esbuild"
+  
+[[functions]]
+  path = "app/api/agents/*/questions/*"
+  timeout = 30
+
+[[functions]]
+  path = "app/api/**"
+  timeout = 26
+
 # Environment variables that must be set on Netlify
 [template.environment]
   GOOGLE_API_KEY = "Google API key for Gemini models"
