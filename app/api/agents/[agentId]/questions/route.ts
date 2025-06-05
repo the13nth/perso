@@ -7,13 +7,13 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 
-// Increase timeout for Netlify - max execution time tracking
-const NETLIFY_TIMEOUT_MS = 30000; // 30 seconds
+// Adjust timeout for Netlify - more realistic deployment constraints
+const NETLIFY_TIMEOUT_MS = 25000; // 25 seconds (safer for Netlify)
 
 // Helper function to check if we're running out of time
 function isTimeoutApproaching(requestStartTime: number): boolean {
   const elapsed = Date.now() - requestStartTime;
-  return elapsed > (NETLIFY_TIMEOUT_MS - 2000); // Leave 2 seconds buffer
+  return elapsed > (NETLIFY_TIMEOUT_MS - 5000); // Leave 5 seconds buffer, be less aggressive
 }
 
 // Optimized timeout wrapper for async operations
@@ -246,7 +246,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     // Quick agent config retrieval
     const agentConfig = await withTimeout(
       getAgentConfig(agentId),
-      30000, // 30 second timeout
+      15000, // 15 second timeout (reduced from 30)
       null
     );
     
@@ -298,7 +298,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           maxOutputTokens: 512, // Reduced for faster generation
           temperature: 0.7, // Balanced creativity/speed
         }),
-        30000, // 30 second timeout for model init
+        8000, // 8 second timeout for model init (reduced from 30)
         null
       );
 
@@ -322,7 +322,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           userContentTypes: userDataSamples.contentTypes.join('\n'),
           sampleFields
         }),
-        30000, // 30 second timeout for generation
+        12000, // 12 second timeout for generation (reduced from 30)
         null
       );
 
