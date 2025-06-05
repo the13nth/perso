@@ -3,20 +3,24 @@ import { NextResponse } from "next/server";
 
 // Create route matchers for protected routes
 const isProtectedRoute = createRouteMatcher([
-  "/chat(.*)",
-  "/retrieval(.*)", 
+  "/retrieval(.*)",
   "/agents(.*)",
-  "/structured_output(.*)",
-  "/streaming(.*)",
-  "/visualize(.*)",
-  "/embeddings(.*)",
-  "/insights(.*)"
+  "/api/chat/(.*)",
+  "/api/agents/(.*)",
+  "/api/retrieval/(.*)"
 ]);
 
 // Create route matchers for public routes
 const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)", "/"]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // Add timeout headers for API routes to help with Netlify
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    const response = NextResponse.next()
+    response.headers.set('X-Function-Timeout', '26')
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+  }
+
   // If it's a public route, allow access
   if (isPublicRoute(req)) {
     return NextResponse.next();
@@ -24,7 +28,10 @@ export default clerkMiddleware(async (auth, req) => {
 
   // For protected routes, require authentication
   if (isProtectedRoute(req)) {
-    await auth.protect();
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.redirect(new URL('/sign-in', req.url))
+    }
   }
 
   // Allow access to other routes (like API routes, static files, etc.)
@@ -42,6 +49,8 @@ export const config = {
      */
     "/((?!_next/static|_next/image|favicon.ico|public/).*)",
     "/",
-    "/(api|trpc)(.*)"
+    "/(api|trpc)(.*)",
+    // Skip Next.js internals and all static files, unless found in search params
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
   ]
 }; 
