@@ -1,5 +1,5 @@
-import { Pinecone, Index, RecordMetadata, ScoredPineconeRecord, RecordMetadataValue } from '@pinecone-database/pinecone';
-import { Document } from 'langchain/document';
+import { Pinecone, Index, RecordMetadata, RecordMetadataValue } from '@pinecone-database/pinecone';
+import { Document } from '@langchain/core/documents';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 
 if (!process.env.PINECONE_API_KEY) {
@@ -34,18 +34,37 @@ interface PineconeMetadata extends RecordMetadata {
 }
 
 export interface AgentMetadata {
-  [key: string]: string | number | boolean | string[];
+  [key: string]: string | number | boolean | string[] | Record<string, any> | undefined;
   agentId: string;
   name: string;
   description: string;
   category: string;
-  isPublic: boolean;
-  ownerId: string;
   useCases: string;
   selectedContextIds: string[];
+  isPublic: boolean;
+  ownerId: string;
   type: string;
   createdAt: number;
   updatedAt: number;
+  contentId?: string;
+  primaryCategory?: string;
+  agent?: {
+    isPublic: boolean;
+    type: string;
+    capabilities: string[];
+    tools: string[];
+    useCases: string;
+    triggers: string[];
+    ownerId: string;
+    dataAccess: string[];
+    selectedContextIds: string[];
+    performanceMetrics: {
+      taskCompletionRate: number;
+      averageResponseTime: number;
+      userSatisfactionScore: number;
+      totalTasksCompleted: number;
+    };
+  };
 }
 
 export interface PineconeDocument {
@@ -91,11 +110,14 @@ export async function storeAgentWithContext(
     category: agentConfig.category || '',
     useCases: agentConfig.useCases || '',
     selectedContextIds,
-    isPublic: agentConfig.isPublic || false,
+    isPublic: agentConfig.isPublic ?? false,
     ownerId,
     type: 'agent_config',
     createdAt: Date.now(),
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
+    contentId: agentConfig.contentId,
+    primaryCategory: agentConfig.primaryCategory,
+    agent: agentConfig.agent
   };
 
   // Store agent configuration with embedding
@@ -154,63 +176,138 @@ export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
 
 export async function getAgentContext(agentId: string, query?: string): Promise<Document[]> {
   const index = await initIndex();
-  
-  // Get agent config to check access permissions
   const agentConfig = await getAgentConfig(agentId);
   
-  // Get query embedding
   const queryEmbedding = query 
     ? await embeddings.embedQuery(query)
     : await embeddings.embedQuery("general context");
 
-  // Query for relevant context with a more inclusive filter
-  const response = await index.query({
-    vector: queryEmbedding,
-    filter: {
-      $or: [
-        { agentId }, // Match any context linked to this agent
-        { id: { $in: agentConfig.selectedContextIds || [] } }, // Include selected contexts
-        { type: 'context', agentId } // Include agent-specific context
+  // Determine agent category and build appropriate filter
+  const agentCategory = agentConfig.category?.toLowerCase() || '';
+  let categorySpecificFilter;
+
+  if (agentCategory.includes('finance') || agentConfig.description?.toLowerCase().includes('financial')) {
+    categorySpecificFilter = {
+      $and: [
+        { 
+          type: { 
+            $in: ["comprehensive_activity", "transaction", "financial_record", "document"] 
+          } 
+        },
+        { 
+          $or: [
+            { primaryCategory: { $eq: "finances" } },
+            { category: { $eq: "finances" } },
+            { contentType: { $eq: "document" } }
+          ]
+        }
       ]
-    },
+    };
+  } else if (agentCategory.includes('run') || agentConfig.description?.toLowerCase().includes('running')) {
+    categorySpecificFilter = {
+      $and: [
+        { 
+          type: { 
+            $in: ["comprehensive_activity", "activity", "physical"] 
+          } 
+        },
+        { 
+          $or: [
+            { activity: { $eq: "running" } },
+            { activityType: { $eq: "physical" } },
+            { category: { $eq: "physical" } }
+          ]
+        }
+      ]
+    };
+  } else {
+    // Default filter for other agent types
+    categorySpecificFilter = {
+      $and: [
+        { type: { $in: ["comprehensive_activity", "activity"] } },
+        { 
+          $or: [
+            { categories: { $in: agentConfig.selectedContextIds || [] } },
+            { activity: { $in: agentConfig.selectedContextIds || [] } },
+            { activityType: { $in: agentConfig.selectedContextIds || [] } },
+            { category: { $in: agentConfig.selectedContextIds || [] } }
+          ]
+        }
+      ]
+    };
+  }
+
+  // Build final filter combining agent-specific and category-specific filters
+  const filter = {
+    $or: [
+      // Direct agent context
+      { agentId },
+      { id: { $in: agentConfig.selectedContextIds || [] } },
+      { type: 'context', agentId },
+      // Category-specific filter
+      categorySpecificFilter
+    ]
+  };
+
+  console.log('DEBUG: Querying with filter:', JSON.stringify(filter, null, 2));
+
+  // First get high relevance matches
+  const highRelevanceResponse = await index.query({
+    vector: queryEmbedding,
+    filter,
+    topK: 15,
+    includeMetadata: true,
+    includeValues: false
+  });
+
+  // Then get additional context
+  const additionalFilter = {
+    $and: [
+      { ...filter },
+      { id: { $nin: highRelevanceResponse.matches.map(m => m.id) } }
+    ]
+  };
+
+  const additionalResponse = await index.query({
+    vector: queryEmbedding,
+    filter: additionalFilter,
     topK: 10,
     includeMetadata: true,
     includeValues: false
   });
 
-  console.log('Context query response:', {
-    matchCount: response.matches.length,
-    agentId,
-    query,
-    filter: {
-      $or: [
-        { agentId },
-        { id: { $in: agentConfig.selectedContextIds || [] } },
-        { type: 'context', agentId }
-      ]
-    }
+  console.log('DEBUG: High relevance matches:', highRelevanceResponse.matches.length);
+  console.log('DEBUG: Additional matches:', additionalResponse.matches.length);
+
+  // Combine and process matches
+  const allMatches = [...highRelevanceResponse.matches, ...additionalResponse.matches];
+  
+  // Process matches into documents with enhanced metadata
+  const documents: Document[] = allMatches.map(match => {
+    // Extract and clean the content
+    let content = String(match.metadata?.content || match.metadata?.text || '');
+    
+    // Add metadata about the document type and source
+    const metadata = {
+      source: match.metadata?.source || match.metadata?.type || 'Unknown',
+      title: match.metadata?.title || '',
+      score: match.score || 0,
+      type: match.metadata?.type || 'unknown',
+      category: match.metadata?.category || match.metadata?.primaryCategory || 'unknown',
+      timestamp: match.metadata?.createdAt || match.metadata?.timestamp || '',
+      documentId: match.id
+    };
+
+    return new Document({
+      pageContent: content,
+      metadata
+    });
   });
 
-  // Convert to documents and sort by relevance
-  const documents = response.matches
-    .filter((match): match is ScoredPineconeRecord<PineconeMetadata> => 
-      match.metadata !== undefined && 
-      typeof match.metadata.content === 'string'
-    )
-    .map(match => new Document({
-      pageContent: match.metadata!.content,
-      metadata: {
-        source: match.metadata!.source || 'Unknown',
-        score: match.score || 0
-      }
-    }))
-    .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0));
+  // Sort by relevance score
+  documents.sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0));
 
-  console.log('Processed documents:', {
-    count: documents.length,
-    scores: documents.map(doc => doc.metadata?.score || 0)
-  });
-
+  console.log('DEBUG: Returning documents:', documents.length);
   return documents;
 }
 
@@ -294,7 +391,7 @@ async function getContextCategoriesImpl(content: string): Promise<string[]> {
 // Export the functions
 export const getContextCategories = getContextCategoriesImpl;
 
-export async function listPublicAgents() {
+export async function listPublicAgents(): Promise<AgentMetadata[]> {
   const queryVector = await embeddings.embedQuery("public agents");
   const queryResponse = await index.query({
     vector: queryVector,
@@ -303,10 +400,12 @@ export async function listPublicAgents() {
     includeMetadata: true
   });
 
-  return queryResponse.matches.map(match => match.metadata as unknown as AgentMetadata);
+  return queryResponse.matches
+    .filter(match => match.metadata)
+    .map(match => match.metadata as unknown as AgentMetadata);
 }
 
-export async function listUserAgents(ownerId: string) {
+export async function listUserAgents(ownerId: string): Promise<AgentMetadata[]> {
   const queryVector = await embeddings.embedQuery(ownerId);
   const queryResponse = await index.query({
     vector: queryVector,
@@ -315,19 +414,21 @@ export async function listUserAgents(ownerId: string) {
     includeMetadata: true
   });
 
-  return queryResponse.matches.map(match => match.metadata as unknown as AgentMetadata);
+  return queryResponse.matches
+    .filter(match => match.metadata)
+    .map(match => match.metadata as unknown as AgentMetadata);
 }
 
 export async function queryAgentsByContext(agentId: string, query: string) {
   const pinecone = await initPinecone();
   const index = pinecone.index(process.env.PINECONE_INDEX!);
 
-  const embeddings = new GoogleGenerativeAIEmbeddings({
-    apiKey: process.env.GOOGLE_API_KEY || "",
-    modelName: "text-embedding-004",
+  const queryEmbeddings = new GoogleGenerativeAIEmbeddings({
+    apiKey: process.env.GOOGLE_API_KEY!,
+    modelName: "embedding-001",
   });
 
-  const queryEmbedding = await embeddings.embedQuery(query);
+  const queryEmbedding = await queryEmbeddings.embedQuery(query);
 
   const results = await index.query({
     vector: queryEmbedding,

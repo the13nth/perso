@@ -211,14 +211,14 @@ export async function POST(req: NextRequest) {
       .map(convertVercelMessageToLangChainMessage);
 
     const chatModel = new ChatGoogleGenerativeAI({
-      model: "gemini-pro",
+      model: "gemini-2.0-flash-001",
       maxOutputTokens: 2048,
       temperature: 0.2,
     });
 
     // Create a separate model instance for query clarification with lower temperature
     const clarificationModel = new ChatGoogleGenerativeAI({
-      model: "gemini-pro",
+      model: "gemini-2.0-flash-001",
       maxOutputTokens: 512,
       temperature: 0.3,
     });

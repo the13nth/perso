@@ -3,8 +3,7 @@
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/langchain-ai/langchain-nextjs-template)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flangchain-ai%2Flangchain-nextjs-template)
 
-This template scaffolds a LangChain.js + Next.js starter app. It showcases how to use and combine LangChain modules for several
-use cases. Specifically:
+This template scaffolds a LangChain.js + Next.js starter app with an integrated content ingestion system. It showcases how to use and combine LangChain modules for several use cases:
 
 - [Simple chat](/app/api/chat/route.ts)
 - [Returning structured output from an LLM call](/app/api/chat/structured_output/route.ts)
@@ -16,22 +15,87 @@ Most of them use Vercel's [AI SDK](https://github.com/vercel-labs/ai) to stream 
 
 The agents use [LangGraph.js](https://langchain-ai.github.io/langgraphjs/), LangChain's framework for building agentic workflows. They use preconfigured helper functions to minimize boilerplate, but you can replace them with custom graphs as desired.
 
-https://github.com/user-attachments/assets/e389e4e4-4fb9-4223-a4c2-dc002c8f20d3
-
 It's free-tier friendly too! Check out the [bundle size stats below](#-bundle-size).
 
 You can check out a hosted version of this repo here: https://langchain-nextjs-template.vercel.app/
+
+## 🔄 Content Ingestion System
+
+The application features a unified content ingestion system that handles multiple content types:
+
+### 📄 Documents
+- 800-token chunks with 150 token overlap
+- Automatic metadata extraction
+- File information tracking
+- Page counting and complexity assessment
+
+### 📝 Notes
+- 1000-token chunks with markdown support
+- Checkbox and code block detection
+- Rich metadata including tags and formatting
+- Pinned/starred status tracking
+
+### 🎯 Activities
+Comprehensive activity tracking across four categories:
+
+#### Physical Activities
+- Exercise, sports, and physical activities
+- Duration, distance, and intensity tracking
+- Location and goal tracking
+- Performance metrics
+
+#### Work Activities
+- Project-based task tracking
+- Collaboration tracking
+- Tool and technology logging
+- Productivity metrics
+
+#### Study Activities
+- Subject and material tracking
+- Comprehension assessment
+- Learning progress monitoring
+- Resource management
+
+#### Routine Activities
+- Daily habit tracking
+- Mood tracking (before/after)
+- Consistency assessment
+- Pattern analysis
+
+### 🔍 Key Features
+- Unified vector storage with Pinecone
+- Consistent metadata structure
+- Rich search capabilities
+- Relationship tracking
+- Reference handling
+- Batch processing
+- Type-specific metadata extraction
+
+### 🏗️ Core Components
+- Base interfaces for content types
+- Specialized ingestion handlers
+- Unified content processor
+- Utility functions for text processing
+- Content analysis tools
 
 ## 🚀 Getting Started
 
 First, clone this repo and download it locally.
 
 Next, you'll need to set up environment variables in your repo's `.env.local` file. Copy the `.env.example` file to `.env.local`.
-To start with the basic examples, you'll just need to add your OpenAI API key.
+To start with the basic examples, you'll need to add:
+
+- Your OpenAI API key
+- Google AI API key (for embeddings and content analysis)
+- Pinecone API key and index name (for vector storage)
 
 Because this app is made to run in serverless Edge functions, make sure you've set the `LANGCHAIN_CALLBACKS_BACKGROUND` environment variable to `false` to ensure tracing finishes if you are using [LangSmith tracing](https://docs.smith.langchain.com/).
 
-Next, install the required packages using your preferred package manager (e.g. `yarn`).
+Next, install the required packages using yarn:
+
+```bash
+yarn
+```
 
 Now you're ready to run the development server:
 

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { UploadDocumentsForm } from "@/components/UploadDocumentsForm";
 import { UploadNoteForm } from "@/components/UploadNoteForm";
-import { UploadComprehensiveActivityForm } from "@/components/UploadComprehensiveActivityForm";
+import { UploadComprehensiveActivityForm } from "../components/UploadComprehensiveActivityForm";
 import { ArrowLeft, Upload, Search, FileText, Database, Bot, StickyNote, Plus, X, Activity, Briefcase, BookOpen, Clock } from "lucide-react";
 import { AgentChatInterface } from "@/components/AgentChatInterface";
 import { LangGraphUI, ProcessStep } from "@/components/LangGraphUI";

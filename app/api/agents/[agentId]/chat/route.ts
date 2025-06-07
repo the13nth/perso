@@ -1,108 +1,92 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Message } from "ai";
-import { AgentSupervisor } from "@/app/lib/agents/langchain/supervisor";
-import { getAgentConfig } from "@/lib/pinecone";
-import { convertPineconeAgentToConfig } from "@/app/lib/agents/langchain/config";
-import { auth } from "@clerk/nextjs/server";
+import { NextRequest } from 'next/server';
+import { AgentSupervisor } from '@/lib/agents/langchain/supervisor';
+import { getAgentConfig } from '@/lib/pinecone';
+import { AgentMetadata } from '@/app/lib/agents/langchain/types';
+import { convertPineconeAgentToConfig } from '@/app/lib/agents/langchain/config';
 
-// Store supervisors in memory (in production, use Redis or similar)
+// Keep track of active supervisors
 const supervisors = new Map<string, AgentSupervisor>();
 
-type RouteContext = {
-  params: Promise<{
-    agentId: string;
-  }>;
-};
-
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ agentId: string }> }
+): Promise<Response> {
   try {
     const { agentId } = await context.params;
-    console.log('[DEBUG] Chat route called with agentId:', agentId);
+    const { messages, show_intermediate_steps = false } = await request.json();
 
-    const { userId } = await auth();
-    if (!userId) {
-      console.log('[DEBUG] Unauthorized request');
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const { messages } = await request.json();
+    // Get the current message
     const currentMessage = messages[messages.length - 1];
-    
-    console.log('[DEBUG] Processing message:', {
-      agentId,
-      messageContent: currentMessage.content,
-      totalMessages: messages.length
-    });
+    if (!currentMessage || currentMessage.role !== 'user') {
+      return new Response('Invalid message format', { status: 400 });
+    }
 
     // Get or create supervisor
     let supervisor = supervisors.get(agentId);
     if (!supervisor) {
-      console.log('[DEBUG] Creating new supervisor for agent:', agentId);
-      
       const pineconeAgent = await getAgentConfig(agentId);
       if (!pineconeAgent) {
-        console.log('[ERROR] Agent not found:', agentId);
-        return NextResponse.json(
-          { error: "Agent not found" },
-          { status: 404 }
-        );
+        return new Response('Agent not found', { status: 404 });
       }
-      console.log('[DEBUG] Retrieved agent config:', {
+
+      // Convert ISO string dates to timestamps
+      const now = Date.now();
+
+      // Create agent metadata
+      const agentMetadata: AgentMetadata = {
+        contentId: pineconeAgent.agentId,
+        userId: pineconeAgent.ownerId,
         name: pineconeAgent.name,
-        type: pineconeAgent.type,
-        hasParentAgents: !!pineconeAgent.parentAgents
+        description: pineconeAgent.description,
+        category: pineconeAgent.category,
+        useCases: pineconeAgent.useCases || '',
+        selectedContextIds: pineconeAgent.selectedContextIds || [],
+        isPublic: pineconeAgent.isPublic || false,
+        ownerId: pineconeAgent.ownerId,
+        type: 'agent_config',
+        createdAt: now,
+        updatedAt: now,
+        primaryCategory: pineconeAgent.category,
+        agent: {
+          isPublic: pineconeAgent.isPublic || false,
+          type: 'agent_config',
+          capabilities: [],
+          tools: [],
+          useCases: pineconeAgent.useCases || '',
+          triggers: [],
+          ownerId: pineconeAgent.ownerId,
+          dataAccess: [],
+          selectedContextIds: pineconeAgent.selectedContextIds || [],
+          performanceMetrics: {
+            taskCompletionRate: 0,
+            averageResponseTime: 0,
+            userSatisfactionScore: 0,
+            totalTasksCompleted: 0
+          }
+        }
+      };
+
+      // Convert to agent config
+      const agentConfig = convertPineconeAgentToConfig(agentMetadata);
+
+      // Create supervisor with new metadata format
+      supervisor = new AgentSupervisor({
+        agentId,
+        metadata: agentMetadata,
+        capabilities: agentConfig.capabilities,
+        tools: []
       });
-
-      // Convert Pinecone agent to LangChain format
-      const agent = convertPineconeAgentToConfig(pineconeAgent);
-      console.log('[DEBUG] Converted agent config:', {
-        name: agent.name,
-        capabilities: agent.capabilities.map(c => c.name)
-      });
-
-      // If this is a super agent, get and convert parent agents
-      const parentAgents = typeof pineconeAgent.parentAgents === 'string'
-        ? await Promise.all(
-            pineconeAgent.parentAgents.split(',')
-              .map(async id => {
-                const parentPineconeAgent = await getAgentConfig(id);
-                return convertPineconeAgentToConfig(parentPineconeAgent);
-              })
-          )
-        : [agent];
-      
-      console.log('[DEBUG] Retrieved parent agents:', 
-        parentAgents.map(a => ({ id: a.agentId, name: a.name, capabilities: a.capabilities.map(c => c.name) })));
-
-      supervisor = new AgentSupervisor(parentAgents);
       supervisors.set(agentId, supervisor);
-      console.log('[DEBUG] Created and stored new supervisor');
-    } else {
-      console.log('[DEBUG] Using existing supervisor for agent:', agentId);
     }
 
     // Process message
-    console.log('[DEBUG] Processing message with supervisor');
-    const response = await supervisor.processMessage(currentMessage.content);
-    console.log('[DEBUG] Received response:', response);
+    const response = await supervisor.processMessage(currentMessage.content, show_intermediate_steps);
 
-    // Format response as a message
-    const responseMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'assistant',
-      content: response.response,
-    };
-
-    console.log('[DEBUG] Sending response message');
-    return NextResponse.json({ messages: [...messages, responseMessage] });
+    return new Response(JSON.stringify(response), {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('[ERROR] Error in chat route:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "An error occurred" },
-      { status: 500 }
-    );
+    console.error('Error processing message:', error);
+    return new Response('Internal server error', { status: 500 });
   }
 } 

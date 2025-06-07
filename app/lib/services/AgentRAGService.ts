@@ -54,98 +54,92 @@ function generateContextRecommendations(
   contextUsed: number,
   selectedContextIds: string[]
 ): string {
-  const agentCategory = agentConfig.category?.toLowerCase() || '';
-  
   const recommendations: string[] = [];
   
-  // Analyze what's missing based on agent type
-  if (agentCategory.includes('fitness') || agentCategory.includes('health') || agentCategory.includes('physical')) {
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('physical'))) {
-      recommendations.push("Physical activity data (running, workouts, sports) with metrics like distance, duration, intensity, and personal feelings");
+  // Extract key terms from agent metadata
+  const keyTerms = new Set([
+    ...(agentConfig.category?.toLowerCase() || '').split(/\s+/),
+    ...(agentConfig.description?.toLowerCase() || '').split(/\s+/),
+    ...(agentConfig.agent?.useCases?.toLowerCase() || '').split(/\s+/)
+  ]);
+
+  // Define domain-specific data requirements
+  const domainRequirements = {
+    fitness: {
+      terms: ['fitness', 'health', 'exercise', 'workout', 'running', 'training'],
+      data: [
+        { id: 'physical', desc: "Physical activity data with metrics like distance, duration, intensity, and personal feelings" },
+        { id: 'nutrition', desc: "Nutrition and diet tracking data to correlate with physical performance" },
+        { id: 'sleep', desc: "Sleep pattern data to understand recovery and performance relationships" }
+      ]
+    },
+    finance: {
+      terms: ['finance', 'money', 'transaction', 'budget', 'expense'],
+      data: [
+        { id: 'financial', desc: "Financial transaction data with timestamps, amounts, categories, and descriptions" },
+        { id: 'investment', desc: "Investment portfolio data with holdings, performance metrics, and transaction history" },
+        { id: 'budget', desc: "Budget and expense tracking data with spending categories and patterns" },
+        { id: 'income', desc: "Income data with sources, amounts, and frequency information" }
+      ]
+    },
+    productivity: {
+      terms: ['work', 'productivity', 'professional', 'task', 'project'],
+      data: [
+        { id: 'work', desc: "Work activity logs with project names, task completion, productivity levels, and collaboration details" },
+        { id: 'calendar', desc: "Calendar and meeting data to analyze time management patterns" },
+        { id: 'communication', desc: "Communication logs to understand collaboration patterns" }
+      ]
+    },
+    learning: {
+      terms: ['learning', 'education', 'study', 'academic'],
+      data: [
+        { id: 'study', desc: "Study session logs with subjects, materials, comprehension levels, and learning outcomes" },
+        { id: 'notes', desc: "Learning notes and knowledge base content for topic analysis and connections" },
+        { id: 'progress', desc: "Progress tracking data across different subjects and learning goals" }
+      ]
+    },
+    personal: {
+      terms: ['personal', 'lifestyle', 'habit', 'routine'],
+      data: [
+        { id: 'routine', desc: "Daily routine and habit tracking with mood and consistency metrics" },
+        { id: 'notes', desc: "Personal notes, thoughts, and reflections for pattern analysis" },
+        { id: 'goals', desc: "Goal setting and achievement tracking across different life areas" }
+      ]
+    },
+    business: {
+      terms: ['customer', 'business', 'service', 'support'],
+      data: [
+        { id: 'support', desc: "Customer support interactions and ticket resolution data" },
+        { id: 'feedback', desc: "Customer feedback and satisfaction survey responses" },
+        { id: 'product', desc: "Product usage analytics and feature adoption metrics" }
+      ]
+    },
+    analysis: {
+      terms: ['data', 'analysis', 'insight', 'metrics'],
+      data: [
+        { id: 'metrics', desc: "Performance metrics and KPI tracking data with timestamps" },
+        { id: 'trends', desc: "Historical trend data to enable time-series analysis and forecasting" }
+      ]
     }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('nutrition'))) {
-      recommendations.push("Nutrition and diet tracking data to correlate with physical performance");
+  };
+
+  // Check each domain's requirements
+  Object.values(domainRequirements).forEach(domain => {
+    if (domain.terms.some(term => Array.from(keyTerms).some(keyTerm => keyTerm.includes(term) || term.includes(keyTerm)))) {
+      domain.data.forEach(dataReq => {
+        if (!selectedContextIds.some(id => id.toLowerCase().includes(dataReq.id))) {
+          recommendations.push(dataReq.desc);
+        }
+      });
     }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('sleep'))) {
-      recommendations.push("Sleep pattern data to understand recovery and performance relationships");
-    }
-  }
-  
-  if (agentCategory.includes('financial') || agentCategory.includes('finance') || agentCategory.includes('money') || agentCategory.includes('advisor')) {
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('financial') || id.toLowerCase().includes('finance'))) {
-      recommendations.push("Financial transaction data with timestamps, amounts, categories, and descriptions");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('investment') || id.toLowerCase().includes('portfolio'))) {
-      recommendations.push("Investment portfolio data with holdings, performance metrics, and transaction history");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('budget') || id.toLowerCase().includes('expense'))) {
-      recommendations.push("Budget and expense tracking data with spending categories and patterns");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('income') || id.toLowerCase().includes('salary'))) {
-      recommendations.push("Income data with sources, amounts, and frequency information");
-    }
-  }
-  
-  if (agentCategory.includes('work') || agentCategory.includes('productivity') || agentCategory.includes('professional')) {
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('work'))) {
-      recommendations.push("Work activity logs with project names, task completion, productivity levels, and collaboration details");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('calendar'))) {
-      recommendations.push("Calendar and meeting data to analyze time management patterns");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('communication'))) {
-      recommendations.push("Communication logs (emails, messages) to understand collaboration patterns");
-    }
-  }
-  
-  if (agentCategory.includes('learning') || agentCategory.includes('education') || agentCategory.includes('study')) {
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('study'))) {
-      recommendations.push("Study session logs with subjects, materials, comprehension levels, and learning outcomes");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('notes'))) {
-      recommendations.push("Learning notes and knowledge base content for topic analysis and connections");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('progress'))) {
-      recommendations.push("Progress tracking data across different subjects and learning goals");
-    }
-  }
-  
-  if (agentCategory.includes('personal') || agentCategory.includes('lifestyle')) {
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('routine'))) {
-      recommendations.push("Daily routine and habit tracking with mood and consistency metrics");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('notes'))) {
-      recommendations.push("Personal notes, thoughts, and reflections for pattern analysis");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('goals'))) {
-      recommendations.push("Goal setting and achievement tracking across different life areas");
-    }
-  }
-  
-  // Business/Customer Service specific recommendations
-  if (agentCategory.includes('customer') || agentCategory.includes('business') || agentCategory.includes('service')) {
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('support'))) {
-      recommendations.push("Customer support interactions and ticket resolution data");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('feedback'))) {
-      recommendations.push("Customer feedback and satisfaction survey responses");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('product'))) {
-      recommendations.push("Product usage analytics and feature adoption metrics");
-    }
-  }
-  
-  // Data Analysis specific recommendations
-  if (agentCategory.includes('data') || agentCategory.includes('analysis') || agentCategory.includes('insight')) {
-    if (selectedContextIds.length < 5) {
-      recommendations.push("More structured data with consistent field schemas for better pattern recognition");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('metrics'))) {
-      recommendations.push("Performance metrics and KPI tracking data with timestamps");
-    }
-    if (!selectedContextIds.some(id => id.toLowerCase().includes('trends'))) {
-      recommendations.push("Historical trend data to enable time-series analysis and forecasting");
-    }
+  });
+
+  // Add agent-specific recommendations based on capabilities
+  if (agentConfig.agent?.capabilities?.length) {
+    const missingCapabilityData = agentConfig.agent.capabilities
+      .filter(cap => !selectedContextIds.some(id => id.toLowerCase().includes(cap.toLowerCase())))
+      .map(cap => `Data relevant to the ${cap} capability`);
+    recommendations.push(...missingCapabilityData);
   }
   
   // Generic recommendations based on current limitations
@@ -180,7 +174,7 @@ export class AgentRAGService {
 
       // Generate clarified query
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash-001',
+        model: 'gemini-2.0-flash',
         contents: [{ role: 'user', parts: [{ text: clarificationPrompt }] }],
         config: {
           maxOutputTokens: 512,
@@ -210,31 +204,52 @@ export class AgentRAGService {
       return "No relevant context found. Please provide more information or rephrase your query.";
     }
 
-    return contextDocs
-      .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0))
-      .map((doc, index) => {
+    // Sort by relevance score and group by source/type
+    const groupedDocs = contextDocs.reduce((acc, doc) => {
+      const source = doc.metadata?.source || 'Unknown';
+      if (!acc[source]) {
+        acc[source] = [];
+      }
+      acc[source].push(doc);
+      return acc;
+    }, {} as Record<string, Document[]>);
+
+    // Format each group of documents
+    return Object.entries(groupedDocs)
+      .map(([source, docs]) => {
+        const sortedDocs = docs.sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0));
+        const docsContent = sortedDocs.map((doc, index) => {
         const score = doc.metadata?.score ? Math.round(doc.metadata.score * 100) : 0;
-        return `[Context ${index + 1}] (Relevance: ${score}%)
-Source: ${doc.metadata?.source || 'Unknown'}
-${doc.pageContent}
----`;
+          return `[Entry ${index + 1}] (Relevance: ${score}%)
+${doc.pageContent}`;
       }).join('\n\n');
+
+        return `=== ${source} ===\n${docsContent}\n---`;
+      })
+      .join('\n\n');
   }
 
   private createSystemPrompt(agentConfig: AgentMetadata, formattedContext: string, includeRecommendations: boolean = false, contextRecommendations: string = ''): string {
-    const basePrompt = `You are ${agentConfig.name}, an AI agent with expertise in ${agentConfig.category}.
+    // Generate analysis guidelines based on agent's category and capabilities
+    const analysisGuidelines = this.generateAnalysisGuidelines(agentConfig);
+
+    const basePrompt = `You are ${agentConfig.title || agentConfig.name}, an AI agent with expertise in ${agentConfig.primaryCategory || agentConfig.category || 'your assigned domain'}.
 
 ROLE AND EXPERTISE:
-- You are a specialized agent for: ${agentConfig.description}
-- Your core purpose is: ${agentConfig.useCases}
-- You have access to specific context documents that inform your knowledge
+- Primary Category: ${agentConfig.primaryCategory || agentConfig.category || 'Specialized Analysis'}
+- Core Purpose: ${agentConfig.agent?.useCases || agentConfig.description || "Detailed analysis and insights"}
+- Available Tools: ${Array.isArray(agentConfig.agent?.tools) ? agentConfig.agent.tools.join(", ") : "Analysis tools"}
+- Capabilities: ${Array.isArray(agentConfig.agent?.capabilities) ? agentConfig.agent.capabilities.join(", ") : "Data analysis and insights"}
 
 RESPONSE GUIDELINES:
-1. Always ground your responses in the provided context
-2. If the context doesn't contain relevant information, acknowledge this and explain what you can/cannot answer
-3. Be precise and specific, citing relevant parts of the context when appropriate
-4. Maintain a professional but conversational tone
-5. Focus on providing accurate, context-based information rather than general knowledge
+1. ALWAYS analyze and reference the provided context in your responses
+2. When analyzing the data:${analysisGuidelines}
+3. Be specific and cite relevant data points
+4. Provide numerical summaries when possible
+5. Highlight important insights or patterns
+6. If information is missing or unclear, explicitly state what's missing
+7. Maintain a professional but conversational tone
+8. Structure your response in a clear, organized manner
 
 CONTEXT DOCUMENTS:
 ${formattedContext}`;
@@ -242,14 +257,106 @@ ${formattedContext}`;
     if (includeRecommendations && contextRecommendations) {
       return basePrompt + `
 
-IMPORTANT: When you have limited or no context to provide a comprehensive answer, you should suggest what additional data would help you provide better insights. Specifically recommend uploading: ${contextRecommendations}
+IMPORTANT NOTES:
+1. When you find gaps in the available data, suggest what additional information would help provide better insights
+2. Recommended additional data: ${contextRecommendations}
+3. Always provide concrete examples from the context to support your analysis
+4. If you notice patterns or trends, explain their significance
+5. When relevant, suggest actionable insights based on the data
 
-Include these suggestions naturally in your response when context is insufficient.`;
+Include these suggestions naturally in your response when appropriate.`;
     }
 
-    return basePrompt + `
+    return basePrompt;
+  }
 
-Remember: Only provide information that you can support with the given context. If asked about something outside your context, politely explain that it's beyond your current knowledge scope.`;
+  /**
+   * Generate analysis guidelines based on agent metadata
+   */
+  private generateAnalysisGuidelines(agentConfig: AgentMetadata): string {
+    const category = agentConfig.category?.toLowerCase() || '';
+    const description = agentConfig.description?.toLowerCase() || '';
+    const useCases = agentConfig.agent?.useCases?.toLowerCase() || '';
+    
+    // Extract key terms from agent metadata
+    const keyTerms = new Set([
+      ...category.split(/\s+/),
+      ...description.split(/\s+/),
+      ...useCases.split(/\s+/)
+    ]);
+
+    const guidelines: string[] = [];
+
+    // Data Analysis (common for all agents)
+    guidelines.push(
+      "   - Look for patterns and trends in the data",
+      "   - Compare data points across time periods",
+      "   - Identify significant variations",
+      "   - Calculate relevant metrics",
+      "   - Consider contextual factors"
+    );
+
+    // Add domain-specific guidelines based on key terms
+    if (this.containsAnyTerm(keyTerms, ['finance', 'money', 'transaction', 'budget', 'expense'])) {
+      guidelines.push(
+        "   - Analyze transaction patterns and frequencies",
+        "   - Calculate category-wise totals",
+        "   - Identify recurring transactions",
+        "   - Note unusual or significant amounts",
+        "   - Track changes in spending patterns"
+      );
+    }
+
+    if (this.containsAnyTerm(keyTerms, ['fitness', 'health', 'exercise', 'workout', 'running', 'training'])) {
+      guidelines.push(
+        "   - Analyze performance metrics and trends",
+        "   - Compare results across sessions",
+        "   - Consider intensity and effort levels",
+        "   - Track progress towards goals",
+        "   - Note environmental factors"
+      );
+    }
+
+    if (this.containsAnyTerm(keyTerms, ['learning', 'education', 'study', 'academic'])) {
+      guidelines.push(
+        "   - Track learning progress and outcomes",
+        "   - Analyze study patterns and effectiveness",
+        "   - Identify areas of improvement",
+        "   - Compare performance across subjects",
+        "   - Note learning milestones"
+      );
+    }
+
+    if (this.containsAnyTerm(keyTerms, ['productivity', 'work', 'task', 'project'])) {
+      guidelines.push(
+        "   - Analyze task completion patterns",
+        "   - Track time management metrics",
+        "   - Identify productivity trends",
+        "   - Note workflow optimizations",
+        "   - Compare performance across projects"
+      );
+    }
+
+    // Add any agent-specific capabilities as guidelines
+    if (agentConfig.agent?.capabilities?.length) {
+      const capabilityGuidelines = agentConfig.agent.capabilities.map(cap => 
+        `   - Utilize ${cap} when relevant`
+      );
+      guidelines.push(...capabilityGuidelines);
+    }
+
+    return '\n' + guidelines.join('\n');
+  }
+
+  /**
+   * Check if any term from the search terms exists in the key terms
+   */
+  private containsAnyTerm(keyTerms: Set<string>, searchTerms: string[]): boolean {
+    return searchTerms.some(term => 
+      Array.from(keyTerms).some(keyTerm => 
+        keyTerm.includes(term) || term.includes(keyTerm)
+      )
+    );
   }
 
   private formatConversationHistory(messages: Message[], systemPrompt: string) {
@@ -324,7 +431,7 @@ Remember: Only provide information that you can support with the given context. 
 
       // Generate response using the model
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash-001',
+        model: 'gemini-2.0-flash',
         contents: fullConversation,
         config: {
           maxOutputTokens: 2048,

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
-import { Menu, X, Database, Sparkles, Lightbulb, Bot, Wrench, BarChart3 } from "lucide-react";
+import { Menu, X, Database, Sparkles, Lightbulb, Bot, Wrench, BarChart3, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const ActiveLink = (props: { href: string; children: ReactNode; icon?: ReactNode }) => {
@@ -37,6 +37,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/retrieval", label: "Chat", icon: <Sparkles className="w-4 h-4" /> },
     { href: "/agents", label: "Agents", icon: <Bot className="w-4 h-4" /> },
+    { href: "/swarms", label: "Swarms", icon: <Users className="w-4 h-4" /> },
     { href: "/tools", label: "Tools", icon: <Wrench className="w-4 h-4" /> },
     { href: "/embeddings", label: "Embeddings", icon: <Database className="w-4 h-4" /> },
     { href: "/insights", label: "Insights", icon: <Lightbulb className="w-4 h-4" /> },

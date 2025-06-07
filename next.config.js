@@ -1,36 +1,16 @@
-const withBundleAnalyzer = require('@next/bundle-analyzer');
-
-const bundleAnalyzer = withBundleAnalyzer({
-  enabled: process.env.ANALYZE === 'true',
-});
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-  },
-  serverExternalPackages: ['styled-jsx', 'pdf-parse'],
-  output: 'standalone',
-  distDir: '.next',
-  images: {
-    domains: [],
-  },
+  serverExternalPackages: ['@firebase/firestore', 'styled-jsx', 'pdf-parse'],
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Don't resolve 'fs' module on the client to prevent this error
       config.resolve.fallback = {
-        fs: false,
+        ...config.resolve.fallback,
         net: false,
         tls: false,
       };
     }
-
-    // Ensure pdf-parse is bundled correctly for the server
-    if (isServer) {
-      config.externals = [...config.externals, 'canvas', 'pdf-parse'];
-    }
-    
     return config;
   },
 };
 
-module.exports = bundleAnalyzer(nextConfig); 
+module.exports = nextConfig; 

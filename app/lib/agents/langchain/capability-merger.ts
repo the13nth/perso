@@ -21,9 +21,9 @@ export async function mergeAgentCapabilities(
     const defaultCapabilities: MergedCapability[] = [];
     
     parentAgents.forEach(agent => {
-      if (agent.metadata) {
+      if (agent.metadata?.agent) {
         // Add capabilities based on triggers
-        agent.metadata.triggers.forEach(trigger => {
+        agent.metadata.agent.triggers.forEach(trigger => {
           const [name, context] = trigger.split(';').map(s => s.trim());
           defaultCapabilities.push({
             name: `${name} Management`,
@@ -37,7 +37,7 @@ export async function mergeAgentCapabilities(
         // Add capability based on use cases
         defaultCapabilities.push({
           name: 'Information Assistant',
-          description: agent.metadata.useCases,
+          description: agent.metadata.agent.useCases,
           tools: [],
           sourceAgents: [agent.name],
           priority: 2
@@ -45,18 +45,18 @@ export async function mergeAgentCapabilities(
 
         // Add capability based on category
         defaultCapabilities.push({
-          name: agent.metadata.category,
-          description: `Provide ${agent.metadata.category.toLowerCase()} related assistance`,
+          name: agent.metadata.primaryCategory,
+          description: `Provide ${agent.metadata.primaryCategory.toLowerCase()} related assistance`,
           tools: [],
           sourceAgents: [agent.name],
           priority: 1
         });
 
         // Add context-aware capability
-        if (agent.metadata.selectedContextIds && agent.metadata.selectedContextIds.length > 0) {
+        if (agent.metadata.agent.selectedContextIds.length > 0) {
           defaultCapabilities.push({
             name: 'Context Integration',
-            description: `Integrate and analyze information from contexts: ${agent.metadata.selectedContextIds.join(', ')}`,
+            description: `Integrate and analyze information from contexts: ${agent.metadata.agent.selectedContextIds.join(', ')}`,
             tools: [],
             sourceAgents: [agent.name],
             priority: 2
@@ -132,19 +132,19 @@ export async function createSuperAgent(
       // Create default capabilities if merge failed
       mergeResult.mergedCapabilities = parentAgents.flatMap(agent => {
         const capabilities = [];
-        if (agent.metadata) {
+        if (agent.metadata?.agent) {
           capabilities.push({
             name: 'Base Assistant',
-            description: agent.metadata.useCases || agent.description,
+            description: agent.metadata.agent.useCases || agent.description,
             tools: [],
             sourceAgents: [agent.name],
             priority: 1
           });
           
-          if (agent.metadata.category) {
+          if (agent.metadata.primaryCategory) {
             capabilities.push({
-              name: agent.metadata.category,
-              description: `Provide ${agent.metadata.category.toLowerCase()} related assistance`,
+              name: agent.metadata.primaryCategory,
+              description: `Provide ${agent.metadata.primaryCategory.toLowerCase()} related assistance`,
               tools: [],
               sourceAgents: [agent.name],
               priority: 1
@@ -168,22 +168,45 @@ export async function createSuperAgent(
       parentAgents: parentAgents.map(a => a.agentId),
       mergedCapabilities: mergeResult.mergedCapabilities,
       metadata: {
-        agentId,
-        name,
-        description,
-        type: 'super_agent',
-        category: parentAgents[0]?.metadata?.category || 'Assistant',
-        useCases: parentAgents[0]?.metadata?.useCases || '',
-        triggers: parentAgents.flatMap(a => a.metadata?.triggers || []),
-        selectedContextIds: parentAgents.flatMap(a => a.metadata?.selectedContextIds || []),
-        capabilities: mergeResult.mergedCapabilities,
-        isPublic: false,
-        ownerId: parentAgents[0]?.metadata?.ownerId || '',
+        contentType: 'swarm_result' as const,
+        contentId: agentId,
         userId: parentAgents[0]?.metadata?.userId || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        dataAccess: [],
-        tools: []
+        version: 1,
+        status: 'active',
+        chunkIndex: 0,
+        totalChunks: 1,
+        isFirstChunk: true,
+        access: 'personal',
+        primaryCategory: parentAgents[0]?.metadata?.primaryCategory || 'Assistant',
+        secondaryCategories: [],
+        tags: [],
+        title: name,
+        text: description,
+        summary: '',
+        searchableText: `${name} ${description}`,
+        keywords: [],
+        language: 'en',
+        relatedIds: [],
+        references: [],
+        agent: {
+          type: 'agent_config',
+          capabilities: mergeResult.mergedCapabilities,
+          tools: [],
+          useCases: parentAgents[0]?.metadata?.agent.useCases || '',
+          triggers: parentAgents.flatMap(a => a.metadata?.agent.triggers || []),
+          selectedContextIds: parentAgents.flatMap(a => a.metadata?.agent.selectedContextIds || []),
+          isPublic: false,
+          ownerId: parentAgents[0]?.metadata?.userId || '',
+          dataAccess: [],
+          performanceMetrics: {
+            taskCompletionRate: 0,
+            averageResponseTime: 0,
+            userSatisfactionScore: 0,
+            totalTasksCompleted: 0
+          }
+        }
       }
     };
 

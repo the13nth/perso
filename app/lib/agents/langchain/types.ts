@@ -1,29 +1,64 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
+import { ContentMetadata } from "@/app/lib/content/types";
 
 export interface AgentCapability {
   name: string;
   description: string;
-  tools: DynamicStructuredTool[];
+  priority?: number;
+  tools?: string[];
+}
+
+export interface AgentPerformanceMetrics {
+  taskCompletionRate: number;
+  averageResponseTime: number;
+  userSatisfactionScore: number;
+  totalTasksCompleted: number;
+}
+
+export interface AgentSpecificMetadata {
+  type: 'agent_config';
+  capabilities: AgentCapability[];
+  tools: string[];
+  useCases: string;
+  triggers: string[];
+  isPublic: boolean;
+  ownerId: string;
+  dataAccess: string[];
+  selectedContextIds: string[];
+  performanceMetrics: AgentPerformanceMetrics;
 }
 
 export interface AgentMetadata {
-  agentId: string;
+  contentId: string;
+  userId: string;
   name: string;
   description: string;
   category: string;
   useCases: string;
-  triggers: string[];
-  type: string;
-  capabilities: AgentCapability[];
+  selectedContextIds: string[];
   isPublic: boolean;
   ownerId: string;
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
-  dataAccess?: string[];
-  selectedContextIds?: string[];
-  tools?: string[];
-  text?: string;
+  type: string;
+  createdAt: number;
+  updatedAt: number;
+  primaryCategory?: string;
+  agent?: {
+    isPublic: boolean;
+    type: string;
+    capabilities: string[];
+    tools: string[];
+    useCases: string;
+    triggers: string[];
+    ownerId: string;
+    dataAccess: string[];
+    selectedContextIds: string[];
+    performanceMetrics: {
+      taskCompletionRate: number;
+      averageResponseTime: number;
+      userSatisfactionScore: number;
+      totalTasksCompleted: number;
+    };
+  };
 }
 
 export interface AgentConfig {
@@ -55,4 +90,41 @@ export interface AgentMessage {
   role: "user" | "assistant";
   agentId: string;
   capability?: string;
+}
+
+export interface ProcessingStep {
+  id: string;
+  label: string;
+  type: 'input' | 'process' | 'output';
+  status: 'pending' | 'running' | 'completed' | 'error';
+  details: string;
+  timestamp: number;
+  metadata?: {
+    agentId?: string;
+    capability?: string;
+    confidence?: number;
+    processingTime?: number;
+  };
+}
+
+export interface Context {
+  pageContent: string;
+  metadata: {
+    source?: string;
+    score?: number;
+    title?: string;
+  };
+}
+
+export interface AgentResponse {
+  response: string;
+  steps?: ProcessingStep[];
+  error?: string;
+}
+
+export interface TaskResult {
+  success: boolean;
+  response: string;
+  confidence: number;
+  metadata?: Record<string, any>;
 } 

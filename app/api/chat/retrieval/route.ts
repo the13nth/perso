@@ -1,7 +1,7 @@
 // Remove edge runtime for now since we're using Node.js features
 // export const runtime = 'edge';
 
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { Message as VercelChatMessage } from "ai";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
@@ -12,6 +12,8 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 import { Pinecone, Index, ScoredPineconeRecord, RecordMetadata } from "@pinecone-database/pinecone";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { auth } from "@clerk/nextjs/server";
+import { PineconeMetadata, ContentType } from '@/app/lib/content/types';
+import { SwarmRetrievalService } from '@/app/lib/services/SwarmRetrievalService';
 
 const TEMPLATE = `You are Ubumuntu AI, a personal AI assistant. You have access to a knowledge base of documents and information.
 
@@ -55,18 +57,73 @@ function formatDocument(doc: Document) {
   const meta = doc.metadata;
   let formattedContent = "";
 
-  if (meta.type === "note") {
-    formattedContent = `NOTE [${meta.title || 'Untitled'}]:\n${doc.pageContent}`;
-  } else if (meta.type === "activity") {
-    formattedContent = `ACTIVITY LOG [${meta.category || 'Uncategorized'}]:\n${doc.pageContent}`;
-  } else if (meta.type === "document") {
-    formattedContent = `DOCUMENT [${meta.title || 'Untitled'}]:\n${doc.pageContent}`;
-  } else {
-    formattedContent = doc.pageContent;
+  // Extract type-specific metadata if available
+  let typeMetadata: any = {};
+  if (meta.contentType === 'document' && meta.document) {
+    try {
+      typeMetadata = JSON.parse(meta.document);
+    } catch (e) {}
+  } else if (meta.contentType === 'note' && meta.note) {
+    try {
+      typeMetadata = JSON.parse(meta.note);
+    } catch (e) {}
+  } else if (meta.contentType === 'activity' && meta.activity) {
+    try {
+      typeMetadata = JSON.parse(meta.activity);
+    } catch (e) {}
+  } else if (meta.contentType === 'swarm_result' && meta.swarm) {
+    try {
+      typeMetadata = JSON.parse(meta.swarm);
+    } catch (e) {}
   }
 
+  // Format based on content type
+  switch (meta.contentType) {
+    case 'document':
+      formattedContent = `📄 DOCUMENT [${meta.title || 'Untitled'}]\n${doc.pageContent}`;
+      if (typeMetadata.complexity) {
+        formattedContent += `\nComplexity: ${typeMetadata.complexity}`;
+      }
+      break;
+      
+    case 'note':
+      formattedContent = `📝 NOTE [${meta.title || 'Untitled'}]${typeMetadata.isPinned ? ' 📌' : ''}${typeMetadata.isStarred ? ' ⭐' : ''}\n${doc.pageContent}`;
+      if (typeMetadata.context) {
+        formattedContent += `\nContext: ${typeMetadata.context}`;
+      }
+      break;
+      
+    case 'activity':
+      formattedContent = `🏃 ACTIVITY [${typeMetadata.activityType || 'Unknown Type'}]\n${doc.pageContent}`;
+      if (typeMetadata.duration) {
+        formattedContent += `\nDuration: ${typeMetadata.duration}`;
+      }
+      if (typeMetadata.location) {
+        formattedContent += `\nLocation: ${typeMetadata.location}`;
+      }
+      break;
+      
+    case 'swarm_result':
+      formattedContent = `🤖 AI RESULT [${typeMetadata.resultType || 'Unknown Type'}]\n${doc.pageContent}`;
+      if (typeMetadata.confidence) {
+        formattedContent += `\nConfidence: ${(typeMetadata.confidence * 100).toFixed(1)}%`;
+      }
+      break;
+      
+    default:
+      formattedContent = doc.pageContent;
+  }
+
+  // Add metadata
+  formattedContent += '\n---';
+  if (meta.primaryCategory) {
+    formattedContent += `\nCategory: ${meta.primaryCategory}`;
+  }
+  if (meta.createdAt) {
+    formattedContent += `\nCreated: ${new Date(meta.createdAt).toLocaleString()}`;
+  }
   if (meta.score) {
-    formattedContent += `\nRelevance: ${(meta.score * 100).toFixed(2)}%`;
+    formattedContent += `\nRelevance: ${(meta.score * 100).toFixed(1)}%`;
   }
 
   return formattedContent;
@@ -118,8 +175,10 @@ async function searchPinecone(
   console.log('🔍 Searching for:', query);
 
   try {
+    // Filter for user's own content and active status
     const filter = {
-      userId: userId
+      userId: userId,
+      status: 'active'
     };
 
     const results = await pineconeIndex.query({
@@ -138,9 +197,65 @@ async function searchPinecone(
     console.log(`📊 Found ${relevantMatches.length} relevant matches above 0.5 threshold`);
 
     return relevantMatches.map((match: ScoredPineconeRecord<RecordMetadata>) => {
+      const metadata = match.metadata as PineconeMetadata;
+      
+      // Convert string arrays back to arrays
+      const secondaryCategories = metadata.secondaryCategories ? metadata.secondaryCategories.split(',').filter(Boolean) : [];
+      const tags = metadata.tags ? metadata.tags.split(',').filter(Boolean) : [];
+      const keywords = metadata.keywords ? metadata.keywords.split(',').filter(Boolean) : [];
+      const relatedIds = metadata.relatedIds ? metadata.relatedIds.split(',').filter(Boolean) : [];
+      const references = metadata.references ? metadata.references.split(',').filter(Boolean) : [];
+      const sharedWith = metadata.sharedWith ? metadata.sharedWith.split(',').filter(Boolean) : [];
+
       return new Document({
-        pageContent: match.metadata?.text as string || "",
-        metadata: { ...match.metadata, score: match.score }
+        pageContent: metadata.text || "",
+        metadata: {
+          // Core Metadata
+          contentType: metadata.contentType as ContentType,
+          contentId: metadata.contentId,
+          userId: metadata.userId,
+          createdAt: metadata.createdAt,
+          updatedAt: metadata.updatedAt,
+          version: metadata.version,
+          status: metadata.status,
+
+          // Chunking Information
+          chunkIndex: parseInt(metadata.chunkIndex),
+          totalChunks: parseInt(metadata.totalChunks),
+          isFirstChunk: metadata.isFirstChunk === 'true',
+
+          // Access Control
+          access: metadata.access as 'public' | 'personal' | 'shared',
+          sharedWith,
+
+          // Classification & Organization
+          primaryCategory: metadata.primaryCategory,
+          secondaryCategories,
+          tags,
+
+          // Content Fields
+          title: metadata.title,
+          text: metadata.text,
+          summary: metadata.summary,
+
+          // Search Optimization
+          searchableText: metadata.searchableText,
+          keywords,
+          language: metadata.language,
+
+          // Relationships
+          relatedIds,
+          references,
+
+          // Type-specific metadata (as JSON strings)
+          document: metadata.document,
+          note: metadata.note,
+          activity: metadata.activity,
+          swarm: metadata.swarm,
+
+          // Search score
+          score: match.score
+        }
       });
     });
   } catch (error) {
@@ -153,112 +268,52 @@ const formatMessage = (message: VercelChatMessage) => {
   return `${message.role}: ${message.content}`;
 };
 
-export async function POST(request: Request) {
+const retrievalService = new SwarmRetrievalService();
+
+export async function POST(req: NextRequest) {
   try {
+    // Get user session
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    const body = await request.json();
-    const { messages } = body;
+    // Parse request body
+    const { messages, contextType } = await req.json();
+    
+    // Get the last user message
+    const lastUserMessage = messages[messages.length - 1];
+    if (!lastUserMessage || lastUserMessage.role !== "user") {
+      return new Response(JSON.stringify({ error: "Invalid message format" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-    const model = await initializeGeminiModel({
-      maxOutputTokens: 2048,
-      temperature: 0.7,
-    });
-
-    // Create a separate model instance for query clarification with lower temperature for more consistent results
-    const clarificationModel = await initializeGeminiModel({
-      maxOutputTokens: 512,
-      temperature: 0.3,
-    });
-
-    const pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY || "",
-    });
-
-    const embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: process.env.GOOGLE_API_KEY || "",
-      modelName: "embedding-001",
-    });
-
-    const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX || "");
-
-    // Enhanced retriever with query clarification
-    const retrieverRunnable = new RunnableLambda({
-      func: async (input: { question: string; chat_history: string }) => {
-        console.log('🔍 Original Query:', input.question);
-        
-        // Step 1: Clarify the query using LLM
-        const clarifiedQuery = await clarifyQuery(
-          clarificationModel, 
-          input.question, 
-          input.chat_history
-        );
-        
-        // Step 2: Search using the clarified query
-        const documents = await searchPinecone(pineconeIndex, embeddings, clarifiedQuery, userId);
-        console.log('📄 Retrieved Documents:', documents.length);
-        
-        // If clarified query returns no results, try with original query as fallback
-        if (documents.length === 0 && clarifiedQuery !== input.question) {
-          console.log('🔄 No results with clarified query, trying original query as fallback');
-          const fallbackDocuments = await searchPinecone(pineconeIndex, embeddings, input.question, userId);
-          console.log('📄 Fallback Retrieved Documents:', fallbackDocuments.length);
-          return fallbackDocuments;
-        }
-        
-        return documents;
-      }
-    });
-
-    const contextChain = RunnableSequence.from([
-      (input: { question: string; chat_history: string }) => input,
-      retrieverRunnable,
-      (docs: Document[]) => {
-        if (!Array.isArray(docs)) {
-          console.error("Docs is not an array in contextChain:", docs);
-          return "Error: Could not retrieve context properly.";
-        }
-        return docs.map((doc) => formatDocument(doc)).join("\n\n");
-      }
-    ]);
-
-    const chain = RunnableSequence.from([
-      {
-        context: contextChain,
-        history: (input: { question: string; chat_history: string }) => input.chat_history,
-        query: (input: { question: string; chat_history: string }) => input.question,
-      },
-      prompt,
-      model,
-      new StringOutputParser(),
-    ]);
-
-    const response = await chain.invoke({
-      question: messages[messages.length - 1].content,
-      chat_history: messages.slice(0, -1).map(formatMessage).join('\n'),
-    });
-
-    return NextResponse.json({
-      messages: [
-        ...messages,
-        {
-          role: "assistant",
-          content: response.trim()
-        }
-      ]
-    });
-
-  } catch (error) {
-    console.error("Error in chat route:", error);
-    return NextResponse.json(
-      { error: "There was an error processing your request" },
-      { status: 500 }
+    // Process the retrieval request using swarm
+    const result = await retrievalService.processRetrievalRequest(
+      lastUserMessage.content,
+      userId,
+      contextType
     );
+
+    return new Response(JSON.stringify({
+      success: true,
+      result
+    }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error('Error in retrieval route:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : "An unknown error occurred"
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

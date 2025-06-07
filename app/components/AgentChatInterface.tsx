@@ -5,41 +5,79 @@ import React, { useState, useCallback } from "react";
 import type { FormEvent } from "react";
 import { Button } from "./ui/button";
 import { LoaderCircle } from "lucide-react";
-import { LangGraphUI, ProcessStep } from './LangGraphUI';
+import { LangGraphUI } from './LangGraphUI';
 
-// Initial processing steps
-const initialSteps: ProcessStep[] = [
+interface ProcessingStep {
+  id: string;
+  label: string;
+  type: 'input' | 'process' | 'output';
+  status: 'pending' | 'running' | 'completed' | 'error';
+  details: string;
+  timestamp: number;
+  metadata?: {
+    agentId?: string;
+    capability?: string;
+    confidence?: number;
+    processingTime?: number;
+  };
+}
+
+// Update the initial steps to match the new format
+const initialSteps: ProcessingStep[] = [
   {
     id: 'query',
     label: 'Query Analysis',
     type: 'input',
     status: 'pending',
     details: 'Analyzing user query',
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    metadata: {
+      capability: 'query_analysis'
+    }
   },
   {
     id: 'context',
-    label: 'Context Analysis',
+    label: 'Context Retrieval',
     type: 'process',
     status: 'pending',
-    details: 'Analyzing agent contexts',
-    timestamp: Date.now()
+    details: 'Retrieving relevant context',
+    timestamp: Date.now(),
+    metadata: {
+      capability: 'context_retrieval'
+    }
   },
   {
     id: 'capability',
-    label: 'Capability Merger',
+    label: 'Capability Selection',
     type: 'process',
     status: 'pending',
-    details: 'Merging agent capabilities',
-    timestamp: Date.now()
+    details: 'Selecting appropriate capabilities',
+    timestamp: Date.now(),
+    metadata: {
+      capability: 'capability_selection'
+    }
+  },
+  {
+    id: 'execution',
+    label: 'Task Execution',
+    type: 'process',
+    status: 'pending',
+    details: 'Executing task with selected capabilities',
+    timestamp: Date.now(),
+    metadata: {
+      capability: 'task_execution'
+    }
   },
   {
     id: 'response',
     label: 'Response Generation',
     type: 'output',
     status: 'pending',
-    details: 'Generating response',
-    timestamp: Date.now()
+    details: 'Generating final response',
+    timestamp: Date.now(),
+    metadata: {
+      capability: 'response_generation'
+    }
   }
 ];
 
@@ -47,9 +85,9 @@ export function AgentChatInterface(props: {
   endpoint: string;
   placeholder?: string;
 }) {
-  const [processingSteps, setProcessingSteps] = useState<ProcessStep[]>(initialSteps);
+  const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>(initialSteps);
 
-  const updateProcessingStep = (stepId: string, updates: Partial<ProcessStep>) => {
+  const updateProcessingStep = (stepId: string, updates: Partial<ProcessingStep>) => {
     setProcessingSteps(steps => 
       steps.map(step => 
         step.id === stepId 
@@ -103,17 +141,22 @@ export function AgentChatInterface(props: {
           details: 'Agent capabilities merged successfully',
           timestamp: Date.now()
         });
-        updateProcessingStep('response', { 
+        updateProcessingStep('execution', { 
           status: 'running',
-          details: 'Generating response using combined capabilities',
+          details: 'Executing task with selected capabilities',
           timestamp: Date.now()
         });
       }, 4000);
 
       setTimeout(() => {
-        updateProcessingStep('response', { 
+        updateProcessingStep('execution', { 
           status: 'completed',
-          details: 'Response generated using combined agent capabilities',
+          details: 'Task executed successfully',
+          timestamp: Date.now()
+        });
+        updateProcessingStep('response', { 
+          status: 'running',
+          details: 'Generating response using combined capabilities',
           timestamp: Date.now()
         });
       }, 5000);

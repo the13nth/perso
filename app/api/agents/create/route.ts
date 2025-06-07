@@ -79,22 +79,69 @@ export async function POST(req: Request) {
 
     // Generate a unique ID for the agent
     const agentId = uuidv4();
+    const timestamp = new Date().toISOString();
 
     // Store agent with context
     const agentMetadata = await storeAgentWithContext(
       agentId,
       {
+        // Core Metadata
+        contentType: 'agent_config' as const,
+        contentId: agentId,
+        userId,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        version: 1,
+        status: 'active' as const,
+
+        // Chunking Information (not applicable for agents)
+        chunkIndex: 0,
+        totalChunks: 1,
+        isFirstChunk: true,
+
+        // Access Control
+        access: body.isPublic ? 'public' : 'personal',
+        sharedWith: [],
+
+        // Classification & Organization
+        primaryCategory: body.category,
+        secondaryCategories: body.selectedCategories,
+        tags: body.triggers?.split(',').map(t => t.trim()).filter(Boolean) || [],
+
+        // Content Fields
         name: body.name,
         description: body.description,
-        category: body.category,
-        useCases: body.useCases,
-        triggers: body.triggers?.split(',').map(t => t.trim()).filter(Boolean) || [],
-        isPublic: body.isPublic,
-        capabilities: [],
-        tools: [],
+        title: body.name,
         text: body.description,
-        userId,
-        type: 'agent_config'
+        summary: body.useCases,
+
+        // Search Optimization
+        searchableText: `${body.name} ${body.description} ${body.useCases}`,
+        keywords: [...(body.triggers?.split(',').map(t => t.trim()).filter(Boolean) || []), body.category],
+        language: 'en',
+
+        // Relationships
+        relatedIds: [],
+        references: [],
+
+        // Agent-specific metadata
+        agent: {
+          type: 'agent_config',
+          capabilities: [],
+          tools: [],
+          useCases: body.useCases,
+          triggers: body.triggers?.split(',').map(t => t.trim()).filter(Boolean) || [],
+          isPublic: body.isPublic,
+          ownerId: userId,
+          dataAccess: [],
+          selectedContextIds: contextDocuments.map(doc => doc.metadata.source),
+          performanceMetrics: {
+            taskCompletionRate: 0,
+            averageResponseTime: 0,
+            userSatisfactionScore: 0,
+            totalTasksCompleted: 0
+          }
+        }
       },
       contextDocuments,
       body.selectedCategories,
@@ -103,10 +150,10 @@ export async function POST(req: Request) {
     
     return NextResponse.json({
       success: true,
-      agentId: agentMetadata.agentId,
+      agentId: agentMetadata.contentId,
       name: agentMetadata.name,
       description: agentMetadata.description,
-      category: agentMetadata.category,
+      category: agentMetadata.primaryCategory,
       isPublic: agentMetadata.isPublic
     });
   } catch (error) {

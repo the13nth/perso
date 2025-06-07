@@ -31,41 +31,54 @@ async function withTimeout<T>(
 }
 
 // Updated question generation template that uses actual user data content
-const DATA_DRIVEN_QUESTION_TEMPLATE = `You are a helpful assistant that generates 3 specific, data-driven example questions for an AI agent based on the user's actual data content.
+const DATA_DRIVEN_QUESTION_TEMPLATE = `You are helping generate relevant questions that a user can ask an AI agent about their data.
 
-Agent: {agentName}
-Description: {agentDescription}
-Category: {agentCategory}
+AGENT CONTEXT:
+Name: {agentName}
+Purpose: {agentDescription}
+Domain: {agentCategory}
 Data Access: {selectedContextIds}
 
-ACTUAL USER DATA SAMPLES:
+USER'S DATA:
 {actualDataSamples}
 
-USER'S DATA CATEGORIES:
-{userCategories}
+Data Categories: {userCategories}
+Content Types: {userContentTypes}
 
-USER'S CONTENT TYPES:
-{userContentTypes}
+Based on the agent's purpose and the user's actual data, generate 3 engaging questions that the user could ask this AI agent. The questions should be tailored based on the available content types:
 
-Generate 3 questions that:
-1. Reference specific content, patterns, or insights from the actual user data samples above
-2. Are relevant to the agent's purpose and the user's actual data
-3. Would require analysis of the user's real data to answer
-4. Vary in type: analytical (patterns/trends), actionable (recommendations), and exploratory (connections/insights)
+For Running Context (activity logs, real-time data):
+- Focus on patterns, trends, and real-time insights
+- Reference specific metrics and activities
+- Ask about performance improvements and recommendations
+Example: "What patterns do you see in my daily [activity] over the past month?"
 
-Make the questions specific to what you can see in their actual data. For example:
-- If you see fitness data, ask about specific activities or patterns you observe
-- If you see work data, ask about projects, productivity patterns, or collaboration insights
-- If you see learning data, ask about study methods, comprehension patterns, or subject performance
+For Document Context (notes, knowledge base):
+- Focus on content analysis and knowledge extraction
+- Reference specific topics or themes
+- Ask about insights and connections between documents
+Example: "Can you analyze my notes about [topic] and identify key concepts?"
 
-Return as JSON:
-{{
-  "questions": [
-    "Analytical question based on patterns in the actual data samples...",
-    "Actionable question for recommendations based on real user content...",
-    "Exploratory question about connections and insights from their data..."
-  ]
-}}`;
+For Mixed Context (both running and document data):
+- Combine insights from both types of data
+- Look for correlations between activities and documented knowledge
+- Ask about comprehensive patterns and relationships
+Example: "How do my documented goals align with my actual activities?"
+
+Generate questions that:
+1. Help users understand insights from their specific data types
+2. Explore patterns and trends appropriate to the context
+3. Get personalized recommendations based on available data
+
+If there isn't enough data, respond with:
+NOT_ENOUGH_DATA
+
+Otherwise, format your response as a simple numbered list:
+1. [First Question]
+2. [Second Question]
+3. [Third Question]
+
+IMPORTANT: Use ONLY the numbered list format above, no other text or formatting.`;
 
 type RouteContext = {
   params: Promise<{
@@ -89,86 +102,186 @@ async function fetchUserDataSamples(selectedContextIds: string[], userId: string
   categories: string[];
   contentTypes: string[];
 }> {
+  console.log('🚀 Starting fetchUserDataSamples with:', { selectedContextIds, userId });
+  
   if (isTimeoutApproaching(requestStartTime)) {
+    console.log('⚠️ Timeout approaching, returning early');
     return { sampleData: [], categories: [], contentTypes: [] };
   }
 
   try {
+    console.log('📌 Initializing Pinecone index...');
     const index = pinecone.index(process.env.PINECONE_INDEX || "");
     
-    // Create a query to get diverse samples from user's data
-    const queryEmbedding = await embeddings.embedQuery("data content sample");
+    console.log('🔍 Creating query embedding...');
+    const queryEmbedding = await embeddings.embedQuery("financial data content sample");
+    console.log('✅ Query embedding created');
     
-    // Query for user's data across their selected contexts
-    const response = await withTimeout(
-      index.query({
-        vector: queryEmbedding,
-        filter: {
-          $and: [
-            { userId },
+    // Simplified and more inclusive filter
+    const contextFilter = {
+      $and: [
+        { userId: { $eq: userId } },
+        {
+          $or: [
+            // Match by type and category
+            {
+              $and: [
+                {
+                  type: {
+                    $in: [
+                      "comprehensive_activity",
+                      "activity_log",
+                      "running_context",
+                      "document",
+                      "note",
+                      "knowledge_base",
+                      "document_context",
+                      "financial_data",
+                      "transaction",
+                      "financial_record"
+                    ]
+                  }
+                },
+                {
+                  $or: [
+                    // Direct category matches
+                    { category: { $in: selectedContextIds } },
+                    { primaryCategory: { $in: selectedContextIds } },
+                    { secondaryCategories: { $in: selectedContextIds } },
+                    // Context ID matches
+                    { contextId: { $in: selectedContextIds } },
+                    // Activity matches
+                    { activity: { $in: selectedContextIds } },
+                    { activityType: { $in: selectedContextIds } },
+                    // Financial specific matches
+                    { transactionType: { $in: selectedContextIds } },
+                    { financialCategory: { $in: selectedContextIds } }
+                  ]
+                }
+              ]
+            },
+            // Match by context ID
+            { contextId: { $in: selectedContextIds } },
+            // Match by any financial indicator
             {
               $or: [
-                { category: { $in: selectedContextIds } },
-                { type: { $in: selectedContextIds } },
-                { id: { $in: selectedContextIds.map(id => `${userId}_${id}`) } }
+                { isFinancial: true },
+                { domain: "finance" },
+                { category: "finance" },
+                { type: "financial_data" }
               ]
             }
           ]
-        },
-        topK: 15, // Get diverse samples
-        includeMetadata: true,
-        includeValues: false
-      }),
-      10000, // 10 second timeout
-      null
-    );
+        }
+      ]
+    };
 
-    if (!response || !response.matches?.length) {
-      return { sampleData: [], categories: [], contentTypes: [] };
-    }
+    console.log('🔎 Querying Pinecone with filter:', JSON.stringify(contextFilter, null, 2));
 
-    // Extract actual data content, categories, and types
-    const sampleData: string[] = [];
+    // Increase topK for better coverage
+    const queryResponse = await index.query({
+      vector: queryEmbedding,
+      filter: contextFilter,
+      topK: 20,
+      includeMetadata: true
+    });
+    
+    console.log('📦 Query response:', JSON.stringify(queryResponse, null, 2));
+
+    // Extract unique categories and content types
     const categories = new Set<string>();
     const contentTypes = new Set<string>();
+    const samples: string[] = [];
 
-    response.matches.forEach(match => {
-      const metadata = match.metadata;
-      if (!metadata) return;
+    console.log('🔄 Processing query results...');
+    if (queryResponse.matches && queryResponse.matches.length > 0) {
+      queryResponse.matches.forEach(match => {
+        console.log('📄 Processing match:', match.id);
+        if (match.metadata) {
+          // Add categories from all possible fields
+          const possibleCategoryFields = [
+            'categories',
+            'category',
+            'activityCategory',
+            'primaryCategory',
+            'secondaryCategories',
+            'contextCategories',
+            'financialCategory',
+            'transactionCategory'
+          ];
 
-      // Extract content sample
-      if (metadata.text || metadata.content) {
-        const content = String(metadata.text || metadata.content);
-        if (content.length > 20) { // Only meaningful content
-          sampleData.push(content.substring(0, 200)); // First 200 chars
+          possibleCategoryFields.forEach(field => {
+            const value = match.metadata![field];
+            if (Array.isArray(value)) {
+              value.forEach(cat => categories.add(cat));
+            } else if (typeof value === 'string') {
+              categories.add(value);
+            }
+          });
+          
+          // Add content types from all possible fields
+          const possibleTypeFields = [
+            'type',
+            'activityType',
+            'contentType',
+            'documentType',
+            'contextType',
+            'transactionType',
+            'financialType'
+          ];
+
+          possibleTypeFields.forEach(field => {
+            const value = match.metadata![field];
+            if (typeof value === 'string') {
+              contentTypes.add(value);
+            }
+          });
+          
+          // Add text sample - handle all possible content fields
+          const possibleContentFields = [
+            'text',
+            'content',
+            'searchableText',
+            'description',
+            'summary',
+            'activityData',
+            'documentContent',
+            'transactionDetails',
+            'financialData'
+          ];
+
+          for (const field of possibleContentFields) {
+            const content = match.metadata![field];
+            if (typeof content === 'string' && content.trim()) {
+              samples.push(content);
+              break; // Take the first non-empty content field
+            }
+          }
         }
-      }
+      });
+    }
 
-      // Extract categories
-      if (metadata.category) {
-        categories.add(String(metadata.category));
-      }
-      if (metadata.categories && Array.isArray(metadata.categories)) {
-        metadata.categories.forEach(cat => categories.add(String(cat)));
-      }
+    // If no data found, add finance-specific categories
+    if (categories.size === 0) {
+      categories.add('finances');
+      contentTypes.add('financial_data');
+    }
 
-      // Extract content types
-      if (metadata.type) {
-        contentTypes.add(String(metadata.type));
-      }
-      if (metadata.documentType) {
-        contentTypes.add(String(metadata.documentType));
-      }
+    console.log('📊 Results summary:', {
+      samplesFound: samples.length,
+      uniqueCategories: Array.from(categories),
+      uniqueContentTypes: Array.from(contentTypes)
     });
 
     return {
-      sampleData: sampleData.slice(0, 10), // Limit to 10 samples
-      categories: Array.from(categories).slice(0, 5),
-      contentTypes: Array.from(contentTypes).slice(0, 5)
+      sampleData: samples,
+      categories: Array.from(categories),
+      contentTypes: Array.from(contentTypes)
     };
+
   } catch (error) {
-    console.log('⚠️ Error fetching user data samples:', error);
-    return { sampleData: [], categories: [], contentTypes: [] };
+    console.error('❌ Error in fetchUserDataSamples:', error);
+    throw error;
   }
 }
 
@@ -177,244 +290,186 @@ function generateDataDrivenFallbackQuestions(
   agentConfig: Record<string, unknown>, 
   userDataSamples: { sampleData: string[]; categories: string[]; contentTypes: string[] }
 ): string[] {
-  const category = (agentConfig.category as string)?.toLowerCase() || '';
-  const contextIds = (agentConfig.selectedContextIds as string[]) || [];
-  const { sampleData, categories, contentTypes } = userDataSamples;
-  
-  // If we have actual user data, use it to generate specific questions
-  if (sampleData.length > 0 || categories.length > 0) {
-    const dataMention = categories.length > 0 ? categories.join(' and ') : 'your data';
-    const typeMention = contentTypes.length > 0 ? contentTypes.join(' and ') : 'content';
+  const agentCategory = (agentConfig.category as string || '').toLowerCase();
+  const agentDescription = (agentConfig.description as string || '').toLowerCase();
+
+  // Special handling for financial agents
+  if (agentCategory.includes('data analysis') && 
+      (agentDescription.includes('financial') || agentDescription.includes('finance'))) {
     
+    if (!userDataSamples.sampleData.length) {
+      // No data yet - focus on financial setup
+      return [
+        "What types of financial data should I upload for you to analyze?",
+        "Can you explain how you can help me track and analyze my financial activities?",
+        "What financial insights can you provide once I share my data with you?"
+      ];
+    }
+
+    // Has some financial data
     return [
-      `What patterns and insights can you identify in my ${dataMention} based on the content you have access to?`,
-      `How can you help me optimize my activities based on the ${typeMention} in my knowledge base?`,
-      `What connections and trends do you see across my ${dataMention} and how can I use these insights?`
+      "Can you analyze my spending patterns and identify areas for potential savings?",
+      "What trends do you notice in my income and expenses over time?",
+      "Based on my financial data, what recommendations do you have for improving my financial health?"
     ];
   }
-  
-  // Fallback to category-based questions if no user data
-  if (category.includes('physical') || category.includes('fitness')) {
+
+  // Default fallback for non-financial agents
+  if (!userDataSamples.sampleData.length) {
     return [
-      `What patterns can you identify in my activity data?`,
-      `How can you help optimize my physical performance based on available metrics?`,
-      `What correlations exist between my performance and other factors?`
+      `How can you help me get started with ${agentCategory}?`,
+      `What types of data would be most valuable for you to analyze?`,
+      `What are your main capabilities in ${agentDescription}?`
     ];
   }
-  
-  if (category.includes('work') || category.includes('productivity')) {
-    return [
-      `What insights can you provide about my work productivity patterns?`,
-      `How can you help improve my focus and task completion?`,
-      `What trends do you see in my professional data?`
-    ];
-  }
-  
-  if (category.includes('learning') || category.includes('study')) {
-    return [
-      `What learning patterns can you identify in my study data?`,
-      `How can you help optimize my study sessions based on available data?`,
-      `What subjects or topics show the best learning outcomes?`
-    ];
-  }
-  
-  // Generic fallback
+
+  const dataTypes = userDataSamples.categories.length > 0 
+    ? userDataSamples.categories.join(' and ')
+    : 'available data';
+
   return [
-    `What patterns and insights can you identify in my ${contextIds.join(' and ') || 'available'} data?`,
-    `How can you help me optimize my activities based on the information you have access to?`,
-    `What connections and trends do you see across my ${category || 'personal'} information?`
+    `Can you analyze my recent ${dataTypes} and provide insights?`,
+    `What patterns or trends do you notice in my ${dataTypes}?`,
+    `Based on my ${dataTypes}, what recommendations do you have for improvement?`
   ];
 }
 
 export async function GET(_request: NextRequest, context: RouteContext) {
-  const startTime = Date.now(); // Set start time per request
+  const requestStartTime = Date.now();
+  const session = await auth();
+  const userId = session?.userId;
   
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { agentId } = await context.params;
+    console.log('✅ Agent config retrieved:', agentId);
+
+    // Get agent configuration
+    const agentConfig = await getAgentConfig(agentId);
     
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    console.log('🚀 Starting optimized question generation for agent:', agentId);
-    console.log('⏱️ Timeout buffer: 30 seconds');
-
-    // Quick agent config retrieval
-    const agentConfig = await withTimeout(
-      getAgentConfig(agentId),
-      15000, // 15 second timeout (reduced from 30)
-      null
+    // Fetch user data samples
+    console.log('📊 Fetching user data samples...');
+    const userDataSamples = await fetchUserDataSamples(
+      agentConfig.selectedContextIds || [],
+      userId,
+      requestStartTime
     );
     
-    if (!agentConfig) {
-      return NextResponse.json(
-        { error: "Agent not found or request timed out" },
-        { status: 404 }
-      );
-    }
-
-    console.log('✅ Agent config retrieved:', agentConfig.name);
-
-    // Fetch actual user data samples for question generation
-    console.log('📊 Fetching user data samples...');
-    const userDataSamples = await fetchUserDataSamples(agentConfig.selectedContextIds || [], userId, startTime);
     console.log('📊 Data samples retrieved:', {
       sampleCount: userDataSamples.sampleData.length,
       categoriesCount: userDataSamples.categories.length,
       contentTypesCount: userDataSamples.contentTypes.length
     });
 
-    // Check if we need to use fast fallback due to time constraints
-    if (isTimeoutApproaching(startTime)) {
-      console.log('⚡ Using fast fallback due to time constraints');
-      const fallbackQuestions = generateDataDrivenFallbackQuestions(agentConfig, userDataSamples);
-      
-      return NextResponse.json({
-        success: true,
-        questions: fallbackQuestions,
-        agentId,
-        agentName: agentConfig.name,
-        fallback: true,
-        fastMode: true,
-        timeElapsed: Date.now() - startTime,
-        dataInfo: {
-          sampleDataCount: userDataSamples.sampleData.length,
-          categories: userDataSamples.categories,
-          contentTypes: userDataSamples.contentTypes
-        }
-      });
-    }
-
-    // Try LLM generation with timeout
-    try {
-      console.log('🤖 Attempting LLM generation...');
-      
-      const questionModel = await withTimeout(
-        initializeGeminiModel({
-          maxOutputTokens: 512, // Reduced for faster generation
-          temperature: 0.7, // Balanced creativity/speed
-        }),
-        8000, // 8 second timeout for model init (reduced from 30)
-        null
-      );
-
-      if (!questionModel) {
-        throw new Error('Model initialization timed out');
-      }
-
-      const prompt = PromptTemplate.fromTemplate(DATA_DRIVEN_QUESTION_TEMPLATE);
-      const chain = prompt.pipe(questionModel).pipe(new StringOutputParser());
-
-      const sampleFields = userDataSamples.categories.slice(0, 3).join(', ') || 'general content';
-
-      const response = await withTimeout(
-        chain.invoke({
-          agentName: agentConfig.name || "AI Assistant",
-          agentDescription: agentConfig.description || "A helpful AI assistant",
-          agentCategory: agentConfig.category || "General",
-          selectedContextIds: agentConfig.selectedContextIds?.join(', ') || 'general data',
-          actualDataSamples: userDataSamples.sampleData.join('\n'),
-          userCategories: userDataSamples.categories.join('\n'),
-          userContentTypes: userDataSamples.contentTypes.join('\n'),
-          sampleFields
-        }),
-        12000, // 12 second timeout for generation (reduced from 30)
-        null
-      );
-
-      if (!response) {
-        throw new Error('LLM generation timed out');
-      }
-
-      console.log('🔍 Raw LLM response:', response);
-
-      // Quick JSON parsing
-      const jsonMatch = response.trim().match(/\{[\s\S]*\}/);
-      console.log('🔍 JSON match found:', !!jsonMatch);
-      
-      if (jsonMatch) {
-        console.log('🔍 Matched JSON:', jsonMatch[0]);
-        try {
-          const questionsData = JSON.parse(jsonMatch[0]);
-          console.log('🔍 Parsed data:', questionsData);
-          
-          if (questionsData.questions && Array.isArray(questionsData.questions)) {
-            const validQuestions = questionsData.questions
-              .filter((q: string) => q && typeof q === 'string' && q.trim().length > 0)
-              .slice(0, 3);
-
-            console.log('🔍 Valid questions found:', validQuestions.length, validQuestions);
-
-            if (validQuestions.length > 0) {
-              console.log('✅ LLM generation successful');
-              return NextResponse.json({
-                success: true,
-                questions: validQuestions,
-                agentId,
-                agentName: agentConfig.name,
-                fallback: false,
-                timeElapsed: Date.now() - startTime,
-                dataInfo: {
-                  sampleDataCount: userDataSamples.sampleData.length,
-                  categories: userDataSamples.categories,
-                  contentTypes: userDataSamples.contentTypes
-                }
-              });
-            }
-          } else {
-            console.log('❌ Questions field missing or not array:', questionsData);
-          }
-        } catch (parseError) {
-          console.log('❌ JSON parse error:', parseError);
-        }
-      } else {
-        console.log('❌ No JSON found in response');
-      }
-
-      throw new Error('Invalid LLM response format');
-
-    } catch (llmError) {
-      console.warn('⚠️ LLM generation failed, using smart fallback:', llmError);
-      
-      // Smart fallback with category-aware questions
-      const fallbackQuestions = generateDataDrivenFallbackQuestions(agentConfig, userDataSamples);
-      
-      return NextResponse.json({
-        success: true,
-        questions: fallbackQuestions,
-        agentId,
-        agentName: agentConfig.name,
-        fallback: true,
-        reason: 'LLM generation failed',
-        timeElapsed: Date.now() - startTime,
-        dataInfo: {
-          sampleDataCount: userDataSamples.sampleData.length,
-          categories: userDataSamples.categories,
-          contentTypes: userDataSamples.contentTypes
-        }
-      });
-    }
-
-  } catch (error) {
-    console.error("❌ Critical error in question generation:", error);
+    // Initialize the model
+    const model = await initializeGeminiModel({
+      maxOutputTokens: 1024,
+      temperature: 0.7
+    });
     
-    // Final emergency fallback
+    // Create and format the prompt
+    const prompt = new PromptTemplate({
+      template: DATA_DRIVEN_QUESTION_TEMPLATE,
+      inputVariables: [
+        "agentName",
+        "agentDescription",
+        "agentCategory",
+        "selectedContextIds",
+        "actualDataSamples",
+        "userCategories",
+        "userContentTypes"
+      ],
+    });
+
+    // Maximum retries for LLM generation
+    const MAX_RETRIES = 3;
+    let attempt = 0;
+    let questions: string[] = [];
+    let usedFallback = false;
+
+    while (attempt < MAX_RETRIES) {
+      attempt++;
+      console.log(`🤖 Attempting LLM generation... (Attempt ${attempt}/${MAX_RETRIES})`);
+
+      try {
+        const chain = prompt
+          .pipe(model)
+          .pipe(new StringOutputParser());
+
+        const response = await withTimeout(
+          chain.invoke({
+            agentName: agentConfig.name || "AI Fitness Coach",
+            agentDescription: agentConfig.description || "Fitness analysis and recommendations",
+            agentCategory: agentConfig.category || "fitness",
+            selectedContextIds: agentConfig.selectedContextIds?.join(", ") || "",
+            actualDataSamples: userDataSamples.sampleData.join("\n\n"),
+            userCategories: userDataSamples.categories.join(", "),
+            userContentTypes: userDataSamples.contentTypes.join(", ")
+          }),
+          NETLIFY_TIMEOUT_MS - (Date.now() - requestStartTime),
+          ""
+        );
+
+        if (response.trim() === "NOT_ENOUGH_DATA") {
+          return NextResponse.json({
+            success: false,
+            error: "insufficient_data",
+            message: "Not enough activity data available. Please log some activities first to get personalized insights."
+          });
+        }
+
+        // Parse the numbered list response
+        questions = response
+          .split("\n")
+          .filter(line => line.trim().match(/^\d+\./))
+          .map(line => line.replace(/^\d+\.\s*/, "").trim());
+
+        if (questions.length > 0) {
+          break; // Success! Exit the retry loop
+        }
+
+        console.log("⚠️ No valid questions generated, retrying...");
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
+      } catch (error) {
+        console.error(`⚠️ LLM generation attempt ${attempt} failed:`, error);
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
+      }
+    }
+
+    // If all attempts failed, use fallback questions
+    if (questions.length === 0) {
+      console.log("❌ All LLM generation attempts failed, using smart fallback");
+      questions = generateDataDrivenFallbackQuestions(agentConfig, userDataSamples);
+      usedFallback = true;
+    }
+
     return NextResponse.json({
       success: true,
-      questions: [
-        "What insights can you provide based on your available data?",
-        "How can you help me understand patterns in my information?",
-        "What would you recommend I upload for better analysis?"
-      ],
-      agentId: (await context.params).agentId,
-      fallback: true,
-      emergency: true,
-      error: error instanceof Error ? error.message : "Unknown error",
-      timeElapsed: Date.now() - startTime
+      questions,
+      agentId,
+      agentName: agentConfig.name,
+      fallback: usedFallback,
+      attempts: attempt,
+      timeElapsed: Date.now() - requestStartTime,
+      dataInfo: {
+        sampleDataCount: userDataSamples.sampleData.length,
+        categories: userDataSamples.categories,
+        contentTypes: userDataSamples.contentTypes
+      }
     });
+  } catch (error) {
+    console.error("Error generating questions:", error);
+    return NextResponse.json({
+      success: false,
+      error: "Failed to generate questions",
+      message: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 });
   }
 } 
