@@ -169,13 +169,4 @@ export class ContentProcessor {
     }
   }
 
-  /**
-   * Split content into chunks
-   */
-  private async splitContent(content: string): Promise<string[]> {
-    // Simple splitting by paragraphs for now
-    return content
-      .split('\n\n')
-      .filter(chunk => chunk.trim().length > 0);
-  }
 } 

@@ -1,6 +1,7 @@
 import { ContentIngestion } from '../content/ingestion/ContentIngestion';
 import { ProcessedContent, ContentType } from '../content/types';
 import { DocumentInput } from './types';
+import { NoteIngestion } from '../content/ingestion/NoteIngestion';
 
 function convertToProcessedContent(input: DocumentInput): ProcessedContent {
   const now = new Date().toISOString();
@@ -74,5 +75,20 @@ export async function processDocument(
   } catch (error) {
     console.error('Error processing document:', error);
     throw error;
+  }
+}
+
+/**
+ * Process document asynchronously (for large documents)
+ */
+export async function processDocumentAsync(
+  documentInput: DocumentInput,
+  processor: NoteIngestion
+): Promise<void> {
+  try {
+    await processor.processContent(documentInput);
+    console.log(`Background processing completed for document: ${documentInput.userId}`);
+  } catch (error) {
+    console.error(`Background processing failed for document`, error);
   }
 } 

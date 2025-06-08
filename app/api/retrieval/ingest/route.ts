@@ -64,18 +64,3 @@ export async function POST(req: NextRequest) {
     });
   }
 }
-
-/**
- * Process document asynchronously (for large documents)
- */
-export async function processDocumentAsync(
-  documentInput: DocumentInput,
-  processor: NoteIngestion
-): Promise<void> {
-  try {
-    await processor.processContent(documentInput);
-    console.log(`Background processing completed for document: ${documentInput.userId}`);
-  } catch (error) {
-    console.error(`Background processing failed for document`, error);
-  }
-}

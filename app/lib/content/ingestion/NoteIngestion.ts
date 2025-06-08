@@ -2,6 +2,7 @@ import { MarkdownTextSplitter } from "langchain/text_splitter";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { ContentIngestion, ValidationResult, StorageResult, ContentReference } from './ContentIngestion';
 import { ProcessedContent, ContentChunk, EmbeddedChunk, ContentMetadata, NoteInput, PineconeMetadata } from '../types';
+import { DocumentInput } from '@/app/lib/retrieval/types';
 import { sanitizeText } from '../utils/textUtils';
 import { detectLanguage, extractTopics } from '../utils/contentAnalysis';
 import { Pinecone } from "@pinecone-database/pinecone";
@@ -19,6 +20,41 @@ export class NoteIngestion implements ContentIngestion {
     this.pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY || "",
     });
+  }
+
+  async processContent(input: DocumentInput): Promise<void> {
+    try {
+      // Convert document input to note input format
+      const noteInput: NoteInput = {
+        content: input.content,
+        userId: input.userId,
+        title: input.metadata?.title || `Document - ${new Date().toLocaleDateString()}`,
+        categories: input.metadata?.categories || ['document'],
+        tags: input.metadata?.tags || [],
+        access: 'personal',
+        isPinned: false,
+        isStarred: false,
+        format: 'text',
+        type: 'note'
+      };
+
+      // Process the content through our pipeline
+      const processed = await this.preprocess(noteInput);
+      const validationResult = await this.validate(processed);
+      
+      if (!validationResult.isValid) {
+        throw new Error(`Content validation failed: ${validationResult.errors?.join(', ') || 'Unknown validation error'}`);
+      }
+
+      const chunks = await this.chunk(processed);
+      const embeddedChunks = await this.embed(chunks);
+      await this.store(embeddedChunks);
+
+      console.log(`Successfully processed document: ${input.id}`);
+    } catch (error) {
+      console.error('Error processing document content:', error);
+      throw error;
+    }
   }
 
   async preprocess(note: NoteInput): Promise<ProcessedContent> {

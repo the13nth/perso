@@ -256,11 +256,14 @@ export async function storeAgentWithContext(
 export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
   if (!index) await initIndexes();
 
-  console.log('Fetching agent with ID:', `agent_${agentId}`);
-  const response = await index.fetch([`agent_${agentId}`]);
+  // Only add agent_ prefix if it doesn't already exist
+  const fullAgentId = agentId.startsWith('agent_') ? agentId : `agent_${agentId}`;
+  
+  console.log('Fetching agent with ID:', fullAgentId);
+  const response = await index.fetch([fullAgentId]);
   console.log('Individual agent fetch response:', JSON.stringify(response.records, null, 2));
 
-  const agent = response.records[`agent_${agentId}`];
+  const agent = response.records[fullAgentId];
   if (!agent) {
     throw new Error('Agent not found');
   }

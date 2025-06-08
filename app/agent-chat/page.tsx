@@ -29,54 +29,57 @@ function ExampleQuestions({
       setLoading(true);
     }
 
-    // Always show countdown when generating
+    // Start countdown
     setShowCountdown(true);
     setCountdown(25);
-
-    // Start countdown timer
-    let timeLeft = 25;
+    
     const countdownInterval = setInterval(() => {
-      timeLeft -= 1;
-      setCountdown(timeLeft);
-      
-      if (timeLeft <= 0) {
-        clearInterval(countdownInterval);
-      }
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     try {
-      // Create AbortController for 25-second timeout to match server
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-      }, 25000); // 25 seconds to match server timeout
+        clearInterval(countdownInterval);
+        setShowCountdown(false);
+        toast.error("Question generation timed out");
+        setQuestions([
+          "What is your main purpose?",
+          "What specific tasks can you help with?",
+          "Can you show me an example of your capabilities?"
+        ]);
+        setLoading(false);
+        setRefreshing(false);
+      }, 25000);
 
       const response = await fetch(`/api/agents/${agentId}/questions`, {
         signal: controller.signal
       });
       
-      // Clear timeout if request completes
       clearTimeout(timeoutId);
-      
-      const data = await response.json();
-
-      // Clear countdown when response is received
       clearInterval(countdownInterval);
       setShowCountdown(false);
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
       if (data.success) {
         setQuestions(data.questions);
-        
         if (data.fallback) {
-          toast.info("Using fallback questions", {
-            description: "Generated custom questions based on agent info"
-          });
+          toast.info("Using fallback questions");
         }
-        
         if (data.clarified) {
-          toast.success("Smart questions generated", {
-            description: "Questions tailored to your agent's specific data access"
-          });
+          toast.success("Smart questions generated");
         }
       } else {
         throw new Error(data.error || "Failed to generate questions");
@@ -84,24 +87,15 @@ function ExampleQuestions({
     } catch (error) {
       console.error("Error generating questions:", error);
       
-      // Clear countdown on error
-      clearInterval(countdownInterval);
-      setShowCountdown(false);
-      
-      if (error instanceof Error && error.name === 'AbortError') {
-        toast.error("Question generation timed out", {
-          description: "Taking longer than expected. Using fallback questions."
-        });
-      } else {
+      // Only show error if not already handled by timeout
+      if (!(error instanceof Error && error.name === 'AbortError')) {
         toast.error("Failed to generate questions");
+        setQuestions([
+          "What is your main purpose?",
+          "What specific tasks can you help with?",
+          "Can you show me an example of your capabilities?"
+        ]);
       }
-      
-      // Fallback to basic questions
-      setQuestions([
-        "What is your main purpose?",
-        "What specific tasks can you help with?",
-        "Can you show me an example of your capabilities?"
-      ]);
     } finally {
       setLoading(false);
       setRefreshing(false);

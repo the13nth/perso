@@ -1,9 +1,8 @@
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { ContentIngestion, ValidationResult, StorageResult, ContentReference } from './ContentIngestion';
 import { ProcessedContent, ContentChunk, EmbeddedChunk, ContentMetadata, DocumentInput, PineconeMetadata } from '../types';
 import { sanitizeText } from '../utils/textUtils';
-import { detectLanguage, assessComplexity, extractTopics } from '../utils/contentAnalysis';
+import { detectLanguage, extractTopics } from '../utils/contentAnalysis';
 import { Pinecone } from "@pinecone-database/pinecone";
 import { MarkdownTextSplitter } from "langchain/text_splitter";
 
@@ -489,46 +488,14 @@ export class DocumentIngestion implements ContentIngestion {
     });
   }
 
-  // Helper methods
-  private extractTitle(text: string): string {
-    // Extract title from first few lines
-    const lines = text.split('\n');
-    for (const line of lines.slice(0, 5)) {
-      const trimmed = line.trim();
-      if (trimmed && trimmed.length > 10 && trimmed.length < 200) {
-        return trimmed;
-      }
-    }
-    return '';
-  }
 
-  private generateSummary(text: string): string {
-    // Implement summary generation logic
-    return text.slice(0, 200) + '...';
-  }
 
-  private countPages(text: string): number {
-    // Rough estimate based on word count
-    const words = text.split(/\s+/).length;
-    return Math.ceil(words / 500);
-  }
 
   private detectImages(text: string): boolean {
     return /!\[.*?\]\(.*?\)/.test(text);
   }
 
-  private detectTables(text: string): number {
-    // Count markdown and HTML tables
-    const markdownTables = (text.match(/\|.*\|/g) || []).length;
-    const htmlTables = (text.match(/<table/g) || []).length;
-    return Math.max(Math.floor(markdownTables / 3), htmlTables);
-  }
 
-  private calculateReadingTime(text: string): number {
-    // Average reading speed of 200 words per minute
-    const words = text.split(/\s+/).length;
-    return Math.ceil(words / 200);
-  }
 
   private analyzeComplexity(text: string): 'basic' | 'intermediate' | 'advanced' {
     // Simple complexity analysis based on length and structure

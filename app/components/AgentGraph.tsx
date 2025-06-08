@@ -1,28 +1,32 @@
 import React from 'react';
-import { AgentMetadata } from '@/app/lib/agents/langchain/types';
+import { AgentMetadata, AgentCapability } from '@/app/lib/agents/langchain/types';
 import { Graph } from 'react-d3-graph';
 
 interface AgentGraphProps {
   agents: AgentMetadata[];
 }
 
+const isAgentCapability = (cap: string | AgentCapability): cap is AgentCapability => {
+  return typeof cap === 'object' && cap !== null && 'name' in cap;
+};
+
 const AgentGraph: React.FC<AgentGraphProps> = ({ agents }) => {
   const graphData = {
     nodes: agents.map(agent => ({
-      id: agent.contentId,
-      title: agent.title,
-      category: agent.primaryCategory,
-      capabilities: agent.agent.capabilities.map(c => c.name).join(", "),
-      color: getCategoryColor(agent.primaryCategory)
+      id: agent.contentId || '',
+      title: agent.name || 'Unnamed Agent',
+      category: agent.primaryCategory || 'default',
+      capabilities: agent.agent?.capabilities?.map(cap => 
+        isAgentCapability(cap) ? cap.name : cap
+      ).join(", ") || "",
+      color: getCategoryColor(agent.primaryCategory || 'default')
     })),
     links: agents.flatMap(agent => 
-      agent.agent.capabilities.map(cap => 
-        agent.agent.tools.map(tool => ({
-          source: agent.contentId,
-          target: `${tool}_${cap.name}`,
-          label: cap.name
-        }))
-      ).flat()
+      (agent.agent?.tools || []).map(tool => ({
+        source: agent.contentId || '',
+        target: `${tool}_${agent.agent?.capabilities?.[0] || 'default'}`,
+        label: agent.agent?.capabilities?.[0] || 'default'
+      }))
     )
   };
 

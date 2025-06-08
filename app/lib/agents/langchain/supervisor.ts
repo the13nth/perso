@@ -1,71 +1,20 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { StringOutputParser } from "@langchain/core/output_parsers";
-import { StructuredTool } from "@langchain/core/tools";
-import { z } from "zod";
 
-import type { AgentConfig, AgentMessage, SuperAgentConfig, AgentCapability, ProcessingStep, Context, TaskResult, AgentMetadata } from "./types";
-import { createSuperAgent } from "./capability-merger";
+import type { SuperAgentConfig, AgentCapability, ProcessingStep, Context, AgentMetadata } from "./types";
 import { getAgentContext } from "@/app/lib/pinecone";
-import { initializeGeminiModel } from '@/app/utils/modelInit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize model with API key
-const model = new ChatGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_API_KEY,
-  model: "gemini-2.0-flash",
-  maxOutputTokens: 2048,
-  temperature: 0.7,
-  topK: 40,
-  topP: 0.95
-});
 
 
 
-const RoutingSchema = z.object({
-  message: z.string(),
-  capabilities: z.array(z.object({
-    name: z.string(),
-    description: z.string(),
-    priority: z.number()
-  }))
-});
 
-class MessageRoutingTool extends StructuredTool {
-  name = "route_message";
-  description = "Route a message to the appropriate agent capabilities";
-  schema = RoutingSchema;
 
-  async _call(input: z.infer<typeof RoutingSchema>) {
-    const { message, capabilities } = input;
-    
-    const scoredCapabilities = capabilities.map(cap => ({
-      ...cap,
-      score: cap.priority + message.toLowerCase().split(/\W+/)
-        .filter(word => word.length > 2)
-        .filter(word => (cap.name + " " + cap.description).toLowerCase().includes(word))
-        .length
-    }));
-    
-    const bestMatch = scoredCapabilities.sort((a, b) => b.score - a.score)[0];
-    
-    return JSON.stringify({
-      selectedCapability: bestMatch.name,
-      reason: `Selected ${bestMatch.name} (score: ${bestMatch.score}) based on message content and capability priority`
-    });
-  }
-}
-
-const messageRoutingTool = new MessageRoutingTool();
 
 export class AgentSupervisor {
   private agentId: string;
   private metadata: AgentMetadata;
   private capabilities: AgentCapability[];
   private model: GoogleGenerativeAI;
-  private initialized: boolean = false;
-  private initializationPromise: Promise<void>;
   private superAgent: SuperAgentConfig | null = null;
-  private messageHistory: AgentMessage[] = [];
 
   constructor(config: {
     agentId: string;
@@ -77,27 +26,8 @@ export class AgentSupervisor {
     this.metadata = config.metadata;
     this.capabilities = config.capabilities;
     this.model = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
-    this.initializationPromise = this.initialize().then(() => {
-      this.initialized = true;
-    }).catch(error => {
-      console.error('Error during initialization:', error);
-      throw error;
-    });
   }
 
-  private async initialize() {
-    try {
-      // Initialize any required resources
-      console.log('Initializing agent supervisor:', {
-        agentId: this.agentId,
-        category: this.metadata.category,
-        capabilities: this.capabilities.length
-      });
-    } catch (error) {
-      console.error('Error initializing agent supervisor:', error);
-      throw error;
-    }
-  }
 
   async processMessage(content: string, showSteps: boolean = false): Promise<{ response: string; steps?: ProcessingStep[] }> {
     const steps: ProcessingStep[] = [];
@@ -236,17 +166,7 @@ export class AgentSupervisor {
       c.includes('miles')
     );
 
-    const hasLocationData = context.some(c => 
-      c.includes('location') || 
-      c.includes('route') || 
-      c.includes('track')
-    );
 
-    const hasMetricsData = context.some(c => 
-      c.includes('energy') || 
-      c.includes('heart rate') || 
-      c.includes('elevation')
-    );
 
     const availableFields = [];
     const missingFields = [];
@@ -288,21 +208,8 @@ export class AgentSupervisor {
     }
   }
 
-  private getCurrentState(): string {
-    if (!this.superAgent) {
-      return 'Supervisor not initialized';
-    }
 
-    return `
-Active Agent: ${this.superAgent.name || 'Unknown'}
-Available Capabilities: ${this.superAgent.mergedCapabilities?.map(c => c.name).join(', ') || 'None'}
-Message History: ${this.messageHistory.length} messages
-Last Message: ${this.messageHistory.length > 0 ? 
-  this.messageHistory[this.messageHistory.length - 1].content : 'None'}
-    `.trim();
-  }
-
-  private selectCapabilities(query: string): AgentCapability[] {
+  private selectCapabilities(_query: string): AgentCapability[] {
     // For now, return all capabilities
     // TODO: Implement capability selection based on query
     return this.capabilities;
@@ -310,7 +217,7 @@ Last Message: ${this.messageHistory.length > 0 ?
 
   private async executeTask(
     query: string, 
-    capabilities: AgentCapability[], 
+    _capabilities: AgentCapability[], 
     context: Context[]
   ): Promise<string> {
     // Extract text content from contexts

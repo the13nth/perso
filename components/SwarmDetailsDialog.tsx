@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -93,7 +93,7 @@ export function SwarmDetailsDialog({ open, onOpenChange, swarm }: SwarmDetailsDi
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch detailed swarm data
-  const fetchDetailedData = async () => {
+  const fetchDetailedData = useCallback(async () => {
     if (!swarm?.sessionId) return;
     
     setLoading(true);
@@ -112,7 +112,7 @@ export function SwarmDetailsDialog({ open, onOpenChange, swarm }: SwarmDetailsDi
     } finally {
       setLoading(false);
     }
-  };
+  }, [swarm?.sessionId]);
 
   // Refresh data
   const refreshData = async () => {
@@ -129,7 +129,7 @@ export function SwarmDetailsDialog({ open, onOpenChange, swarm }: SwarmDetailsDi
       const interval = setInterval(fetchDetailedData, 10000);
       return () => clearInterval(interval);
     }
-  }, [open, swarm?.sessionId]);
+  }, [open, swarm, fetchDetailedData]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -183,6 +183,7 @@ export function SwarmDetailsDialog({ open, onOpenChange, swarm }: SwarmDetailsDi
     if (minutes > 0) return `${minutes}m ago`;
     return 'Just now';
   };
+
 
   if (!swarm) return null;
 

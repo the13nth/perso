@@ -1,5 +1,3 @@
-import { DynamicStructuredTool } from "@langchain/core/tools";
-import { ContentMetadata } from "@/app/lib/content/types";
 
 export interface AgentCapability {
   name: string;

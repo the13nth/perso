@@ -5,19 +5,19 @@ export function convertPineconeAgentToConfig(agent: AgentMetadata): AgentConfig 
   const capabilities: AgentCapability[] = [
     {
       name: "knowledge_base",
-      description: `Knowledge and expertise about ${agent.primaryCategory} with focus on: ${agent.agent.useCases}`,
+      description: `Knowledge and expertise about ${agent.primaryCategory || 'general'} with focus on: ${agent.agent?.useCases || 'general tasks'}`,
       tools: []
     },
     {
       name: "task_execution",
-      description: `Execute tasks related to: ${agent.agent.triggers.join(", ")}`,
+      description: `Execute tasks related to: ${agent.agent?.triggers?.join(", ") || 'general tasks'}`,
       tools: []
     }
   ];
 
   // Add specific capabilities based on agent type/category
-  if (agent.primaryCategory.toLowerCase().includes("fieldwork") || 
-      (agent.title?.toLowerCase().includes("harakaplus") ?? false)) {
+  if ((agent.primaryCategory || '').toLowerCase().includes("fieldwork") || 
+      (agent.name?.toLowerCase().includes("harakaplus") ?? false)) {
     capabilities.push({
       name: "fieldwork_assistance",
       description: "Provide assistance with fieldwork activities, data collection, and reporting",
@@ -28,8 +28,8 @@ export function convertPineconeAgentToConfig(agent: AgentMetadata): AgentConfig 
   // Convert to AgentConfig format
   return {
     agentId: agent.contentId,
-    name: agent.title || agent.contentId,
-    description: agent.text || agent.agent.useCases || "No description available",
+    name: agent.name || agent.contentId,
+    description: agent.description || agent.agent?.useCases || "No description available",
     capabilities: capabilities,
     metadata: agent
   };
