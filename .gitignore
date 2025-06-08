@@ -41,3 +41,7 @@ next-env.d.ts
 !.yarn/sdks
 !.yarn/versions
 .env
+
+# Firebase credentials
+lib/firebase/credentials/service-account.json
+*.service-account.json

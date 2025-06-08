@@ -335,6 +335,14 @@ To set these up:
 
 Without these environment variables properly configured, the application will work locally but fail when deployed to Netlify.
 
+## Firebase Setup
+
+1. Create a Firebase project and get your service account credentials
+2. Copy `lib/firebase/credentials/service-account.template.json` to `lib/firebase/credentials/service-account.json`
+3. Replace the placeholder values with your actual Firebase service account credentials
+
+**Important**: Never commit the `service-account.json` file to version control!
+
 ## Thank You!
 
 Thanks for reading! If you have any questions or comments, reach out to us on Twitter
