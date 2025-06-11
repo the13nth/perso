@@ -13,10 +13,10 @@ NODE_VERSION = "18"
 [functions]
   node_bundler = "esbuild"
 
-[functions."app/api/agents/*/questions/*"]
+[functions."app/api/**"]
   timeout = 30
 
-[functions."app/api/**"]
+[functions."app/api/agents/*/questions/*"]
   timeout = 30
 
 # Environment variables that must be set on Netlify
@@ -30,4 +30,21 @@ NODE_VERSION = "18"
   PINECONE_ENVIRONMENT = "Pinecone environment (e.g., us-east-1-aws)"
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "Your Clerk publishable key"
   CLERK_SECRET_KEY = "Your Clerk secret key"
-  NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL = "Your deployed Netlify app URL (e.g., https://your-app.netlify.app)" 
+  NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL = "Your deployed Netlify app URL (e.g., https://your-app.netlify.app)"
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[redirects]]
+  from = "/_next/image"
+  to = "/.netlify/images"
+  status = 200
+  query = { url = ":url", w = ":width", q = ":quality" }
+
+[[redirects]]
+  from = "/_ipx/*"
+  to = "/.netlify/images"
+  status = 200
+  query = { url = ":url", w = ":width", q = ":quality" } 
