@@ -22,8 +22,12 @@ NODE_VERSION = "18"
 # Environment variables that must be set on Netlify
 [template.environment]
   GOOGLE_API_KEY = "Google API key for Gemini models"
+  GOOGLE_CLIENT_ID = "Google OAuth client ID for Gmail/Calendar integration"
+  GOOGLE_CLIENT_SECRET = "Google OAuth client secret for Gmail/Calendar integration"
+  GOOGLE_REDIRECT_URI = "OAuth redirect URI (e.g., https://your-app.netlify.app/api/integrations/gmail/callback)"
   PINECONE_API_KEY = "Pinecone API key"
   PINECONE_INDEX = "Name of your Pinecone index"
+  PINECONE_ENVIRONMENT = "Pinecone environment (e.g., us-east-1-aws)"
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "Your Clerk publishable key"
   CLERK_SECRET_KEY = "Your Clerk secret key"
   NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL = "Your deployed Netlify app URL (e.g., https://your-app.netlify.app)" 

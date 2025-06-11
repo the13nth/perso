@@ -45,3 +45,8 @@ next-env.d.ts
 # Firebase credentials
 lib/firebase/credentials/service-account.json
 service-account.json
+
+# Secure configs
+config/secure/
+config/secure/*.json
+config/secure/*.js

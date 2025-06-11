@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import path from 'path';
 
 function getServiceAccount() {
   console.log('Environment:', {
@@ -7,52 +8,37 @@ function getServiceAccount() {
     hasFirebaseServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
   });
 
-  // For production (Netlify), use environment variable
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    console.log('Attempting to use FIREBASE_SERVICE_ACCOUNT environment variable');
-    try {
-      // Try parsing directly first
-      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    } catch (error) {
-      console.log('Direct JSON parse failed, trying base64 decode');
+  try {
+    // First try loading from our new config file
+    const serviceAccount = require('../../config/secure/firebase-service-account');
+    console.log('Successfully loaded service account from config file');
+    return serviceAccount;
+  } catch (error) {
+    console.log('Failed to load from config file, falling back to environment variable');
+    
+    // Fall back to environment variable if config file not found
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       try {
-        // If direct parse fails, try base64 decode
-        const serviceAccountString = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString();
-        const parsed = JSON.parse(serviceAccountString);
-        console.log('Successfully parsed service account from environment variable');
-        return parsed;
-      } catch (_error) {
-        console.error('Failed to parse service account from environment variable:', _error);
-        throw _error;
-      }
-    }
-  }
-
-  // For local development, try to read from file
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Attempting to read service account from file');
-    try {
-      // Using dynamic import for development only
-      const serviceAccount = require('./credentials/service-account.json');
-      console.log('Successfully loaded service account from file');
-      return serviceAccount;
-    } catch (_error) {
-      console.warn('No local service account file found:', _error);
-      // In development, if no local file exists, try environment variable as fallback
-      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        console.log('Falling back to environment variable');
+        // Try parsing directly first
+        return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      } catch (error) {
+        console.log('Direct JSON parse failed, trying base64 decode');
         try {
-          return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        } catch (error) {
+          // If direct parse fails, try base64 decode
           const serviceAccountString = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString();
-          return JSON.parse(serviceAccountString);
+          const parsed = JSON.parse(serviceAccountString);
+          console.log('Successfully parsed service account from environment variable');
+          return parsed;
+        } catch (_error) {
+          console.error('Failed to parse service account from environment variable:', _error);
+          throw _error;
         }
       }
     }
   }
   
   console.error('All attempts to load Firebase service account failed');
-  throw new Error('No Firebase service account credentials found. Please set FIREBASE_SERVICE_ACCOUNT environment variable or provide a service-account.json file in development.');
+  throw new Error('No Firebase service account credentials found. Please provide either a config file or set FIREBASE_SERVICE_ACCOUNT environment variable.');
 }
 
 // Initialize Firebase Admin if it hasn't been initialized yet
