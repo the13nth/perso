@@ -43,8 +43,8 @@ const contextAnalyzer = {
         useCases: agentConfig.useCases,
         selectedContextIds: agentConfig.selectedContextIds
       };
-    } catch (error) {
-      console.error('Error getting agent metadata:', error);
+    } catch (_error) {
+      console.error('Error getting agent metadata:', _error);
       return null;
     }
   },
@@ -53,8 +53,8 @@ const contextAnalyzer = {
     try {
       const contextDocs = await getAgentContext(agentId, input);
       return contextDocs.sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0));
-    } catch (error) {
-      console.error('Error querying context:', error);
+    } catch (_error) {
+      console.error('Error querying context:', _error);
       return [];
     }
   },
@@ -258,10 +258,10 @@ const ubumuntuQueryTool: Tool = {
           timestamp: new Date().toISOString(),
         }
       };
-    } catch (error) {
+    } catch (_error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: _error instanceof Error ? _error.message : 'Unknown error occurred',
         result: null,
       };
     }
@@ -324,9 +324,9 @@ const activitySummaryTool: Tool = {
           }
         }
       };
-    } catch (error) {
-      console.error('Activity summary tool error:', error);
-      return { success: false, error: String(error), result: null };
+    } catch (_error) {
+      console.error('Activity summary tool error:', _error);
+      return { success: false, error: String(_error), result: null };
     }
   }
 };
@@ -356,8 +356,8 @@ const progressTrackingTool: Tool = {
           nextMilestones: activities.filter(a => a.status !== 'completed').slice(0, 3)
         }
       };
-    } catch (error) {
-      return { success: false, error: String(error), result: null };
+    } catch (_error) {
+      return { success: false, error: String(_error), result: null };
     }
   }
 };
@@ -387,8 +387,8 @@ const learningAnalysisTool: Tool = {
           recommendations: activities.filter(a => a.status !== 'completed').map(a => a.details)
         }
       };
-    } catch (error) {
-      return { success: false, error: String(error), result: null };
+    } catch (_error) {
+      return { success: false, error: String(_error), result: null };
     }
   }
 };
@@ -422,8 +422,8 @@ const contextSearchTool: Tool = {
           suggestedQueries: ['learning', 'progress', 'completed']
         }
       };
-    } catch (error) {
-      return { success: false, error: String(error), result: null };
+    } catch (_error) {
+      return { success: false, error: String(_error), result: null };
     }
   }
 };

@@ -30,8 +30,8 @@ export class SwarmMonitor {
           console.warn('🚨 Critical issues detected in swarm:', session.sessionId, criticalIssues);
           await this.handleCriticalIssues(session, criticalIssues);
         }
-      } catch (error) {
-        console.error('❌ Error monitoring swarm:', session.sessionId, error);
+      } catch (_error) {
+        console.error('❌ Error monitoring swarm:', session.sessionId, _error);
       }
     }, this.MONITORING_INTERVAL);
 

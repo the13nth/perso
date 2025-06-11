@@ -541,71 +541,94 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
   }
 
   private formatAnalysisResponse(analysis: ActivityAnalysis, query: string): string {
-    // Group metrics by type for better organization
-    const numericMetrics = analysis.metrics.filter(m => m.type === 'numeric');
-    const statusMetrics = analysis.metrics.filter(m => m.type === 'status');
-    const durationMetrics = analysis.metrics.filter(m => m.type === 'duration');
-    const textMetrics = analysis.metrics.filter(m => m.type === 'text');
-
-    // Format sections with appropriate emojis
-    const sections = [
-      // Overview section
-      `# 📊 Activity Analysis\n`,
-      
-      // Query context
-      query ? `## 🔍 Analysis Context\nQuery: "${query}"\n` : '',
-      
-      // Summary section with key findings
-      `## 📝 Summary\n${analysis.summary.map(s => `• ${s}`).join('\n')}\n`,
-      
-      // Metrics sections by type
-      numericMetrics.length > 0 ? 
-        `## 📈 Numeric Metrics\n${numericMetrics.map(m => 
-          `• ${m.name}: ${m.value}${m.unit ? ` ${m.unit}` : ''}`
-        ).join('\n')}\n` : '',
-      
-      statusMetrics.length > 0 ?
-        `## 🎯 Status Metrics\n${statusMetrics.map(m =>
-          `• ${m.name}: ${m.value}`
-        ).join('\n')}\n` : '',
-      
-      durationMetrics.length > 0 ?
-        `## ⏱️ Duration Metrics\n${durationMetrics.map(m =>
-          `• ${m.name}: ${m.value}${m.unit ? ` ${m.unit}` : ''}`
-        ).join('\n')}\n` : '',
-      
-      textMetrics.length > 0 ?
-        `## 📋 Other Metrics\n${textMetrics.map(m =>
-          `• ${m.name}: ${m.value}`
-        ).join('\n')}\n` : '',
-      
-      // Patterns section with detailed analysis
-      Object.keys(analysis.patterns).length > 0 ? 
-        `## 🔄 Patterns Identified\n${Object.entries(analysis.patterns).map(([field, data]) => {
-          if (typeof data === 'object' && 'avg' in data) {
-            return `### ${field}\n` +
-              `• Average: ${data.avg.toFixed(2)}${this.inferUnit(field)}\n` +
-              `• Range: ${data.min.toFixed(2)} - ${data.max.toFixed(2)}${this.inferUnit(field)}`;
-          } else {
-            const sortedEntries = Object.entries(data as Record<string, number>)
-              .sort((a, b) => (b[1] as number) - (a[1] as number));
-            const total = sortedEntries.reduce((sum, [_, count]) => sum + count, 0);
-            
-            return `### ${field}\n${sortedEntries.map(([value, _count]) => 
-              `• ${value}: ${_count} times (${((_count / total) * 100).toFixed(1)}%)`
-            ).join('\n')}`;
+    // Create a more conversational response similar to the agent-chat format
+    const activityType = analysis.metrics.find(m => m.name === 'Activity Type')?.value || 'activity';
+    const duration = analysis.metrics.find(m => m.name === 'Duration')?.value || '';
+    const distance = analysis.metrics.find(m => m.name === 'Distance')?.value || '';
+    const goalStatus = analysis.metrics.find(m => m.name === 'Goal Status')?.value || '';
+    
+    // Convert values to string to handle both string and number types
+    const activityTypeStr = typeof activityType === 'string' ? activityType.toLowerCase() : String(activityType).toLowerCase();
+    
+    // Introduction
+    let response = `I've analyzed your ${activityTypeStr} data based on your query about "${query}". Here's what I found:\n\n`;
+    
+    // Analysis of Your Running Data section
+    response += `**Analysis of Your ${activityType} Data:**\n\n`;
+    response += `First, let's analyze your ${activityTypeStr} data to understand your current performance and identify areas for improvement.\n\n`;
+    
+    // Key metrics in bullet points
+    response += `* **Recent ${activityType} Stats:** Based on analysis of ${analysis.summary[0].replace('Analysis based on ', '')}.\n`;
+    
+    if (duration) {
+      const durationTrend = analysis.patterns.duration?.trend || 'stable';
+      response += `* **Duration:** ${duration} (trend: ${durationTrend})\n`;
+    }
+    
+    if (distance) {
+      const distanceTrend = analysis.patterns.distance?.trend || 'fluctuating';
+      response += `* **Distance:** ${distance} km (trend: ${distanceTrend})\n`;
+    }
+    
+    if (goalStatus) {
+      response += `* **Most common Goal Status:** ${goalStatus}\n`;
+    }
+    
+    // Add other important metrics
+    const otherMetrics = analysis.metrics.filter(m => 
+      !['Activity Type', 'Duration', 'Distance', 'Goal Status'].includes(m.name) && 
+      m.type !== 'duration' && m.type !== 'numeric'
+    );
+    
+    if (otherMetrics.length > 0) {
+      response += `\n**Additional Details:**\n\n`;
+      otherMetrics.forEach(metric => {
+        response += `* **${metric.name}:** ${metric.value}\n`;
+      });
+    }
+    
+    // Add patterns section
+    response += `\n**Patterns Identified:**\n\n`;
+    
+    // Add most relevant patterns (limit to 5 for readability)
+    const relevantPatterns = Object.entries(analysis.patterns)
+      .filter(([field, _]) => 
+        !['Goal Status_transitions', 'temporal'].includes(field) && 
+        field !== 'correlations'
+      )
+      .slice(0, 5);
+    
+    relevantPatterns.forEach(([field, data]) => {
+      if (typeof data === 'object' && 'avg' in data) {
+        response += `* **${field}:** Average: ${data.avg.toFixed(2)}${this.inferUnit(field)}, Range: ${data.min.toFixed(2)} - ${data.max.toFixed(2)}${this.inferUnit(field)}\n`;
+      } else if (field !== 'correlations') {
+        try {
+          const sortedEntries = Object.entries(data as Record<string, number>)
+            .filter(([_, count]) => count !== undefined && !isNaN(count as number))
+            .sort((a, b) => (b[1] as number) - (a[1] as number))
+            .slice(0, 3); // Show only top 3 values
+          
+          if (sortedEntries.length > 0) {
+            response += `* **${field}:** ${sortedEntries.map(([value, count]) => `${value}: ${count} times`).join(', ')}\n`;
           }
-        }).join('\n\n')}\n` : '',
-      
-      // Recommendations section
-      analysis.recommendations.length > 0 ?
-        `## 💡 Recommendations\n${analysis.recommendations.map(r => 
-          `• ${r}`
-        ).join('\n')}\n` : ''
-    ];
-
-    // Filter out empty sections and join
-    return sections.filter(Boolean).join('\n');
+        } catch (_error) {
+          // Skip this pattern if there's an error
+        }
+      }
+    });
+    
+    // Add recommendations
+    if (analysis.recommendations.length > 0) {
+      response += `\n**Recommendations:**\n\n`;
+      analysis.recommendations.forEach(recommendation => {
+        response += `* ${recommendation.replace(/^📈|^🔄|^💡/, '')}\n`;
+      });
+    }
+    
+    // Conclusion
+    response += `\nBased on your data, I can help you create a more detailed training plan or provide specific advice for improving your ${activityTypeStr} performance. Let me know if you'd like more information on any specific aspect.`;
+    
+    return response;
   }
 
   /**
@@ -641,8 +664,8 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
           timeoutSeconds: 30,
           analysisType: contextType
         });
-      } catch (error) {
-        console.error('Failed to create swarm session:', error);
+      } catch (_error) {
+        console.error('Failed to create swarm session:', _error);
         throw new Error('Failed to initialize swarm session');
       }
 
@@ -660,8 +683,8 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
             timestamp: new Date().toISOString()
           })}];
         }
-      } catch (error) {
-        console.error('Failed to get agent context:', error);
+      } catch (_error) {
+        console.error('Failed to get agent context:', _error);
         throw new Error('Failed to retrieve context data');
       }
 
@@ -700,8 +723,8 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
           console.warn('No summary found in analysis, adding default summary');
           analysis.summary = [`Analysis based on ${context.length} data points`];
         }
-      } catch (error) {
-        console.error('Failed to analyze context data:', error);
+      } catch (_error) {
+        console.error('Failed to analyze context data:', _error);
         throw new Error('Failed to analyze retrieved data');
       }
 
@@ -714,8 +737,8 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
           console.warn('Empty formatted text, using fallback format');
           formattedText = `# Analysis Results\n\nNo detailed analysis available for the query: "${query}"\n\nPlease try refining your query or providing more context.`;
         }
-      } catch (error) {
-        console.error('Failed to format analysis response:', error);
+      } catch (_error) {
+        console.error('Failed to format analysis response:', _error);
         throw new Error('Failed to format analysis results');
       }
 
@@ -758,10 +781,10 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
       };
 
       return result;
-    } catch (error) {
+    } catch (_error) {
       // Log the error with full context
       console.error('Error in processRetrievalRequest:', {
-        error,
+        _error,
         query,
         userId,
         contextType,
@@ -770,8 +793,8 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
 
       // Rethrow with a user-friendly message
       throw new Error(
-        error instanceof Error ? 
-          `Failed to process retrieval request: ${error.message}` : 
+        _error instanceof Error ? 
+          `Failed to process retrieval request: ${_error.message}` : 
           'An unexpected error occurred while processing the request'
       );
     }
@@ -833,4 +856,4 @@ private addFinancialRecommendations(patterns: Record<string, any>, recommendatio
     if (cv < 0.3) return 'medium';
     return 'low';
   }
-} 
+}

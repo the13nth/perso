@@ -510,9 +510,9 @@ export function AgentChatInterface(props: {
           });
         }, 5000);
 
-      } catch (error: unknown) {
+      } catch (_error: unknown) {
         // Handle error state in steps
-        console.error('Processing error:', error);
+        console.error('Processing error:', _error);
         setProcessingSteps(steps => 
           steps.map(step => ({
             ...step,
@@ -655,10 +655,10 @@ export function AgentChatInterface(props: {
         description: `Saved to ${categories.length} ${categories.length === 1 ? 'category' : 'categories'}: ${categories.join(', ')}`,
         duration: 4000,
       });
-    } catch (error) {
-      console.error('Error saving response:', error);
+    } catch (_error) {
+      console.error('Error saving response:', _error);
       toast.error("Failed to save response", {
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: _error instanceof Error ? _error.message : "An unknown error occurred",
         duration: 5000,
       });
     } finally {

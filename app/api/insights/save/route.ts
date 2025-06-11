@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
       message: `Insight saved successfully under "${insightCategoryName}" category`
     });
     
-  } catch (error) {
-    console.error("Error saving insight:", error);
+  } catch (_error) {
+    console.error("Error saving insight:", _error);
     return NextResponse.json(
       { error: "Failed to save insight" },
       { status: 500 }

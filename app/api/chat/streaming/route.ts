@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 // Create a Gemini API client
 const model = new ChatGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_API_KEY || "",
-  model: "gemini-pro",
+  model: "gemini-2.0-flash-001",
   streaming: true,
 });
 

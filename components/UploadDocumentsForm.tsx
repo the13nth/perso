@@ -14,6 +14,7 @@ import { Badge } from "./ui/badge";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
+import { ContentType } from '@/app/lib/content/types';
 
 export interface UploadDocumentsFormProps {
   fileTypes?: string;
@@ -105,8 +106,8 @@ export function UploadDocumentsForm({
         } else {
           console.error("Error checking document status:", response.statusText);
         }
-      } catch (error) {
-        console.error("Error checking document status:", error);
+      } catch (_error) {
+        console.error("Error checking document status:", _error);
       }
     };
     
@@ -176,128 +177,127 @@ export function UploadDocumentsForm({
     setDocumentId(null);
     setProcessingProgress(0);
     
-    let textContent = document;
-    
-    if (extractText && file) {
-      // Create a FormData object to send the file
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', user?.id || '');
+    try {
+      // Check for valid user ID first
+      if (!user?.id) {
+        throw new Error("You must be logged in to upload documents. Please sign in and try again.");
+      }
+
+      // Initialize textContent properly
+      let textContent: string | undefined;
+      let extractedMetadata = {};
       
-      try {
-        const response = await fetch("/api/retrieval/extract", {
+      if (extractText && file) {
+        // Create a FormData object to send the file
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userId', user.id);
+        
+        // Extract text from file
+        const extractResponse = await fetch("/api/retrieval/extract", {
           method: "POST",
           body: formData,
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          textContent = data.text;
-        } else {
-          const error = await response.json();
-          setDocument(error.message || "Error extracting text from document");
-          setIsLoading(false);
-          toast.error("Failed to extract text from document");
-          return;
+        if (!extractResponse.ok) {
+          const error = await extractResponse.json();
+          throw new Error(error.error || "Error extracting text from file");
         }
-      } catch {
-        setDocument("Error extracting text from document");
-        setIsLoading(false);
-        toast.error("Failed to extract text from document");
-        return;
+        
+        const data = await extractResponse.json();
+        
+        // Validate extracted text
+        if (!data.text || typeof data.text !== 'string' || data.text.trim().length === 0) {
+          throw new Error("No text could be extracted from the file. Please check if the file is valid and contains text content.");
+        }
+        
+        textContent = data.text.trim();
+        extractedMetadata = data.metadata || {};
+      } else {
+        // Handle direct text input
+        if (!document || typeof document !== 'string') {
+          throw new Error("Please enter some text to process.");
+        }
+        textContent = document.trim();
       }
-    }
-    
-    // Client-side document size validation
-    const textLength = textContent.length;
-    
-    if (isProduction && textLength > MAX_DOCUMENT_SIZE_PRODUCTION) {
-      setIsLoading(false);
-      toast.error(
-        `Document too large for free tier`, 
-        {
-          duration: 10000,
-          position: "top-center",
-          description: `Document size (${Math.round(textLength/1000)}KB) exceeds the ${Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB free tier limit. Please upgrade to Pro plan for unlimited processing, split your document, or use the application locally.`
-        }
-      );
-      return;
-    }
-    
-    try {
-    const response = await fetch("/api/retrieval/ingest", {
-      method: "POST",
-      body: JSON.stringify({
-        text: textContent,
-        userId: user?.id,
-        categories: selectedCategories,
-        access: accessLevel,
-      }),
-    });
       
-      const data = await response.json();
-    
-    if (response.status === 200) {
+      // Final content validation
+      if (!textContent || textContent.length === 0) {
+        throw new Error("No content to process. Please provide some text or a valid document.");
+      }
+      
+      // Check size limits
+      if (isProduction && textContent.length > MAX_DOCUMENT_SIZE_PRODUCTION) {
+        throw new Error(`Document exceeds size limit of ${Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB for free tier. Please reduce content size or upgrade to Pro plan.`);
+      }
+      
+      // Set async processing for large documents in local development
+      if (!isProduction && textContent.length > ASYNC_THRESHOLD_LOCAL) {
+        setAsyncProcessing(true);
+      }
+      
+      // Log content before sending (for debugging)
+      console.log('Content to be sent:', {
+        contentLength: textContent.length,
+        firstFewChars: textContent.substring(0, 100),
+        isString: typeof textContent === 'string'
+      });
+      
+      const ingestResponse = await fetch("/api/retrieval/ingest", {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id: `doc-${Date.now()}`,
+          content: textContent,
+          userId: user.id,
+          type: 'document' as ContentType,
+          metadata: {
+            categories: selectedCategories || [],
+            access: accessLevel,
+            contentType: 'document',
+            uploadedAt: new Date().toISOString(),
+            processingStartedAt: new Date().toISOString(),
+            originalFileName: file?.name,
+            fileType: file?.type,
+            fileSize: file?.size,
+            ...extractedMetadata
+          }
+        }),
+      });
+
+      if (!ingestResponse.ok) {
+        const errorData = await ingestResponse.json();
+        throw new Error(errorData.error || "Error ingesting document");
+      }
+      
+      const ingestData = await ingestResponse.json();
+      
+      // If document ID is returned, store it for status polling
+      if (ingestData.documentId) {
+        setDocumentId(ingestData.documentId);
+      }
+      
       setDocument("Uploaded!");
       setFile(null);
       setUploadSuccess(true);
       
-      toast.success(
-        extractText ? "Document uploaded successfully!" : "Text uploaded successfully!", 
-        {
-          duration: 5000,
-          position: "top-center",
-          icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
-          description: "Your content has been added to the knowledge base and is ready to use."
-        }
-      );
-      
-      if (onSuccess) {
+      // If not async processing and onSuccess callback exists, call it
+      if (!asyncProcessing && onSuccess) {
         setTimeout(() => onSuccess(), 2000);
       }
-      } else if (response.status === 202) {
-        // Large document is being processed asynchronously
-        setAsyncProcessing(true);
-        setDocumentId(data.documentId);
-        
-        toast.info(
-          "Processing large document in the background", 
-          {
-            duration: 10000,
-            position: "top-center",
-            icon: <AlertTriangle className="h-5 w-5 text-amber-500" />,
-            description: "Your document is being processed. This may take a few minutes. You can close this window and continue using the app."
-          }
-        );
-        
-        // Don't call onSuccess yet since document is still processing
-    } else if (response.status === 413) {
-        // Document too large for free tier
-        setDocument("Document too large for free tier");
-        toast.error(
-          "Document too large for free tier", 
-          {
-            duration: 12000,
-            position: "top-center",
-            description: data.message || "Please upgrade to Pro plan for unlimited document processing, split your document into smaller parts, or use the application locally.",
-            action: data.upgradeRequired ? {
-              label: "Upgrade to Pro",
-              onClick: () => {
-                // This could link to a pricing page or upgrade flow
-                window.open('/pricing', '_blank');
-              }
-            } : undefined
-          }
-        );
-    } else {
-        setDocument(data.error || "Error uploading document");
-        toast.error("Failed to upload: " + (data.error || "Unknown error"));
-      }
-    } catch (error) {
-      console.error("Error during document ingestion:", error);
-      toast.error("Failed to upload document due to a network error. Please try again.");
+      
+    } catch (_error) {
+      console.error('Error:', _error);
+      toast.error(_error instanceof Error ? _error.message : "An error occurred", {
+        duration: 5000,
+        position: "top-center",
+      });
+      setAsyncProcessing(false);
+      setUploadSuccess(false);
     } finally {
-    setIsLoading(false);
+      setIsLoading(false);
     }
   };
 

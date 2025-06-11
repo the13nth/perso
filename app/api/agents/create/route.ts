@@ -81,6 +81,65 @@ export async function POST(req: Request) {
     const agentId = uuidv4();
     const timestamp = new Date().toISOString();
 
+    // If agent needs email or calendar access, trigger data ingestion
+    if (body.selectedCategories?.includes('Emails')) {
+      console.log(`[AGENT CREATE] Starting email ingestion for new agent ${agentId}`);
+      // Ingest emails
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/retrieval/ingest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'email',
+          metadata: {
+            agentId,
+            userId,
+            type: 'email'
+          }
+        })
+      });
+
+      const result = await response.json();
+      console.log(`[AGENT CREATE] Email ingestion result:`, result);
+
+      if (!response.ok) {
+        console.error('[AGENT CREATE] Failed to ingest emails:', result);
+        throw new Error('Failed to ingest emails');
+      }
+    }
+
+    if (body.selectedCategories?.includes('Calendar')) {
+      console.log(`[AGENT CREATE] Starting calendar ingestion for new agent ${agentId}`);
+      // Ingest calendar events
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/retrieval/ingest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': authHeader || '',
+          'cookie': req.headers.get('cookie') || ''
+        },
+        body: JSON.stringify({
+          type: 'calendar',
+          metadata: {
+            agentId,
+            userId,
+            type: 'calendar'
+          }
+        })
+      });
+
+      const result = await response.json();
+      console.log(`[AGENT CREATE] Calendar ingestion result:`, result);
+
+      if (!response.ok) {
+        console.error('[AGENT CREATE] Failed to ingest calendar events:', result);
+        throw new Error('Failed to ingest calendar events');
+      }
+    }
+
     // Store agent with context
     const agentMetadata = await storeAgentWithContext(
       agentId,
@@ -156,10 +215,10 @@ export async function POST(req: Request) {
       category: agentMetadata.primaryCategory,
       isPublic: agentMetadata.isPublic
     });
-  } catch (error) {
-    console.error('Error creating agent:', error);
+  } catch (_error) {
+    console.error('Error creating agent:', _error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "An error occurred" },
+      { success: false, error: _error instanceof Error ? _error.message : "An error occurred" },
       { status: 500 }
     );
   }

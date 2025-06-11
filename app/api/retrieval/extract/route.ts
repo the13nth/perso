@@ -5,167 +5,127 @@ import { writeFile, unlink } from "fs/promises";
 import * as XLSX from 'xlsx';
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
-import { PDFDocument } from 'pdf-lib';
+import { processPDF } from "@/app/lib/utils/pdfUtils";
 
-// Use dynamic import for pdf-parse to support both ES Module and CommonJS environments
-// import pdf-parse will be handled dynamically inside the PDF handling case
+// Maximum file size (5MB)
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+// Supported file types
+const SUPPORTED_EXTENSIONS = new Set(['.txt', '.pdf', '.xlsx', '.xls']);
 
 // Next.js 13+ API routes don't use this config object anymore
 // The bodyParser is handled automatically
 export async function POST(req: NextRequest) {
+  let tempFilePath: string | null = null;
+
   try {
     // Check authentication
     const { userId } = await auth();
     if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized: Please sign in to upload documents" },
+        { status: 401 }
+      );
     }
 
-    // Handle the multipart/form-data request
     const formData = await req.formData();
-    const file = formData.get("file") as File;
-    
+    const file = formData.get('file') as File;
+
     if (!file) {
       return NextResponse.json(
-        { error: "No file uploaded" },
+        { error: "No file provided" },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File size (${Math.round(file.size/1024)}KB) exceeds the ${Math.round(MAX_FILE_SIZE/1024)}KB limit` },
         { status: 400 }
       );
     }
 
     // Get file extension
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
-    const buffer = Buffer.from(await file.arrayBuffer());
-    
-    // Create temporary file path
-    const tempFilePath = join("/tmp", `${userId}-${Date.now()}.${fileExt}`);
-    
-    // Write the file to disk
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!SUPPORTED_EXTENSIONS.has(ext)) {
+      return NextResponse.json(
+        { error: `Unsupported file type: ${ext}. Supported types: ${Array.from(SUPPORTED_EXTENSIONS).join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Create temp file
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    tempFilePath = join('/tmp', `upload-${Date.now()}${ext}`);
     await writeFile(tempFilePath, buffer);
-    
-    let extractedText = "";
-    
+
+    let text = '';
+    let metadata = {};
+
     // Process based on file type
-    switch (fileExt) {
-      case 'txt': {
-        // Extract text from .txt
-        const fileStream = createReadStream(tempFilePath);
-        const rl = createInterface({
-          input: fileStream,
-          crlfDelay: Infinity
-        });
-        
-        for await (const line of rl) {
-          extractedText += line + "\n";
-        }
-        break;
+    if (ext === '.pdf') {
+      const result = await processPDF(buffer);
+      text = result.text;
+      metadata = result.metadata;
+    } else if (ext === '.txt') {
+      // Read text file line by line
+      const fileStream = createReadStream(tempFilePath);
+      const rl = createInterface({
+        input: fileStream,
+        crlfDelay: Infinity
+      });
+
+      const lines = [];
+      for await (const line of rl) {
+        lines.push(line);
       }
-        
-      case 'pdf':
-        try {
-          // First, get metadata with pdf-lib
-          const pdfDoc = await PDFDocument.load(buffer);
-          const numPages = pdfDoc.getPageCount();
-          
-          // Get PDF metadata if available
-          const title = pdfDoc.getTitle() || 'Untitled';
-          const author = pdfDoc.getAuthor() || 'Unknown Author';
-          const subject = pdfDoc.getSubject() || '';
-          const keywords = pdfDoc.getKeywords() || '';
-          
-          // Create PDF summary with metadata
-          extractedText += `PDF Document: ${title}\n`;
-          extractedText += `Author: ${author}\n`;
-          if (subject) extractedText += `Subject: ${subject}\n`;
-          if (keywords) extractedText += `Keywords: ${keywords}\n`;
-          extractedText += `Number of Pages: ${numPages}\n\n`;
-          
-          // Use the CJS helper for PDF parsing - this is designed to work on Netlify
-          try {
-            // With commonjs as default, we can safely use require
-             
-            const pdfParse = require('pdf-parse/lib/pdf-parse');
-            const pdfData = await pdfParse(buffer);
-            extractedText += `Content:\n${pdfData.text}`;
-          } catch (parseError) {
-            console.error("PDF parsing failed:", parseError);
-            
-            // Fallback: Use our manual text extraction method
-            extractedText += "Using manual text extraction method due to parser error.\n\n";
-            const textChunks = [];
-            for (let i = 0; i < buffer.length; i++) {
-              // Look for readable ASCII text (letters, numbers, punctuation)
-              if (buffer[i] >= 32 && buffer[i] <= 126) {
-                let chunk = '';
-                let j = i;
-                // Collect consecutive ASCII characters
-                while (j < buffer.length && buffer[j] >= 32 && buffer[j] <= 126) {
-                  chunk += String.fromCharCode(buffer[j]);
-                  j++;
-                }
-                // Only keep chunks that might be meaningful text (more than a few characters)
-                if (chunk.length > 5) {
-                  textChunks.push(chunk);
-                }
-                i = j;
-              }
-            }
-            
-            // Join the chunks and add to extracted text
-            const rawText = textChunks.join(' ');
-            if (rawText.length > 0) {
-              extractedText += "Content (extracted manually):\n" + rawText;
-            } else {
-              extractedText += "Failed to extract any readable text from this PDF.";
-            }
-          }
-        } catch (error) {
-          console.error("Error extracting PDF text:", error);
-          extractedText += "Error extracting complete text from PDF. Partial content may be available.\n";
-        }
-        break;
-        
-      case 'xlsx': {
-        // Extract text from Excel
-        const workbook = XLSX.read(buffer);
-        const sheetNames = workbook.SheetNames;
-        
-        for (const sheetName of sheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          const json = XLSX.utils.sheet_to_json(worksheet);
-          
-          extractedText += `Sheet: ${sheetName}\n`;
-           
-          json.forEach((row: unknown) => {
-            extractedText += JSON.stringify(row) + "\n";
-          });
-          extractedText += "\n";
-        }
-        break;
-      }
-        
-      default:
-        return NextResponse.json(
-          { error: "Unsupported file type. Please upload .txt, .pdf, or .xlsx" },
-          { status: 400 }
-        );
+      text = lines.join('\n');
+      metadata = {
+        title: file.name,
+        pageCount: 1
+      };
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      // Read Excel file
+      const workbook = XLSX.readFile(tempFilePath);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      text = XLSX.utils.sheet_to_csv(worksheet);
+      metadata = {
+        title: file.name,
+        sheetCount: workbook.SheetNames.length,
+        sheets: workbook.SheetNames
+      };
     }
-    
-    // Clean up the temporary file
-    try {
+
+    // Clean up temp file
+    if (tempFilePath) {
       await unlink(tempFilePath);
-    } catch (unlinkError) {
-      console.error("Error deleting temporary file:", unlinkError);
     }
+
+    return NextResponse.json({
+      text,
+      metadata: {
+        ...metadata,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        extractedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (_error) {
+    console.error('Error extracting text:', _error);
     
-    // Sanitize the extracted text to ensure it's clean UTF-8
-    const sanitizedText = sanitizeText(extractedText);
-    
-    return NextResponse.json(
-      { text: sanitizedText },
-      { status: 200 }
-    );
-    
-  } catch (error) {
-    console.error("Error extracting text:", error);
+    // Clean up temp file on error
+    if (tempFilePath) {
+      try {
+        await unlink(tempFilePath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up temp file:', cleanupError);
+      }
+    }
+
     return NextResponse.json(
       { error: "Failed to extract text from document" },
       { status: 500 }
@@ -173,31 +133,4 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/**
- * Sanitizes text to ensure it's valid UTF-8 and removes problematic characters
- */
-function sanitizeText(text: string): string {
-  // Replace null characters and other control characters
-   
-  let sanitized = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-  
-  // Replace non-printable characters outside standard ASCII
-  sanitized = sanitized.replace(/[\x80-\x9F]/g, '');
-  
-  // Remove any remaining binary garbage by enforcing valid UTF-8
-  sanitized = sanitized
-    .split('')
-    .filter(char => {
-      const code = char.charCodeAt(0);
-      return code >= 32 || [9, 10, 13].includes(code); // Allow tab, newline, carriage return
-    })
-    .join('');
-  
-  // Normalize whitespace (multiple spaces/newlines to single)
-  sanitized = sanitized.replace(/\s+/g, ' ');
-  
-  // Trim excess whitespace
-  sanitized = sanitized.trim();
-  
-  return sanitized;
-} 
+

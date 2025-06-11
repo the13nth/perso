@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AgentRAGService } from '../../../../lib/services/AgentRAGService';
+import { getAgentConfig } from '@/lib/pinecone';
+import { AgentRAGService } from '@/app/lib/services/AgentRAGService';
+import { EmailAgentRAGService } from '@/app/lib/services/EmailAgentRAGService';
+import { CalendarAgentRAGService } from '@/app/lib/services/CalendarAgentRAGService';
+import { BaseRAGService } from '@/app/lib/services/BaseRAGService';
 
-const ragService = new AgentRAGService();
+// Initialize services
+const ragService: BaseRAGService = new AgentRAGService();
+const emailAgentService: BaseRAGService = new EmailAgentRAGService();
+const calendarAgentService: BaseRAGService = new CalendarAgentRAGService();
 
 export const runtime = "edge";
 
@@ -135,8 +142,21 @@ export async function POST(
       );
     }
 
-    // Generate response using the RAG service
-    const response = await ragService.generateResponse(agentId, body.messages);
+    // Get agent configuration
+    const agentConfig = await getAgentConfig(agentId);
+    
+    // Choose the appropriate service based on agent type
+    let service: BaseRAGService = ragService;
+    if (agentConfig.selectedContextIds?.includes('Emails')) {
+      service = emailAgentService;
+      console.log('Using EmailAgentRAGService');
+    } else if (agentConfig.selectedContextIds?.includes('Calendar')) {
+      service = calendarAgentService;
+      console.log('Using CalendarAgentRAGService');
+    }
+
+    // Generate response using the selected service
+    const response = await service.generateResponse(agentId, body.messages);
 
     // Format the response into UI sections
     const formattedContent = formatResponse(response.response);
@@ -152,7 +172,7 @@ export async function POST(
       },
     });
   } catch (error: Error | unknown) {
-    console.error('Error in chat route:', error);
+    console.error('Error in agent chat:', error);
     
     let errorMessage = 'Failed to process chat request';
     let statusCode = 500;

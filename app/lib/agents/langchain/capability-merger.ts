@@ -108,12 +108,12 @@ export async function mergeAgentCapabilities(
       success: true,
       mergedCapabilities: finalCapabilities
     };
-  } catch (error) {
-    console.error('[ERROR] Failed to merge capabilities:', error);
+  } catch (_error) {
+    console.error('[ERROR] Failed to merge capabilities:', _error);
     return {
       success: false,
       mergedCapabilities: [],
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: _error instanceof Error ? _error.message : 'Unknown error occurred'
     };
   }
 }
@@ -206,8 +206,8 @@ export async function createSuperAgent(
     });
 
     return superAgent;
-  } catch (error) {
-    console.error('[ERROR] Failed to create super agent:', error);
+  } catch (_error) {
+    console.error('[ERROR] Failed to create super agent:', _error);
     throw new Error('Failed to create super agent');
   }
 }
@@ -262,8 +262,8 @@ export async function mergeCapabilities(
       tools,
       context: documents
     };
-  } catch (error) {
-    console.error('[ERROR] Failed to merge capabilities:', error);
+  } catch (_error) {
+    console.error('[ERROR] Failed to merge capabilities:', _error);
     throw new Error('Failed to merge capabilities');
   }
 } 

@@ -4,12 +4,7 @@ import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 
-module.exports = {
-  extends: [
-    'next/core-web-vitals',
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended'
-  ],
+export default [{
   ignores: [
     'node_modules/**',
     '.next/**',
@@ -17,14 +12,37 @@ module.exports = {
     'build/**',
     'coverage/**',
     '*.config.js'
-  ],
+  ]
+}, {
+  files: ['**/*.{js,jsx,ts,tsx}'],
+  plugins: {
+    '@typescript-eslint': tsPlugin,
+    'react-hooks': reactHooksPlugin,
+    '@next/next': nextPlugin
+  },
+  languageOptions: {
+    parser: tsParser,
+    parserOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module'
+    }
+  },
   rules: {
+    ...nextPlugin.configs.recommended.rules,
+    ...nextPlugin.configs['core-web-vitals'].rules,
     '@typescript-eslint/no-unused-vars': ['error', { 
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_',
       caughtErrorsIgnorePattern: '^_'
     }],
-    'no-unused-vars': 'off', // Turn off the base rule as it can report incorrect errors
-    'react-hooks/exhaustive-deps': 'warn'
+    'no-unused-vars': 'off',
+    'react-hooks/exhaustive-deps': 'warn',
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: 'CatchClause > Identifier[name="error"]',
+        message: 'Use _error instead of error as catch parameter name'
+      }
+    ]
   }
-}; 
+}]; 

@@ -72,8 +72,8 @@ export async function POST(req: NextRequest) {
         }
       ]
     });
-  } catch (error) {
-    console.error("Error in chat route:", error);
+  } catch (_error) {
+    console.error("Error in chat route:", _error);
     return NextResponse.json(
       { error: "There was an error processing your request" },
       { status: 500 }

@@ -110,12 +110,12 @@ export async function POST(req: NextRequest) {
       sessionId: sessionId,
     });
 
-  } catch (error) {
-    console.error("Error saving conversation:", error);
+  } catch (_error) {
+    console.error("Error saving conversation:", _error);
     return NextResponse.json(
       { 
         message: "Failed to save conversation", 
-        error: error instanceof Error ? error.message : "Unknown error" 
+        error: _error instanceof Error ? _error.message : "Unknown error" 
       },
       { status: 500 }
     );

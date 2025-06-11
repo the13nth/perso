@@ -139,9 +139,9 @@ export class ContentProcessor {
         rawContent: input.file.content,
         metadata: result.metadata
       };
-    } catch (error) {
-      console.error('Error processing document:', error);
-      throw error;
+    } catch (_error) {
+      console.error('Error processing document:', _error);
+      throw _error;
     }
   }
 
@@ -160,12 +160,12 @@ export class ContentProcessor {
       await this.process(input);
       this.processingQueue.delete(processingId);
       console.log('Async processing completed:', processingId);
-    } catch (error) {
+    } catch (_error) {
       console.error('Error in async processing:', {
         processingId,
-        error: error instanceof Error ? error.message : error
+        error: _error instanceof Error ? _error.message : _error
       });
-      throw error;
+      throw _error;
     }
   }
 

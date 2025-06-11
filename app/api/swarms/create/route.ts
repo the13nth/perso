@@ -65,17 +65,17 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error) {
-    console.error('Error creating swarm:', error);
+  } catch (_error) {
+    console.error('Error creating swarm:', _error);
     
     let errorMessage = 'Failed to create swarm';
     let statusCode = 500;
 
-    if (error instanceof Error) {
-      if (error.message.includes('No suitable agents found')) {
+    if (_error instanceof Error) {
+      if (_error.message.includes('No suitable agents found')) {
         errorMessage = 'No suitable agents available for this task. Please create or add more agents.';
         statusCode = 404;
-      } else if (error.message.includes('API key')) {
+      } else if (_error.message.includes('API key')) {
         errorMessage = 'AI service configuration error';
         statusCode = 503;
       }

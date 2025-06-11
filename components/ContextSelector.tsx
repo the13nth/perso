@@ -42,8 +42,8 @@ export function ContextSelector({ userId, onSelectionChange }: ContextSelectorPr
         });
         
         setContexts(transformedContexts);
-      } catch (error) {
-        console.error('Error loading contexts:', error);
+      } catch (_error) {
+        console.error('Error loading contexts:', _error);
       } finally {
         setLoading(false);
       }

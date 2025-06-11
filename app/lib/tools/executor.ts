@@ -48,8 +48,8 @@ export class ToolExecutor {
       });
 
       return result;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    } catch (_error) {
+      const errorMessage = _error instanceof Error ? _error.message : 'Unknown error occurred';
       return {
         success: false,
         error: errorMessage,

@@ -182,8 +182,8 @@ export function CreateSwarmDialog({ open, onOpenChange, onSwarmCreated }: Create
 
       toast.success('Task complexity analyzed successfully!');
       setStep(2);
-    } catch (error) {
-      console.error('Error analyzing task:', error);
+    } catch (_error) {
+      console.error('Error analyzing task:', _error);
       toast.error('Failed to analyze task complexity');
     } finally {
       setAnalyzing(false);
@@ -212,8 +212,8 @@ export function CreateSwarmDialog({ open, onOpenChange, onSwarmCreated }: Create
       } else {
         toast.error(data.error || 'Failed to create swarm');
       }
-    } catch (error) {
-      console.error('Error creating swarm:', error);
+    } catch (_error) {
+      console.error('Error creating swarm:', _error);
       toast.error('Failed to create swarm');
     } finally {
       setLoading(false);

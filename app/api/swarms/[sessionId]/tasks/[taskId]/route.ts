@@ -90,8 +90,8 @@ export async function PUT(
       message: 'Task updated successfully'
     });
 
-  } catch (error) {
-    console.error('Error updating task:', error);
+  } catch (_error) {
+    console.error('Error updating task:', _error);
     
     return Response.json(
       { success: false, error: 'Internal server error' },

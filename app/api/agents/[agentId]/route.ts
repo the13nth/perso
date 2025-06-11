@@ -28,10 +28,10 @@ export async function GET(
     }
 
     return NextResponse.json(agent);
-  } catch (error) {
-    console.error('Error fetching agent:', error);
+  } catch (_error) {
+    console.error('Error fetching agent:', _error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch agent" },
+      { error: _error instanceof Error ? _error.message : "Failed to fetch agent" },
       { status: 500 }
     );
   }
@@ -77,10 +77,10 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedAgent);
-  } catch (error) {
-    console.error('Error updating agent:', error);
+  } catch (_error) {
+    console.error('Error updating agent:', _error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update agent" },
+      { error: _error instanceof Error ? _error.message : "Failed to update agent" },
       { status: 500 }
     );
   }

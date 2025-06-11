@@ -1,4 +1,3 @@
-
 import type { SuperAgentConfig, AgentCapability, ProcessingStep, Context, AgentMetadata } from "./types";
 import { getAgentContext } from "@/app/lib/pinecone";
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -140,13 +139,13 @@ export class AgentSupervisor {
         response,
         steps: showSteps ? steps : undefined
       };
-    } catch (error) {
+    } catch (_error) {
       const failedStep = steps.find(s => s.status === 'running');
       if (failedStep) {
         failedStep.status = 'error';
-        failedStep.details = error instanceof Error ? error.message : 'An unknown error occurred';
+        failedStep.details = _error instanceof Error ? _error.message : 'An unknown error occurred';
       }
-      throw error;
+      throw _error;
     }
   }
 
@@ -240,16 +239,46 @@ export class AgentSupervisor {
 
     try {
       // Use model to generate response
-      const gemini = this.model.getGenerativeModel({ model: 'gemini-pro' });
+      const gemini = this.model.getGenerativeModel({ model: 'gemini-2.0-flash-001' });
       const result = await gemini.generateContent(prompt);
       return result.response.text() || 'Failed to generate response';
-    } catch (error) {
-      console.error('Error generating response:', error);
+    } catch (_error) {
+      console.error('Error generating response:', _error);
       return 'Failed to generate response due to an error';
     }
   }
 
   private async getAgentContext(query: string): Promise<Context[]> {
+    // Check if agent needs email access
+    const needsEmailAccess = this.metadata.agent?.selectedContextIds?.includes('Emails');
+    
+    if (needsEmailAccess) {
+      console.log(`[SUPERVISOR] Starting email refresh for agent ${this.agentId}`);
+      // Refresh email data
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/retrieval/ingest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'email',
+          metadata: {
+            agentId: this.agentId,
+            userId: this.metadata.userId,
+            type: 'email'
+          }
+        })
+      });
+
+      const result = await response.json();
+      console.log(`[SUPERVISOR] Email refresh result:`, result);
+
+      if (!response.ok) {
+        console.error('[SUPERVISOR] Failed to refresh emails:', result);
+      }
+    }
+
     // Get context from Pinecone
     const contextDocs = await getAgentContext(this.agentId, query);
     return contextDocs.map(doc => ({

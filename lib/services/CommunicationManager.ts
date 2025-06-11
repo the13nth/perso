@@ -71,8 +71,8 @@ export class CommunicationManager {
               try {
                 await this.deliverMessage(message, participantId);
                 deliveredTo.push(participantId);
-              } catch (error) {
-                console.error(`Failed to deliver to ${participantId}:`, error);
+              } catch (_error) {
+                console.error(`Failed to deliver to ${participantId}:`, _error);
                 failedDeliveries.push(participantId);
               }
             }
@@ -94,8 +94,8 @@ export class CommunicationManager {
             directChannel.lastActivity = Date.now();
             directChannel.messageCount++;
           }
-        } catch (error) {
-          console.error(`Failed to deliver to ${message.toAgentId}:`, error);
+        } catch (_error) {
+          console.error(`Failed to deliver to ${message.toAgentId}:`, _error);
           failedDeliveries.push(message.toAgentId);
         }
       }
@@ -110,8 +110,8 @@ export class CommunicationManager {
 
       console.log('✅ Message delivery completed:', response);
       return response;
-    } catch (error) {
-      console.error('❌ Message sending failed:', error);
+    } catch (_error) {
+      console.error('❌ Message sending failed:', _error);
       return {
         success: false,
         messageId: message.id,

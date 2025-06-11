@@ -1,0 +1,83 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project Rules
+
+## 1. Code Organization & Structure
+- Follow Next.js 13+ app directory structure
+- Keep components atomic and reusable
+- Maintain clear separation between UI components and business logic
+- Use barrel exports (index.ts files) for cleaner imports
+- Organize styles using Tailwind utility classes with consistent naming
+
+## 2. TypeScript & Type Safety
+- Maintain strict TypeScript configuration
+- No `any` types unless absolutely necessary
+- Create and maintain comprehensive type definitions in `/types`
+- Use zod for runtime type validation
+- Document complex types with JSDoc comments
+
+## 3. State Management & Data Flow
+- Use React Server Components by default
+- Client components should be marked with 'use client'
+- Implement proper error boundaries
+- Keep state as local as possible
+- Use React Query for server state management
+
+## 4. API & Integration Rules
+- All API routes should have proper error handling
+- Implement rate limiting for external service calls
+- Use environment variables for all external service configurations
+- Maintain separate development and production API keys
+- Document all API endpoints with OpenAPI/Swagger
+
+## 5. Testing & Quality Assurance
+- Write unit tests for all utility functions
+- Implement integration tests for API routes
+- Add E2E tests for critical user flows
+- Maintain minimum 80% test coverage
+- Use MSW for mocking API calls in tests
+
+## 6. Security Practices
+- Never commit sensitive credentials
+- Use .env.local for local development
+- Implement proper CORS policies
+- Validate all user inputs
+- Regular security dependency audits
+
+## 7. Performance Optimization
+- Implement proper code splitting
+- Use Image component for optimized images
+- Minimize client-side JavaScript
+- Implement proper caching strategies
+- Regular performance monitoring and optimization
+
+## 8. Development Workflow
+- Use Yarn for package management
+- Follow conventional commits
+- Create feature branches from main
+- Require PR reviews before merging
+- Use husky for pre-commit hooks
+
+## 9. Documentation
+- Maintain up-to-date README
+- Document all environment variables
+- Add JSDoc comments for complex functions
+- Keep architecture diagrams updated
+- Document deployment procedures
+
+## 10. AI & Agent-Specific Rules
+- Maintain consistent agent interfaces
+- Document agent capabilities and limitations
+- Implement proper error handling for AI responses
+- Set up monitoring for AI service usage
+- Keep prompt templates versioned
+
+## 11. Monitoring & Logging
+- Implement structured logging
+- Set up error tracking (e.g., Sentry)
+- Monitor API performance
+- Track AI service usage
+- Regular analytics review

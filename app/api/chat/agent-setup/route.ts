@@ -32,10 +32,10 @@ export async function POST(): Promise<NextResponse<AgentSetupResponse>> {
         tools: ["search", "calculator"]
       }
     });
-  } catch (error) {
-    const status = error instanceof Error && 'status' in error ? error.status as number : 500;
+  } catch (_error) {
+    const status = _error instanceof Error && 'status' in _error ? _error.status as number : 500;
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'An error occurred' },
+      { success: false, error: _error instanceof Error ? _error.message : 'An error occurred' },
       { status }
     );
   }

@@ -26,8 +26,8 @@ export class FirestoreSwarmStorage {
         updatedAt: new Date().toISOString()
       });
       console.log('✅ Session saved to Firestore');
-    } catch (error) {
-      console.error('❌ Error saving to Firestore, falling back to file storage:', error);
+    } catch (_error) {
+      console.error('❌ Error saving to Firestore, falling back to file storage:', _error);
       await this.saveToFileStorage(session);
       console.log('✅ Session saved to file storage (fallback)');
     }
@@ -54,8 +54,8 @@ export class FirestoreSwarmStorage {
       
       // Fallback to file storage
       return await this.loadFromFileStorage(sessionId);
-    } catch (error) {
-      console.error('❌ Error loading from Firestore, trying file storage:', error);
+    } catch (_error) {
+      console.error('❌ Error loading from Firestore, trying file storage:', _error);
       return await this.loadFromFileStorage(sessionId);
     }
   }
@@ -83,8 +83,8 @@ export class FirestoreSwarmStorage {
       
       console.log(`✅ Loaded ${sessions.length} sessions from Firestore`);
       return sessions;
-    } catch (error) {
-      console.error('❌ Error loading from Firestore, trying file storage:', error);
+    } catch (_error) {
+      console.error('❌ Error loading from Firestore, trying file storage:', _error);
       return await this.loadUserSessionsFromFile(userId);
     }
   }
@@ -100,8 +100,8 @@ export class FirestoreSwarmStorage {
       const sessionRef = adminDb.collection(this.COLLECTION_NAME).doc(sessionId);
       await sessionRef.delete();
       console.log('✅ Session deleted from Firestore');
-    } catch (error) {
-      console.error('❌ Error deleting from Firestore, trying file storage:', error);
+    } catch (_error) {
+      console.error('❌ Error deleting from Firestore, trying file storage:', _error);
       await this.deleteFromFileStorage(sessionId);
       console.log('✅ Session deleted from file storage (fallback)');
     }
@@ -115,7 +115,7 @@ export class FirestoreSwarmStorage {
     try {
       const data = await fs.readFile(this.FILE_STORAGE_PATH, 'utf-8');
       sessions = JSON.parse(data);
-    } catch (error) {
+    } catch (_error) {
       // File doesn't exist yet, start with empty object
     }
     
@@ -128,7 +128,7 @@ export class FirestoreSwarmStorage {
       const data = await fs.readFile(this.FILE_STORAGE_PATH, 'utf-8');
       const sessions: Record<string, SwarmSession> = JSON.parse(data);
       return sessions[sessionId] || null;
-    } catch (error) {
+    } catch (_error) {
       console.log('⚠️ File storage not found or empty');
       return null;
     }
@@ -145,7 +145,7 @@ export class FirestoreSwarmStorage {
       
       console.log(`✅ Loaded ${userSessions.length} sessions from file storage`);
       return userSessions;
-    } catch (error) {
+    } catch (_error) {
       console.log('⚠️ File storage not found or empty');
       return [];
     }
@@ -159,8 +159,8 @@ export class FirestoreSwarmStorage {
       delete sessions[sessionId];
       
       await fs.writeFile(this.FILE_STORAGE_PATH, JSON.stringify(sessions, null, 2));
-    } catch (error) {
-      console.log('⚠️ Error deleting from file storage:', error);
+    } catch (_error) {
+      console.log('⚠️ Error deleting from file storage:', _error);
     }
   }
 

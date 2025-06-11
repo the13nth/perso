@@ -90,8 +90,8 @@ export async function GET(
       }
     });
 
-  } catch (error) {
-    console.error('Error getting swarm status:', error);
+  } catch (_error) {
+    console.error('Error getting swarm status:', _error);
     return NextResponse.json(
       { success: false, error: "Failed to get swarm status" },
       { status: 500 }
@@ -147,8 +147,8 @@ export async function DELETE(
       message: "Swarm dissolved successfully"
     });
 
-  } catch (error) {
-    console.error('Error dissolving swarm:', error);
+  } catch (_error) {
+    console.error('Error dissolving swarm:', _error);
     return NextResponse.json(
       { success: false, error: "Failed to dissolve swarm" },
       { status: 500 }

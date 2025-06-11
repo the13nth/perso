@@ -197,9 +197,9 @@ export default function InsightsPage() {
         
         // Sort by document count (highest first)
         setCategorySummaries(summaries.sort((a, b) => b.count - a.count));
-      } catch (error) {
-        console.error('Error fetching embeddings:', error);
-        setFetchError(error instanceof Error ? error.message : 'Failed to load categories');
+      } catch (_error) {
+        console.error('Error fetching embeddings:', _error);
+        setFetchError(_error instanceof Error ? _error.message : 'Failed to load categories');
         
         // Set some mock data as fallback
         setCategorySummaries([
@@ -258,9 +258,9 @@ export default function InsightsPage() {
       
       const data = await response.json();
       setInsightData(data);
-    } catch (error) {
-      console.error('Error generating insights:', error);
-      setInsightError(error instanceof Error ? error.message : 'An unknown error occurred');
+    } catch (_error) {
+      console.error('Error generating insights:', _error);
+      setInsightError(_error instanceof Error ? _error.message : 'An unknown error occurred');
     } finally {
       setInsightLoading(false);
     }
@@ -296,10 +296,10 @@ export default function InsightsPage() {
         description: `The ${insightType} insight has been saved under "${data.category}" and can be retrieved in future searches.`,
         duration: 5000,
       });
-    } catch (error) {
-      console.error('Error saving insight:', error);
+    } catch (_error) {
+        console.error('Error saving insight:', _error);
       toast.error("Failed to save insight", {
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: _error instanceof Error ? _error.message : "An unknown error occurred",
         duration: 5000,
       });
     } finally {

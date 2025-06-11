@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Dashboard from "./Dashboard";
 import { XCircle } from 'lucide-react';
 
@@ -23,8 +23,13 @@ export default function ClientVisualization() {
   const [embeddings, setEmbeddings] = useState<Embedding[]>([]);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const mounted = useRef(false);
 
   useEffect(() => {
+    // Prevent double fetching in development
+    if (mounted.current) return;
+    mounted.current = true;
+
     async function fetchEmbeddings() {
       setLoading(true);
       try {

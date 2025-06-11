@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Brain, Users, Globe2, Heart, BarChart3, Database, BookOpen, Sparkles, Lightbulb, Zap, Target, Activity, TrendingUp, Shield, Workflow, Check, Star, ArrowRight, Play, Cpu, Network, Bot } from "lucide-react";
+import { Brain, Users, Heart, BarChart3, Database, BookOpen, Sparkles, Lightbulb, Zap, Target, Activity, TrendingUp, Shield, Workflow, Check, Star, ArrowRight, Play, Cpu, Network, Bot } from "lucide-react";
 
 // Animated background pattern component
 function AnimatedBackground() {
@@ -82,10 +82,11 @@ export default function HomePage() {
           
           {/* Subheading */}
           <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl mb-8 text-muted-foreground mx-auto animate-fade-in-up delay-200 leading-relaxed max-w-6xl">
-            Your intelligent automation platform that ingests multiple contexts to generate 
-            <span className="text-primary font-semibold"> personalized actions</span>, 
-            <span className="text-primary font-semibold"> recommendations</span>, and 
-            <span className="text-primary font-semibold"> interfaces</span>
+            Experience the next evolution of AI automation - Your 
+            <span className="text-primary font-semibold"> all-in-one intelligent workspace</span> that 
+            <span className="text-primary font-semibold"> learns</span>, 
+            <span className="text-primary font-semibold"> adapts</span>, and 
+            <span className="text-primary font-semibold"> grows</span> with you
           </p>
           
           {/* Description */}
@@ -263,39 +264,40 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Pricing Section */}
+        {/* Updated Pricing Section */}
         <section className="w-full py-16 lg:py-24 bg-muted/20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-center text-primary">Choose Your AI Plan</h2>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-center text-primary">Flexible Plans for Every Need</h2>
             <p className="text-lg md:text-xl text-muted-foreground mb-12 text-center max-w-3xl mx-auto">
-              Start free and scale with AI that grows with you. From personal productivity to enterprise automation.
+              Start your AI journey for free and scale as you grow. Transparent pricing with no hidden fees.
             </p>
+            </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Free Tier */}
-          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background">
+          {/* Free Plan */}
+          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background/50 backdrop-blur-sm">
             <div className="text-center mb-6">
-              <h3 className="text-xl font-bold mb-2">Starter</h3>
+              <h3 className="text-xl font-bold mb-2">Explorer</h3>
               <div className="text-3xl font-bold mb-2">Free</div>
-              <p className="text-muted-foreground">Perfect for exploring AI</p>
+              <p className="text-muted-foreground">Perfect for getting started</p>
             </div>
             
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>500MB document processing</span>
+                <span>1GB AI processing</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Basic AI chat (50 messages/month)</span>
+                <span>100 AI chat messages/month</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Personal knowledge base</span>
+                <span>Basic knowledge base</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>1 AI workflow automation</span>
+                <span>2 AI workflows</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -304,25 +306,25 @@ export default function HomePage() {
             </ul>
             
             <Link
-              href="/retrieval"
+              href="/sign-up"
               className="w-full block text-center bg-muted hover:bg-muted/80 text-foreground px-6 py-3 rounded-lg font-medium transition-colors"
             >
-              Get Started Free
+              Start Free
             </Link>
           </div>
 
-          {/* Growth Tier - NEW */}
-          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background">
+          {/* Pro Plan */}
+          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background/50 backdrop-blur-sm">
             <div className="text-center mb-6">
-              <h3 className="text-xl font-bold mb-2">Growth</h3>
-              <div className="text-3xl font-bold mb-2">$19<span className="text-lg text-muted-foreground">/month</span></div>
-              <p className="text-muted-foreground">For individuals & small teams</p>
+              <h3 className="text-xl font-bold mb-2">Pro</h3>
+              <div className="text-3xl font-bold mb-2">$29<span className="text-lg text-muted-foreground">/month</span></div>
+              <p className="text-muted-foreground">For power users</p>
             </div>
             
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>5GB document processing</span>
+                <span>10GB AI processing</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -330,32 +332,32 @@ export default function HomePage() {
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Health & productivity AI agents</span>
+                <span>Advanced knowledge base</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>5 AI workflow automations</span>
+                <span>10 AI workflows</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Basic integrations (10 apps)</span>
+                <span>Priority email support</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Email + chat support</span>
+                <span>Basic integrations (20+ apps)</span>
               </li>
             </ul>
             
             <Link
-              href="/retrieval"
-              className="w-full block text-center bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-medium transition-colors"
+              href="/pricing"
+              className="w-full block text-center bg-primary/90 hover:bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium transition-colors"
             >
-              Start Growing
+              Upgrade to Pro
             </Link>
           </div>
 
-          {/* Professional Plan - UPDATED */}
-          <div className="relative p-6 border-2 border-primary rounded-2xl hover:scale-105 transition-all duration-300 bg-primary/5">
+          {/* Business Plan */}
+          <div className="relative p-6 border-2 border-primary rounded-2xl hover:scale-105 transition-all duration-300 bg-primary/5 backdrop-blur-sm">
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
               <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                 <Star className="w-4 h-4" />
@@ -364,27 +366,27 @@ export default function HomePage() {
             </div>
             
             <div className="text-center mb-6">
-              <h3 className="text-xl font-bold mb-2">Scale</h3>
-              <div className="text-3xl font-bold mb-2">$49<span className="text-lg text-muted-foreground">/month</span></div>
-              <p className="text-muted-foreground">For growing businesses</p>
+              <h3 className="text-xl font-bold mb-2">Business</h3>
+              <div className="text-3xl font-bold mb-2">$99<span className="text-lg text-muted-foreground">/month</span></div>
+              <p className="text-muted-foreground">For growing teams</p>
             </div>
             
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span className="font-medium">25GB document processing</span>
+                <span>50GB AI processing</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Unlimited AI chat + voice mode</span>
+                <span>Unlimited AI features</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>All personal + business AI agents</span>
+                <span>Enterprise knowledge base</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Unlimited AI workflow automations</span>
+                <span>Unlimited AI workflows</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -392,11 +394,15 @@ export default function HomePage() {
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <span>24/7 priority support</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <span>Custom AI model training</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Priority support & API access</span>
+                <span>Advanced analytics</span>
               </li>
             </ul>
             
@@ -404,12 +410,12 @@ export default function HomePage() {
               href="/pricing"
               className="w-full block text-center bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-medium transition-colors"
             >
-              Scale Your Business
+              Start Business Plan
             </Link>
           </div>
 
-          {/* Enterprise */}
-          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background">
+          {/* Enterprise Plan */}
+          <div className="relative p-6 border rounded-2xl hover:border-primary/50 transition-all duration-300 hover:scale-105 bg-background/50 backdrop-blur-sm">
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold mb-2">Enterprise</h3>
               <div className="text-3xl font-bold mb-2">Custom</div>
@@ -419,31 +425,31 @@ export default function HomePage() {
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Everything in Scale</span>
+                <span>Unlimited AI processing</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Unlimited document processing</span>
+                <span>Custom deployment options</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>White-label & custom deployment</span>
+                <span>Private AI models</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Custom AI model development</span>
+                <span>Custom AI development</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Advanced security & compliance</span>
+                <span>Enterprise security</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>Dedicated account manager</span>
+                <span>Dedicated success team</span>
               </li>
               <li className="flex items-center gap-3">
                 <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                <span>24/7 phone support & SLA</span>
+                <span>Custom SLAs</span>
               </li>
             </ul>
             
@@ -456,82 +462,103 @@ export default function HomePage() {
           </div>
         </div>
         
-        <div className="text-center mt-12">
-          <p className="text-muted-foreground mb-6">
-            All plans include enterprise-grade security, GDPR compliance, and 99.9% uptime guarantee
-          </p>
+        {/* Enhanced Value Props */}
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="text-center p-6 bg-background/50 backdrop-blur-sm rounded-xl border border-primary/20">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
+              <Shield className="w-6 h-6" />
+            </div>
+            <h4 className="font-semibold mb-2">Enterprise-Grade Security</h4>
+            <p className="text-sm text-muted-foreground">SOC 2 Type II certified with end-to-end encryption and GDPR compliance</p>
+          </div>
           
-          {/* Value Props */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
-                <Shield className="w-6 h-6" />
-              </div>
-              <h4 className="font-semibold mb-2">Enterprise Security</h4>
-              <p className="text-sm text-muted-foreground">SOC 2 compliant with end-to-end encryption</p>
+          <div className="text-center p-6 bg-background/50 backdrop-blur-sm rounded-xl border border-primary/20">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
+              <Brain className="w-6 h-6" />
             </div>
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
-                <Globe2 className="w-6 h-6" />
-              </div>
-              <h4 className="font-semibold mb-2">Global Reach</h4>
-              <p className="text-sm text-muted-foreground">Available in 50+ countries with local data centers</p>
-            </div>
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
-                <Users className="w-6 h-6" />
-              </div>
-              <h4 className="font-semibold mb-2">Expert Support</h4>
-              <p className="text-sm text-muted-foreground">Dedicated AI specialists to help you succeed</p>
-            </div>
+            <h4 className="font-semibold mb-2">Advanced AI Technology</h4>
+            <p className="text-sm text-muted-foreground">State-of-the-art AI models with continuous learning and adaptation</p>
           </div>
+          
+          <div className="text-center p-6 bg-background/50 backdrop-blur-sm rounded-xl border border-primary/20">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 text-primary rounded-lg mb-4">
+              <Users className="w-6 h-6" />
+            </div>
+            <h4 className="font-semibold mb-2">Dedicated Support</h4>
+            <p className="text-sm text-muted-foreground">Expert AI specialists available 24/7 to ensure your success</p>
+          </div>
+        </div>
 
-          {/* Comparison Note */}
-          <div className="mt-12 p-6 bg-primary/5 rounded-lg border border-primary/20">
-            <h4 className="font-semibold text-primary mb-2">Why choose Ubumuntu AI over competitors?</h4>
-            <p className="text-muted-foreground">
-              Unlike HubSpot's expensive tiers ($800+/month) or ActiveCampaign's limited AI features, 
-              we provide enterprise-grade AI automation at transparent, affordable pricing.
+                 {/* Competitive Advantage */}
+         <div className="mt-16 p-8 bg-primary/5 rounded-2xl border border-primary/20">
+           <h4 className="text-xl font-bold text-primary mb-4 text-center">Why Choose Ubumuntu AI?</h4>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="flex items-start gap-3">
+               <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
+               <div>
+                 <p className="font-medium">More Affordable Than Competitors</p>
+                 <p className="text-sm text-muted-foreground">Save up to 70% compared to traditional enterprise solutions</p>
+               </div>
+             </div>
+             <div className="flex items-start gap-3">
+               <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
+               <div>
+                 <p className="font-medium">Advanced AI Capabilities</p>
+                 <p className="text-sm text-muted-foreground">State-of-the-art models with continuous improvements</p>
+               </div>
+             </div>
+             <div className="flex items-start gap-3">
+               <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
+               <div>
+                 <p className="font-medium">Flexible Integration</p>
+                 <p className="text-sm text-muted-foreground">Connect with 100+ apps and custom systems</p>
+               </div>
+             </div>
+             <div className="flex items-start gap-3">
+               <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
+               <div>
+                 <p className="font-medium">Transparent Pricing</p>
+                 <p className="text-sm text-muted-foreground">No hidden fees or long-term contracts required</p>
+               </div>
+             </div>
+           </div>
+         </div>
+       </section>
+
+      {/* Final CTA Section */}
+      <section className="w-full py-16 lg:py-24 bg-background">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="flex flex-col items-center space-y-6 animate-fade-in-up">
+            <p className="text-lg md:text-xl text-muted-foreground max-w-4xl leading-relaxed">
+              Ubumuntu means &apos;humanity towards others&apos; in Kinyarwanda. Our platform embodies this philosophy by creating AI that understands your unique context—whether you&apos;re running a business or managing your personal life—and intelligently automates tasks, generates insights, and provides recommendations that truly serve your needs.
             </p>
-          </div>
-          </div>
-          </div>
-        </section>
-
-        {/* Final CTA Section */}
-        <section className="w-full py-16 lg:py-24 bg-background">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div className="flex flex-col items-center space-y-6 animate-fade-in-up">
-              <p className="text-lg md:text-xl text-muted-foreground max-w-4xl leading-relaxed">
-                Ubumuntu means &apos;humanity towards others&apos; in Kinyarwanda. Our platform embodies this philosophy by creating AI that understands your unique context—whether you&apos;re running a business or managing your personal life—and intelligently automates tasks, generates insights, and provides recommendations that truly serve your needs.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link
-                  href="/retrieval"
-                  className="group bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2"
-                >
-                  Start Your AI Agent
-                  <span className="inline-block transition-transform group-hover:translate-x-1">
-                    →
-                  </span>
-                </Link>
-                <Link
-                  href="/embeddings"
-                  className="group border border-primary text-primary hover:bg-primary hover:text-primary-foreground px-8 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2"
-                >
-                  Explore Capabilities
-                  <span className="inline-block transition-transform group-hover:translate-x-1">
-                    →
-                  </span>
-                </Link>
-              </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/retrieval"
+                className="group bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2"
+              >
+                Start Your AI Agent
+                <span className="inline-block transition-transform group-hover:translate-x-1">
+                  →
+                </span>
+              </Link>
+              <Link
+                href="/embeddings"
+                className="group border border-primary text-primary hover:bg-primary hover:text-primary-foreground px-8 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2"
+              >
+                Explore Capabilities
+                <span className="inline-block transition-transform group-hover:translate-x-1">
+                  →
+                </span>
+              </Link>
             </div>
-                     </div>
-         </section>
-       </div>
-     </div>
-   );
- }
+          </div>
+                   </div>
+        </section>
+      </div>
+    </div>
+  );
+}
 
 function FeatureCard({
   title,

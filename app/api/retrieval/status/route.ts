@@ -227,11 +227,11 @@ export async function GET(req: NextRequest) {
       throw pineconeError; // Re-throw if not a recent document
     }
 
-  } catch (error) {
-    console.error("Error checking document status:", error);
+  } catch (_error) {
+    console.error("Error checking document status:", _error);
     return new NextResponse(JSON.stringify({ 
       error: "Internal server error",
-      message: error instanceof Error ? error.message : "Unknown error occurred"
+      message: _error instanceof Error ? _error.message : "Unknown error occurred"
     }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

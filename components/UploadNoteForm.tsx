@@ -89,9 +89,9 @@ export function UploadNoteForm({
       // Call success callback
       onSuccess?.();
 
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to upload note");
+    } catch (_error) {
+      console.error("Upload error:", _error);
+      toast.error(_error instanceof Error ? _error.message : "Failed to upload note");
     } finally {
       setIsLoading(false);
     }

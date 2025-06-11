@@ -61,8 +61,8 @@ export default function AgentDetailsPage() {
         const data = await response.json();
         setAgent(data);
         setSelectedCategories(data.selectedContextIds || []);
-      } catch (error) {
-        console.error('Error fetching agent details:', error);
+      } catch (_error) {
+        console.error('Error fetching agent details:', _error);
         toast.error('Failed to load agent details');
       } finally {
         setIsLoading(false);
@@ -81,8 +81,8 @@ export default function AgentDetailsPage() {
         if (!response.ok) throw new Error('Failed to fetch categories');
         const data = await response.json();
         setAvailableCategories(data.categories || []);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
+      } catch (_error) {
+        console.error('Error fetching categories:', _error);
       }
     }
     fetchAvailableCategories();
@@ -113,9 +113,9 @@ export default function AgentDetailsPage() {
       setAgent(updatedAgent);
       setIsEditingCategories(false);
       toast.success('Categories updated successfully!');
-    } catch (error) {
-      console.error('Error updating categories:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update categories');
+    } catch (_error) {
+      console.error('Error updating categories:', _error);
+      toast.error(_error instanceof Error ? _error.message : 'Failed to update categories');
     } finally {
       setIsUpdating(false);
     }

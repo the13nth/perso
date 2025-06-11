@@ -1,6 +1,6 @@
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { ContentIngestion, ValidationResult, StorageResult, ContentReference } from './ContentIngestion';
-import { ProcessedContent, ContentChunk, EmbeddedChunk, ContentMetadata, ActivityInput, PineconeMetadata } from '../types';
+import { ProcessedContent, ContentChunk, EmbeddedChunk, ActivityInput, PineconeMetadata, ContentMetadata } from '../types';
 import { sanitizeText } from '../utils/textUtils';
 import { detectLanguage, extractTopics } from '../utils/contentAnalysis';
 import { Pinecone } from "@pinecone-database/pinecone";
@@ -154,13 +154,11 @@ export class ActivityIngestion implements ContentIngestion {
   async embed(chunks: ContentChunk[]): Promise<EmbeddedChunk[]> {
     return Promise.all(
       chunks.map(async (chunk) => {
-        const processedChunk: ProcessedContent = {
-          contentId: chunk.metadata.contentId,
-          chunks: [chunk.text],
-          rawContent: chunk.text,
+        const processedChunk: ContentChunk = {
+          text: chunk.text,
           metadata: chunk.metadata
         };
-        
+
         const searchableText = this.generateSearchableText(processedChunk);
         const embedding = await this.embeddings.embedQuery(searchableText);
         
@@ -266,9 +264,9 @@ export class ActivityIngestion implements ContentIngestion {
     };
   }
 
-  generateSearchableText(content: ProcessedContent): string {
-    const text = content.rawContent || '';
-    const metadata = content.metadata;
+  generateSearchableText(chunk: ContentChunk): string {
+    const text = chunk.text || '';
+    const metadata = chunk.metadata;
     return [
       metadata.title,
       text,
@@ -280,8 +278,8 @@ export class ActivityIngestion implements ContentIngestion {
     ].filter(Boolean).join(' ');
   }
 
-  extractKeywords(content: ProcessedContent): string[] {
-    const text = content.rawContent || '';
+  extractKeywords(chunk: ContentChunk): string[] {
+    const text = chunk.text || '';
     // Extract hashtags from text
     const hashTags = (text.match(/#[\w-]+/g) || [])
       .map(tag => tag.slice(1));
@@ -292,9 +290,9 @@ export class ActivityIngestion implements ContentIngestion {
     
     // Add activity-specific keywords
     const activityKeywords = [
-      content.metadata.activity?.activityType,
-      content.metadata.activity?.location,
-      content.metadata.activity?.goalStatus
+      chunk.metadata.activity?.activityType,
+      chunk.metadata.activity?.location,
+      chunk.metadata.activity?.goalStatus
     ].filter(Boolean) as string[];
     
     // Combine and deduplicate
@@ -341,4 +339,4 @@ export class ActivityIngestion implements ContentIngestion {
       }
     });
   }
-} 
+}

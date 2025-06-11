@@ -3,9 +3,13 @@ import { AgentSupervisor } from '@/lib/agents/langchain/supervisor';
 import { getAgentConfig } from '@/lib/pinecone';
 import { AgentMetadata } from '@/app/lib/agents/langchain/types';
 import { convertPineconeAgentToConfig } from '@/app/lib/agents/langchain/config';
+import { EmailAgentRAGService } from '@/app/lib/services/EmailAgentRAGService';
 
 // Keep track of active supervisors
 const supervisors = new Map<string, AgentSupervisor>();
+
+// Initialize email agent service
+const emailAgentService = new EmailAgentRAGService();
 
 export async function POST(
   request: NextRequest,
@@ -14,21 +18,27 @@ export async function POST(
   try {
     const { agentId } = await context.params;
     const { messages, show_intermediate_steps = false } = await request.json();
-
-    // Get the current message
     const currentMessage = messages[messages.length - 1];
-    if (!currentMessage || currentMessage.role !== 'user') {
-      return new Response('Invalid message format', { status: 400 });
+
+    // Get agent configuration
+    const pineconeAgent = await getAgentConfig(agentId);
+    if (!pineconeAgent) {
+      return new Response('Agent not found', { status: 404 });
     }
 
-    // Get or create supervisor
-    let supervisor = supervisors.get(agentId);
-    if (!supervisor) {
-      const pineconeAgent = await getAgentConfig(agentId);
-      if (!pineconeAgent) {
-        return new Response('Agent not found', { status: 404 });
-      }
+    // Check if this is an email agent
+    if (pineconeAgent.selectedContextIds?.includes('Emails')) {
+      console.log(`[CHAT] Using EmailAgentRAGService for agent ${agentId}`);
+      const response = await emailAgentService.generateResponse(agentId, messages);
+      return new Response(JSON.stringify(response), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
+    // For non-email agents, use the standard supervisor
+    let supervisor = supervisors.get(agentId);
+
+    if (!supervisor) {
       // Convert ISO string dates to timestamps
       const now = Date.now();
 
@@ -79,14 +89,14 @@ export async function POST(
       supervisors.set(agentId, supervisor);
     }
 
-    // Process message
+    // Process message using standard supervisor
     const response = await supervisor.processMessage(currentMessage.content, show_intermediate_steps);
 
     return new Response(JSON.stringify(response), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
-    console.error('Error processing message:', error);
+  } catch (_error) {
+    console.error('Error processing message:', _error);
     return new Response('Internal server error', { status: 500 });
   }
 } 

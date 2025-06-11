@@ -1,99 +1,98 @@
+import { MarkdownTextSplitter } from "langchain/text_splitter";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { ContentIngestion, ValidationResult, StorageResult, ContentReference } from './ContentIngestion';
-import { ProcessedContent, ContentChunk, EmbeddedChunk, ContentMetadata, DocumentInput, PineconeMetadata } from '../types';
+import { ProcessedContent, ContentChunk, EmbeddedChunk, ContentMetadata } from '../types';
+import { DocumentInput } from '@/app/lib/retrieval/types';
 import { sanitizeText } from '../utils/textUtils';
 import { detectLanguage, extractTopics } from '../utils/contentAnalysis';
 import { Pinecone } from "@pinecone-database/pinecone";
-import { MarkdownTextSplitter } from "langchain/text_splitter";
+import { auth } from "@clerk/nextjs/server";
 
 export class DocumentIngestion implements ContentIngestion {
   private embeddings: GoogleGenerativeAIEmbeddings;
   private pinecone: Pinecone;
-  
+
   constructor() {
-    console.log('Initializing DocumentIngestion with environment:', {
-      hasGoogleKey: !!process.env.GOOGLE_API_KEY,
-      hasPineconeKey: !!process.env.PINECONE_API_KEY,
-      hasPineconeIndex: !!process.env.PINECONE_INDEX,
-      hasPineconeEnv: !!process.env.PINECONE_ENVIRONMENT
-    });
-
-    if (!process.env.GOOGLE_API_KEY) {
-      throw new Error('GOOGLE_API_KEY is not set');
-    }
-
-    if (!process.env.PINECONE_API_KEY) {
-      throw new Error('PINECONE_API_KEY is not set');
-    }
-
-    if (!process.env.PINECONE_INDEX) {
-      throw new Error('PINECONE_INDEX is not set');
-    }
-
-    if (!process.env.PINECONE_ENVIRONMENT) {
-      throw new Error('PINECONE_ENVIRONMENT is not set');
-    }
-
     this.embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: process.env.GOOGLE_API_KEY,
+      apiKey: process.env.GOOGLE_API_KEY || "",
       modelName: "embedding-001"
     });
-    
+
     this.pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY
+      apiKey: process.env.PINECONE_API_KEY || "",
     });
-
-    // Test Pinecone connection
-    this.testPineconeConnection().catch(error => {
-      console.error('Failed to test Pinecone connection:', error);
-    });
-
-    console.log('DocumentIngestion initialized successfully');
   }
 
-  private async testPineconeConnection(): Promise<void> {
+  async processContent(input: DocumentInput): Promise<void> {
     try {
-      const index = this.pinecone.index(process.env.PINECONE_INDEX || "");
-      const stats = await index.describeIndexStats();
-      console.log('Pinecone connection test successful:', {
-        index: process.env.PINECONE_INDEX,
-        stats
-      });
-    } catch (error) {
-      console.error('Pinecone connection test failed:', {
-        error: error instanceof Error ? error.message : error,
-        index: process.env.PINECONE_INDEX
-      });
-      throw error;
+      // Get authenticated user ID
+      const { userId } = await auth();
+      if (!userId) {
+        throw new Error('Unauthorized: User must be authenticated');
+      }
+
+      // Ensure input has the authenticated user's ID
+      input.userId = userId;
+
+      // Process the content through our pipeline
+      const processed = await this.preprocess(input);
+      const validationResult = await this.validate(processed);
+
+      if (!validationResult.isValid) {
+        throw new Error(`Content validation failed: ${validationResult.errors?.join(', ') || 'Unknown validation error'}`);
+      }
+
+      const chunks = await this.chunk(processed);
+      const embeddedChunks = await this.embed(chunks);
+      await this.store(embeddedChunks);
+
+      console.log(`Successfully processed document: ${input.id}`);
+    } catch (_error) {
+      console.error('Error processing document content:', _error);
+      throw _error;
     }
   }
 
-  async preprocess(document: DocumentInput): Promise<ProcessedContent> {
-    console.log('Starting document preprocessing:', {
-      userId: document.userId,
-      fileSize: document.file.size,
-      categories: document.categories
+  async preprocess(input: DocumentInput): Promise<ProcessedContent> {
+    // Debug logs
+    console.log('DocumentIngestion preprocess - Input:', {
+      hasContent: !!input.content,
+      contentLength: input.content?.length,
+      contentType: typeof input.content,
+      userId: input.userId,
+      type: input.type,
+      metadata: input.metadata
     });
 
-    // Extract text based on file type
-    const text = sanitizeText(document.file.content || '');
+    // Validate required fields
+    if (!input.content?.trim()) {
+      console.log('DocumentIngestion preprocess - Content validation failed:', {
+        content: input.content,
+        trimmedLength: input.content?.trim().length
+      });
+      throw new Error('Content cannot be empty');
+    }
+    if (!input.userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Sanitize the content
+    const text = sanitizeText(input.content);
     const timestamp = new Date().toISOString();
-    const contentId = `doc-${document.userId}-${Date.now()}`;
-    const categories = document.categories || ['general'];
-    
-    console.log('Document text extracted:', {
-      contentId,
-      textLength: text.length,
-      timestamp
-    });
+    const contentId = input.id || `${input.type}-${input.userId}-${Date.now()}`;
+    const inputMetadata = input.metadata || {};
+
+    // Get async values
+    const language = await detectLanguage(text);
+    const topics = await extractTopics(text);
 
     // Generate base metadata
     const metadata: ContentMetadata = {
       // Core Metadata - Required for all content types
-      contentType: 'document' as const,
+      contentType: input.type,
       contentId: contentId,
-      userId: document.userId,
-      createdAt: timestamp,
+      userId: input.userId,
+      createdAt: inputMetadata.uploadedAt || timestamp,
       updatedAt: timestamp,
       version: 1,
       status: 'active' as const,
@@ -104,60 +103,42 @@ export class DocumentIngestion implements ContentIngestion {
       isFirstChunk: true,
 
       // Access Control
-      access: document.access,
+      access: inputMetadata.access || 'personal',
       sharedWith: [],
 
       // Classification & Organization
-      categories: categories, // Full categories array
-      category: categories[0], // Primary category
-      primaryCategory: categories[0],
-      secondaryCategories: categories.slice(1),
+      categories: inputMetadata.categories || ['document'],
+      category: inputMetadata.categories?.[0] || 'general',
+      primaryCategory: inputMetadata.categories?.[0] || 'document',
+      secondaryCategories: [],
       tags: [],
 
-      // Content Fields
-      title: document.file.name || 'Untitled Document',
-      text: text.substring(0, 1000), // Store first 1000 chars for preview
-      summary: '',
+      // Content Analysis
+      language,
+      keywords: topics,
 
-      // Search Optimization
-      searchableText: text.substring(0, 1000),
-      keywords: [],
-      language: 'en',
-
-      // Relationships
+      // Source Information
+      source: inputMetadata.source || 'user-input',
+      
+      // Additional Metadata
+      title: inputMetadata.title || '',
+      references: inputMetadata.references || [],
+      text: text,
+      searchableText: sanitizeText(text),
       relatedIds: [],
-      references: [],
-
-      // Type information
-      type: 'document',
-      source: 'user_upload',
 
       // Document-specific metadata
       document: {
-        // File Information
-        fileType: (document.file.type || '').split('/')[1] || '',
-        fileName: document.file.name || 'document.txt',
-        fileSize: document.file.size || 0,
-        mimeType: document.file.type || 'text/plain',
-        
-        // Processing Information
-        processingStatus: 'pending' as const,
-        extractionMethod: 'text' as const,
-        
-        // Document Structure (will be updated during processing)
+        fileType: inputMetadata.fileType || 'text/plain',
+        fileName: inputMetadata.originalFileName || 'document.txt',
+        fileSize: inputMetadata.fileSize || text.length,
+        mimeType: inputMetadata.fileType || 'text/plain',
+        processingStatus: 'complete',
+        extractionMethod: 'text',
         hasImages: false,
-        
-        // Content Analysis (will be updated during processing)
-        complexity: 'basic' as const
+        readingTime: Math.ceil(text.length / 1000)
       }
     };
-
-    console.log('Generated document metadata:', {
-      contentId: metadata.contentId,
-      type: metadata.type,
-      categories: metadata.categories,
-      title: metadata.title
-    });
 
     return {
       contentId,
@@ -168,15 +149,21 @@ export class DocumentIngestion implements ContentIngestion {
   }
 
   async validate(content: ProcessedContent): Promise<ValidationResult> {
+    // Basic validation checks
     const errors: string[] = [];
-    const text = content.rawContent || '';
-    
-    if (!text) {
-      errors.push('Document content is empty');
-    } else if (text.length > 50000) {
-      errors.push('Document exceeds maximum length of 50,000 characters');
+
+    if (!content.rawContent || content.rawContent.trim().length === 0) {
+      errors.push('Content cannot be empty');
     }
-    
+
+    if (!content.metadata.userId) {
+      errors.push('User ID is required');
+    }
+
+    if (!content.metadata.contentId) {
+      errors.push('Content ID is required');
+    }
+
     return {
       isValid: errors.length === 0,
       errors
@@ -184,323 +171,143 @@ export class DocumentIngestion implements ContentIngestion {
   }
 
   async chunk(content: ProcessedContent): Promise<ContentChunk[]> {
-    const text = content.rawContent || '';
-    if (!text) {
-      return [];
-    }
-
-    // For documents, we use different chunking strategy
     const splitter = new MarkdownTextSplitter({
       chunkSize: 1000,
-      chunkOverlap: 100
+      chunkOverlap: 200
     });
-    
-    const chunks = await splitter.splitText(text);
-    
-    return chunks.map((chunkText, index) => ({
-      text: chunkText,
+
+    const textChunks = await splitter.splitText(content.rawContent || '');
+
+    return textChunks.map((chunk, index) => ({
+      text: chunk,
       metadata: {
         ...content.metadata,
         chunkIndex: index,
-        totalChunks: chunks.length,
+        totalChunks: textChunks.length,
         isFirstChunk: index === 0
       }
     }));
   }
 
   async embed(chunks: ContentChunk[]): Promise<EmbeddedChunk[]> {
-    return Promise.all(
-      chunks.map(async (chunk) => {
-        // Create a ProcessedContent from the chunk for metadata extraction
-        const processedChunk: ProcessedContent = {
-          contentId: chunk.metadata.contentId,
-          chunks: [chunk.text],
-          rawContent: chunk.text,
-          metadata: chunk.metadata
-        };
-        
-        const searchableText = this.generateSearchableText(processedChunk);
-        const embedding = await this.embeddings.embedQuery(searchableText);
-        
-        return {
-          id: `${chunk.metadata.contentId}_chunk_${chunk.metadata.chunkIndex}`,
-          values: embedding,
-          metadata: {
-            ...chunk.metadata,
-            searchableText,
-            keywords: this.extractKeywords(processedChunk)
-          }
-        };
-      })
-    );
+    const embeddedChunks: EmbeddedChunk[] = [];
+
+    for (const chunk of chunks) {
+      const embedding = await this.embeddings.embedQuery(chunk.text);
+      embeddedChunks.push({
+        id: `${chunk.metadata.contentId}-${chunk.metadata.chunkIndex}`,
+        values: embedding,
+        metadata: chunk.metadata
+      });
+    }
+
+    return embeddedChunks;
   }
 
   async store(chunks: EmbeddedChunk[]): Promise<StorageResult> {
-    console.log('Starting document storage process:', {
-      chunksCount: chunks.length,
-      firstChunkId: chunks[0]?.metadata.contentId
-    });
-
-    // Verify Pinecone connection
-    try {
-      const index = this.pinecone.index(process.env.PINECONE_INDEX || "");
-      console.log('Successfully connected to Pinecone index:', process.env.PINECONE_INDEX);
-
-      // Log index stats if available
-      try {
-        const stats = await index.describeIndexStats();
-        console.log('Pinecone index stats:', stats);
-      } catch (error) {
-        console.warn('Could not fetch index stats:', error);
-      }
+    const index = this.pinecone.index("content-index");
     
-      // Convert EmbeddedChunks to PineconeRecords with proper metadata structure
-      const records = chunks.map(chunk => {
-        console.log('Processing chunk:', {
-          chunkId: chunk.id,
-          contentId: chunk.metadata.contentId,
-          metadataKeys: Object.keys(chunk.metadata)
-        });
+    const vectors = chunks.map(chunk => ({
+      id: `${chunk.metadata.contentId}-${chunk.metadata.chunkIndex}`,
+      values: chunk.values,
+      metadata: {
+        contentType: String(chunk.metadata.contentType),
+        contentId: chunk.metadata.contentId,
+        userId: chunk.metadata.userId,
+        createdAt: chunk.metadata.createdAt,
+        updatedAt: chunk.metadata.updatedAt,
+        version: String(chunk.metadata.version),
+        status: chunk.metadata.status,
+        chunkIndex: String(chunk.metadata.chunkIndex),
+        totalChunks: String(chunk.metadata.totalChunks),
+        isFirstChunk: String(chunk.metadata.isFirstChunk),
+        access: chunk.metadata.access,
+        sharedWith: chunk.metadata.sharedWith?.join(',') || '',
+        categories: chunk.metadata.categories?.join(',') || '',
+        primaryCategory: chunk.metadata.primaryCategory,
+        secondaryCategories: chunk.metadata.secondaryCategories.join(','),
+        tags: chunk.metadata.tags.join(','),
+        language: chunk.metadata.language || 'en',
+        source: chunk.metadata.source || '',
+        title: chunk.metadata.title || '',
+        text: chunk.metadata.text || '',
+        searchableText: chunk.metadata.searchableText || '',
+        keywords: chunk.metadata.keywords?.join(',') || '',
+        relatedIds: chunk.metadata.relatedIds?.join(',') || '',
+        references: chunk.metadata.references?.join(',') || ''
+      } satisfies Record<string, string | number | boolean>
+    }));
 
-        const metadata = {
-          // Core Metadata
-          contentType: String(chunk.metadata.contentType),
-          contentId: chunk.metadata.contentId,
-          userId: chunk.metadata.userId,
-          createdAt: chunk.metadata.createdAt,
-          updatedAt: chunk.metadata.updatedAt,
-          version: String(chunk.metadata.version),
-          status: chunk.metadata.status,
-          
-          // Chunking info
-          chunkIndex: String(chunk.metadata.chunkIndex),
-          totalChunks: String(chunk.metadata.totalChunks),
-          isFirstChunk: String(chunk.metadata.isFirstChunk),
-          
-          // Access control
-          access: chunk.metadata.access,
-          sharedWith: chunk.metadata.sharedWith?.join(',') || '',
-          
-          // Classification
-          categories: chunk.metadata.categories?.join(',') || '',
-          category: chunk.metadata.category || '',
-          primaryCategory: chunk.metadata.primaryCategory,
-          secondaryCategories: chunk.metadata.secondaryCategories.join(','),
-          tags: chunk.metadata.tags.join(','),
-          type: chunk.metadata.type || 'document',
-          source: chunk.metadata.source || 'user_upload',
-          
-          // Content
-          title: chunk.metadata.title || '',
-          text: chunk.metadata.text || '',
-          summary: chunk.metadata.summary || '',
-          searchableText: chunk.metadata.searchableText,
-          
-          // Search optimization
-          keywords: chunk.metadata.keywords.join(','),
-          language: chunk.metadata.language || 'en',
-          
-          // Relationships
-          relatedIds: chunk.metadata.relatedIds?.join(',') || '',
-          references: chunk.metadata.references?.join(',') || '',
-          
-          // Document specific
-          document: JSON.stringify({
-            fileType: chunk.metadata.document?.fileType || '',
-            fileName: chunk.metadata.document?.fileName || '',
-            fileSize: chunk.metadata.document?.fileSize || 0,
-            mimeType: chunk.metadata.document?.mimeType || 'text/plain',
-            processingStatus: chunk.metadata.document?.processingStatus || 'pending',
-            extractionMethod: chunk.metadata.document?.extractionMethod || 'text',
-            hasImages: chunk.metadata.document?.hasImages || false,
-            complexity: chunk.metadata.document?.complexity || 'basic'
-          }),
-          
-          // System metadata
-          _system: JSON.stringify({
-            lastIndexed: new Date().toISOString(),
-            indexVersion: 1,
-            vectorQuality: 0.9
-          })
-        } satisfies PineconeMetadata;
+    await index.upsert(vectors);
 
-        console.log('Prepared metadata for storage:', {
-          id: chunk.id,
-          contentId: metadata.contentId,
-          type: metadata.type,
-          categories: metadata.categories,
-          title: metadata.title,
-          vectorLength: chunk.values.length
-        });
-
-        return {
-          id: chunk.id,
-          values: chunk.values,
-          metadata
-        };
-      });
-    
-      // Store in batches
-      const batchSize = 5;
-      for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i + batchSize);
-        try {
-          console.log(`Attempting to store batch ${i/batchSize + 1}:`, {
-            batchSize: batch.length,
-            firstId: batch[0].id
-          });
-
-          const response = await index.upsert(batch);
-          console.log(`Successfully stored batch ${i/batchSize + 1}:`, {
-            batchSize: batch.length,
-            response
-          });
-        } catch (error) {
-          console.error('Error storing batch in Pinecone:', {
-            batchNumber: i/batchSize + 1,
-            error: error instanceof Error ? error.message : error,
-            batch: batch.map(r => ({ id: r.id, contentId: r.metadata.contentId }))
-          });
-          throw error;
-        }
-      
-        if (i + batchSize < records.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    
-      console.log('Document storage completed successfully:', {
-        totalChunks: chunks.length,
-        contentId: chunks[0].metadata.contentId
-      });
-
-      return {
-        contentId: chunks[0].metadata.contentId,
-        chunkCount: chunks.length,
-        metadata: chunks[0].metadata
-      };
-    } catch (error) {
-      console.error('Fatal error during document storage:', {
-        error: error instanceof Error ? error.message : error,
-        contentId: chunks[0]?.metadata.contentId
-      });
-      throw error;
-    }
+    return {
+      contentId: chunks[0].metadata.contentId,
+      chunkCount: chunks.length,
+      metadata: chunks[0].metadata
+    };
   }
 
   async extractMetadata(content: ProcessedContent): Promise<ContentMetadata> {
     const text = content.rawContent || '';
+    const language = await detectLanguage(text);
+    const topics = await extractTopics(text);
     return {
       ...content.metadata,
-      language: await detectLanguage(text),
-      keywords: await extractTopics(text),
-      document: {
-        // File Information
-        fileType: content.metadata.document?.fileType || '',
-        fileName: content.metadata.document?.fileName || 'document.txt',
-        fileSize: content.metadata.document?.fileSize || 0,
-        mimeType: content.metadata.document?.mimeType || 'text/plain',
-        
-        // Processing Information
-        processingStatus: content.metadata.document?.processingStatus || 'pending',
-        extractionMethod: content.metadata.document?.extractionMethod || 'text',
-        
-        // Document Structure
-        hasImages: this.detectImages(text),
-        pageCount: content.metadata.document?.pageCount,
-        currentPage: content.metadata.document?.currentPage,
-        tableCount: content.metadata.document?.tableCount,
-        
-        // Content Analysis
-        complexity: this.analyzeComplexity(text),
-        readingTime: content.metadata.document?.readingTime,
-        topicModel: content.metadata.document?.topicModel
-      }
+      language,
+      keywords: topics
     };
   }
 
-  generateSearchableText(content: ProcessedContent): string {
-    const text = content.rawContent || '';
-    const metadata = content.metadata;
-    return [
-      metadata.title,
-      text,
-      metadata.keywords?.join(' '),
-      metadata.primaryCategory,
-      ...metadata.secondaryCategories
-    ].filter(Boolean).join(' ');
+  generateSearchableText(content: ContentChunk): string {
+    return sanitizeText(content.text);
   }
 
-  extractKeywords(content: ProcessedContent): string[] {
-    const text = content.rawContent || '';
-    // Extract hashtags from markdown
-    const hashTags = (text.match(/#[\w-]+/g) || [])
-      .map(tag => tag.slice(1));
-    
-    // Extract @mentions
-    const mentions = (text.match(/@[\w-]+/g) || [])
-      .map(mention => mention.slice(1));
-    
-    // Combine and deduplicate
-    const uniqueKeywords = new Set([...hashTags, ...mentions]);
-    return Array.from(uniqueKeywords);
+  extractKeywords(content: ContentChunk): string[] {
+    return content.metadata.keywords || [];
   }
 
   async processReferences(content: ProcessedContent): Promise<ContentReference[]> {
-    const references: ContentReference[] = [];
-    const text = content.rawContent || '';
-    
-    // Extract markdown links
-    const markdownLinks = text.match(/\[([^\]]+)\]\(([^)]+)\)/g) || [];
-    for (const link of markdownLinks) {
-      const [, text, url] = link.match(/\[([^\]]+)\]\(([^)]+)\)/) || [];
-      if (text && url) {
-        references.push({
-          id: url,
-          type: 'link',
-          context: text
-        });
-      }
-    }
-    
-    // Extract @mentions as user references
-    const mentions = text.match(/@[\w-]+/g) || [];
-    for (const mention of mentions) {
-      references.push({
-        id: mention.slice(1),
-        type: 'user',
-        context: 'mentioned'
-      });
-    }
-    
-    return references;
+    return content.metadata.references?.map(ref => ({ 
+      id: ref, 
+      type: 'document',
+      context: `Referenced from ${content.contentId}`
+    })) || [];
   }
 
   async linkRelatedContent(contentId: string, references: ContentReference[]): Promise<void> {
-    const index = this.pinecone.index(process.env.PINECONE_INDEX || "");
+    if (!references.length) return;
+
+    const index = this.pinecone.index("content-index");
     
-    // Update metadata to include references
+    // Get the current content's metadata
+    const { matches } = await index.query({
+      vector: Array(1536).fill(0), // Dummy vector for metadata-only query
+      filter: { contentId },
+      topK: 1,
+      includeMetadata: true
+    });
+
+    if (!matches?.length) {
+      throw new Error(`Content ${contentId} not found`);
+    }
+
+    const currentContent = matches[0];
+    const currentMetadata = currentContent.metadata as Record<string, string>;
+
+    // Update metadata with new references
+    const existingRefs = currentMetadata.references?.split(',').filter(Boolean) || [];
+    const newRefs = references.map(ref => ref.id);
+    const updatedRefs = Array.from(new Set([...existingRefs, ...newRefs]));
+
+    // Update the document with new references
     await index.update({
-      id: contentId,
+      id: currentContent.id,
       metadata: {
-        linkedReferences: references.map(ref => ref.id).join(',')
+        ...currentMetadata,
+        references: updatedRefs.join(',')
       }
     });
-  }
 
-
-
-
-  private detectImages(text: string): boolean {
-    return /!\[.*?\]\(.*?\)/.test(text);
-  }
-
-
-
-  private analyzeComplexity(text: string): 'basic' | 'intermediate' | 'advanced' {
-    // Simple complexity analysis based on length and structure
-    if (text.length > 5000 || text.includes('```')) return 'advanced';
-    if (text.length > 1000 || text.includes('#')) return 'intermediate';
-    return 'basic';
+    console.log(`Successfully linked ${references.length} references to content ${contentId}`);
   }
 } 

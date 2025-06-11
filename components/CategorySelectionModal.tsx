@@ -44,8 +44,8 @@ export function CategorySelectionModal({ isOpen, onClose, onSave, isLoading }: C
       }
       const data = await response.json();
       setAvailableCategories(data.categories || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
+    } catch (_error) {
+      console.error('Error fetching categories:', _error);
       toast.error("Failed to load categories");
     } finally {
       setFetchingCategories(false);

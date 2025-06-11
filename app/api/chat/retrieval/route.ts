@@ -37,19 +37,43 @@ export async function POST(req: NextRequest) {
       contextType
     );
 
+    // Extract the text content from the result
+    const textContent = result.text;
+
+    // Format the response to match the expected format for the useChat hook
     return new Response(JSON.stringify({
-      success: true,
-      result
+      id: result.contentId,
+      role: "assistant",
+      content: textContent,
+      createdAt: new Date(result.createdAt).getTime(),
+      formattedContent: [
+        {
+          type: "text",
+          content: textContent
+        }
+      ]
     }), {
       headers: { "Content-Type": "application/json" },
     });
-  } catch (error) {
-    console.error('Error in retrieval route:', error);
+  } catch (_error) {
+    console.error('Error in retrieval route:', _error);
+    
+    // Format error response to match the expected format for the useChat hook
+    const errorMessage = _error instanceof Error ? _error.message : "An unknown error occurred";
+    
     return new Response(JSON.stringify({
-      success: false,
-      error: error instanceof Error ? error.message : "An unknown error occurred"
+      id: `error-${Date.now()}`,
+      role: "assistant",
+      content: `Error: ${errorMessage}. Please try again or refine your query.`,
+      createdAt: Date.now(),
+      formattedContent: [
+        {
+          type: "error",
+          content: `Error: ${errorMessage}. Please try again or refine your query.`
+        }
+      ]
     }), {
-      status: 500,
+      status: 200, // Return 200 so the client can display the error message
       headers: { "Content-Type": "application/json" }
     });
   }

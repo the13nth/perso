@@ -98,8 +98,8 @@ async function clarifyQuery(
     }
     
     return cleanedQuery;
-  } catch (error) {
-    console.error('❌ Query clarification failed, using original:', error);
+  } catch (_error) {
+    console.error('❌ Query clarification failed, using original:', _error);
     return originalQuery;
   }
 }

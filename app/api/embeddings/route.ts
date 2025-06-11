@@ -209,8 +209,8 @@ export async function GET(req: NextRequest) {
       totalFetched: allEmbeddings.length,
       batchesUsed: Math.ceil(totalFetched / batchSize)
     });
-  } catch (error) {
-    console.error("Error fetching embeddings:", error);
+  } catch (_error) {
+    console.error("Error fetching embeddings:", _error);
     return NextResponse.json(
       { error: "Failed to fetch embeddings" },
       { status: 500 }
@@ -341,8 +341,8 @@ export async function DELETE(req: NextRequest) {
       message: "Embedding deleted successfully"
     });
 
-  } catch (error) {
-    console.error("Error deleting embedding:", error);
+  } catch (_error) {
+    console.error("Error deleting embedding:", _error);
     return NextResponse.json(
       { error: "Failed to delete embedding" },
       { status: 500 }

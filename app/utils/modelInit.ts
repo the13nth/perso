@@ -32,13 +32,13 @@ export async function initializeGeminiModel(options: {
       await model.invoke("test");
       console.log(`Successfully initialized model: ${modelVersion}`);
       return model;
-    } catch (error) {
-      if (error instanceof Error) {
-        console.warn(`Failed to initialize ${modelVersion}:`, error);
-        lastError = error;
+    } catch (_error) {
+      if (_error instanceof Error) {
+        console.warn(`Failed to initialize ${modelVersion}:`, _error);
+        lastError = _error;
       } else {
-        console.warn(`Failed to initialize ${modelVersion} with unknown error:`, error);
-        lastError = new Error(String(error));
+        console.warn(`Failed to initialize ${modelVersion} with unknown error:`, _error);
+        lastError = new Error(String(_error));
       }
     }
   }

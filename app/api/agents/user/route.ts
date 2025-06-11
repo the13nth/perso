@@ -24,8 +24,8 @@ export async function GET() {
     );
 
     return NextResponse.json({ agents: validAgents });
-  } catch (error) {
-    console.error('Error listing user agents:', error);
+  } catch (_error) {
+    console.error('Error listing user agents:', _error);
     return NextResponse.json(
       { error: 'Failed to list user agents', agents: [] },
       { status: 500 }

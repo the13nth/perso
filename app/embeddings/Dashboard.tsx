@@ -19,15 +19,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+interface EmbeddingMetadata {
+  text: string;
+  categories?: string[] | string;
+  category?: string;
+  [key: string]: any;
+}
+
 interface Embedding {
   id: string;
   vector: number[];
-  metadata: {
-    text: string;
-    categories?: string[] | string;
-    category?: string;
-    [key: string]: string | string[] | number | boolean | undefined;
-  };
+  metadata: EmbeddingMetadata;
 }
 
 interface NormalizedEmbedding {
@@ -36,7 +38,7 @@ interface NormalizedEmbedding {
   metadata: {
     text: string;
     categories: string[];
-    [key: string]: string | string[] | number | boolean | undefined;
+    [key: string]: any;
   };
 }
 
@@ -44,16 +46,48 @@ interface DashboardProps {
   embeddings: Embedding[];
 }
 
+// Helper function to normalize embedding
+const normalizeEmbedding = (emb: Embedding): NormalizedEmbedding => {
+  let categories: string[] = [];
+  
+  if (emb.metadata.categories) {
+    if (Array.isArray(emb.metadata.categories)) {
+      categories = emb.metadata.categories;
+    } else if (typeof emb.metadata.categories === 'string') {
+      try {
+        const parsed = JSON.parse(emb.metadata.categories);
+        categories = Array.isArray(parsed) ? parsed : [emb.metadata.categories];
+      } catch {
+        categories = [emb.metadata.categories];
+      }
+    }
+  } else if (emb.metadata.category && typeof emb.metadata.category === 'string') {
+    categories = [emb.metadata.category];
+  } else {
+    categories = ["Uncategorized"];
+  }
+  
+  return {
+    ...emb,
+    metadata: {
+      ...emb.metadata,
+      categories
+    }
+  };
+};
+
 export default function Dashboard({ embeddings }: DashboardProps) {
   const [search, setSearch] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [localEmbeddings, setLocalEmbeddings] = useState<Embedding[]>(embeddings);
+  const [, setLocalEmbeddings] = useState<Embedding[]>(embeddings);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [categoryDistributionExpanded, setCategoryDistributionExpanded] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState('summary');
+  const [isAnalyticsLoaded, setIsAnalyticsLoaded] = useState(false);
 
   // Update local embeddings when props change
   useEffect(() => {
@@ -86,9 +120,9 @@ export default function Dashboard({ embeddings }: DashboardProps) {
       // Remove the embedding from local state
       setLocalEmbeddings(prev => prev.filter(emb => emb.id !== embeddingId));
       toast.success('Embedding deleted successfully');
-    } catch (error) {
-      console.error('Error deleting embedding:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to delete embedding');
+    } catch (_error) {
+      console.error('Error deleting embedding:', _error);
+      toast.error(_error instanceof Error ? _error.message : 'Failed to delete embedding');
     } finally {
       setDeletingIds(prev => {
         const newSet = new Set(prev);
@@ -152,52 +186,26 @@ export default function Dashboard({ embeddings }: DashboardProps) {
       setSelectedIds(new Set());
       
       toast.success(`Successfully deleted ${deletedIds.length} embedding${deletedIds.length > 1 ? 's' : ''}`);
-    } catch (error) {
-      console.error('Error during bulk delete:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to delete some embeddings');
+    } catch (_error) {
+      console.error('Error during bulk delete:', _error);
+      toast.error(_error instanceof Error ? _error.message : 'Failed to delete some embeddings');
     } finally {
       setBulkDeleting(false);
     }
   };
 
-  // Normalize embeddings to ensure categories is always a string array
-  const normalizedEmbeddings = useMemo<NormalizedEmbedding[]>(() => {
-    return localEmbeddings.map(emb => {
-      let categories: string[] = [];
-      
-      // Handle different category formats
-      if (emb.metadata.categories) {
-        if (Array.isArray(emb.metadata.categories)) {
-          categories = emb.metadata.categories;
-        } else if (typeof emb.metadata.categories === 'string') {
-          try {
-            // Try to parse JSON string
-            const parsed = JSON.parse(emb.metadata.categories);
-            categories = Array.isArray(parsed) ? parsed : [emb.metadata.categories];
-          } catch {
-            categories = [emb.metadata.categories];
-          }
-        }
-      } else if (emb.metadata.category && typeof emb.metadata.category === 'string') {
-        categories = [emb.metadata.category];
-      } else {
-        categories = ["Uncategorized"];
-      }
-      
-      return {
-        ...emb,
-        metadata: {
-          ...emb.metadata,
-          categories
-        }
-      };
-    });
-  }, [localEmbeddings]);
+  // Only normalize embeddings when needed
+  const normalizedEmbeddings = useMemo(() => {
+    if (activeTab === 'table' || activeTab === 'summary') {
+      return embeddings.map(normalizeEmbedding);
+    }
+    return [] as NormalizedEmbedding[];
+  }, [embeddings, activeTab]);
 
   // Extract all unique categories
   const allCategories = useMemo(() => {
     const categorySet = new Set<string>();
-    normalizedEmbeddings.forEach(e => {
+    normalizedEmbeddings.forEach((e: NormalizedEmbedding) => {
       if (e.metadata.categories && Array.isArray(e.metadata.categories)) {
         e.metadata.categories.forEach(cat => categorySet.add(cat));
       }
@@ -214,51 +222,44 @@ export default function Dashboard({ embeddings }: DashboardProps) {
     );
   };
 
-  // Category statistics
+  // Defer category stats calculation until analytics tab is active
   const categoryStats = useMemo(() => {
+    if (activeTab !== 'analysis' && !isAnalyticsLoaded) return [];
+    
     const stats: Record<string, number> = {};
-    normalizedEmbeddings.forEach(e => {
-      e.metadata.categories.forEach(cat => {
+    normalizedEmbeddings.forEach((e: NormalizedEmbedding) => {
+      e.metadata.categories.forEach((cat: string) => {
         stats[cat] = (stats[cat] || 0) + 1;
       });
     });
     return Object.entries(stats).sort((a, b) => b[1] - a[1]);
-  }, [normalizedEmbeddings]);
+  }, [normalizedEmbeddings, activeTab, isAnalyticsLoaded]);
 
-  // Filtered embeddings for analysis
+  // Defer filtered embeddings calculation
   const filtered = useMemo(() => {
-    return normalizedEmbeddings.filter(e => {
-      // Filter by text search
-      const matchesSearch = !search || 
-        (e.metadata.text && typeof e.metadata.text === 'string' && 
-         e.metadata.text.toLowerCase().includes(search.toLowerCase()));
-      
-      // Filter by selected categories
-      const matchesCategories = selectedCategories.length === 0 || 
-        (e.metadata.categories && 
-         selectedCategories.some(cat => e.metadata.categories.includes(cat)));
-      
-      return matchesSearch && matchesCategories;
-    });
-  }, [normalizedEmbeddings, search, selectedCategories]);
+    if (activeTab === 'table' || search || selectedCategories.length > 0) {
+      return normalizedEmbeddings.filter((e: NormalizedEmbedding) => {
+        const matchesSearch = !search || 
+          (e.metadata.text && typeof e.metadata.text === 'string' && 
+           e.metadata.text.toLowerCase().includes(search.toLowerCase()));
+        
+        const matchesCategories = selectedCategories.length === 0 || 
+          (e.metadata.categories && 
+           selectedCategories.some(cat => e.metadata.categories.includes(cat)));
+        
+        return matchesSearch && matchesCategories;
+      });
+    }
+    return normalizedEmbeddings;
+  }, [normalizedEmbeddings, search, selectedCategories, activeTab]);
 
-  // Transform embeddings into plot data
-  const plotData = useMemo(() => {
-    const points = normalizedEmbeddings.map(emb => ({
-      id: emb.id,
-      x: emb.vector[0],
-      y: emb.vector[1],
-      z: emb.vector[2],
-      label: emb.metadata.text,
-      vector: emb.vector,
-      metadata: emb.metadata
-    }));
-
-    return {
-      points,
-      categories: allCategories
-    };
-  }, [normalizedEmbeddings, allCategories]);
+  // Handle tab changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'analysis') {
+      setIsAnalyticsLoaded(true);
+    }
+  };
 
   // Delete all embeddings function
   const deleteAllEmbeddings = async () => {
@@ -284,9 +285,9 @@ export default function Dashboard({ embeddings }: DashboardProps) {
       setShowDeleteConfirm(false);
       
       toast.success('All embeddings deleted successfully');
-    } catch (error) {
-      console.error('Error deleting all embeddings:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to delete all embeddings');
+    } catch (_error) {
+      console.error('Error deleting all embeddings:', _error);
+      toast.error(_error instanceof Error ? _error.message : 'Failed to delete all embeddings');
     } finally {
       setIsDeletingAll(false);
     }
@@ -436,30 +437,23 @@ export default function Dashboard({ embeddings }: DashboardProps) {
         )}
 
         {/* Tabs for different views */}
-        <Tabs defaultValue="visualization" className="mt-4 sm:mt-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-4 sm:mt-6">
           <TabsList className="grid w-full grid-cols-3 sticky top-0 z-50 bg-background h-11 sm:h-12">
-            <TabsTrigger value="visualization" className="text-sm sm:text-base">3D Visualization</TabsTrigger>
+            <TabsTrigger value="summary" className="text-sm sm:text-base">Summary</TabsTrigger>
             <TabsTrigger value="table" className="text-sm sm:text-base">Table View</TabsTrigger>
             <TabsTrigger value="analysis" className="text-sm sm:text-base">Analysis</TabsTrigger>
           </TabsList>
           
           <div className="mt-4 sm:mt-6">
-            <TabsContent value="visualization" className="space-y-4 sm:space-y-6">
-              {normalizedEmbeddings.length > 0 ? (
+            <TabsContent value="summary" className="space-y-4 sm:space-y-6">
+              {activeTab === 'summary' && normalizedEmbeddings.length > 0 ? (
                 <div className="mb-6 sm:mb-8">
-                  <Embeddings3DPlot data={plotData} />
+                  <Embeddings3DPlot data={{
+                    points: normalizedEmbeddings,
+                    categories: allCategories
+                  }} />
                 </div>
-              ) : (
-                <Card>
-                  <CardContent className="py-8">
-                    <div className="text-center">
-                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No embeddings found</h3>
-                      <p className="text-muted-foreground">Upload some documents or create embeddings to see them visualized in 3D space.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              ) : null}
             </TabsContent>
             
             <TabsContent value="table" className="space-y-4 sm:space-y-6">
@@ -708,4 +702,4 @@ export default function Dashboard({ embeddings }: DashboardProps) {
       </div>
     </div>
   );
-} 
+}

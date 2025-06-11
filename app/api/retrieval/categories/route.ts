@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { adminDb } from "@/lib/firebase/admin";
 
 interface PineconeMatch {
   metadata?: {
@@ -19,6 +20,14 @@ export async function GET() {
         { status: 401 }
       );
     }
+
+    // Check if Gmail is connected
+    const tokenDoc = await adminDb.collection('gmail_tokens').doc(userId).get();
+    const isGmailConnected = tokenDoc.exists;
+
+    // Check if Calendar is connected
+    const calendarTokenDoc = await adminDb.collection('calendar_tokens').doc(userId).get();
+    const isCalendarConnected = calendarTokenDoc.exists;
 
     const apiKey = process.env.PINECONE_API_KEY;
     const host = process.env.PINECONE_HOST;
@@ -98,21 +107,42 @@ export async function GET() {
       });
     });
 
+    // Add emails category if Gmail is connected
+    if (isGmailConnected) {
+      categorySet.add('Emails');
+      // Set count to 0 initially - this will be updated when emails are actually ingested
+      categoryStats['Emails'] = categoryStats['Emails'] || 0;
+    }
+
+    // Add calendar category if Calendar is connected
+    if (isCalendarConnected) {
+      categorySet.add('Calendar');
+      // Set count to 0 initially - this will be updated when calendar events are ingested
+      categoryStats['Calendar'] = categoryStats['Calendar'] || 0;
+    }
+
     // Convert to array and sort by usage count (most used first)
     const categoriesArray = Array.from(categorySet)
       .map(category => ({
         name: category,
-        count: categoryStats[category] || 0
+        count: categoryStats[category] || 0,
+        isIntegration: category === 'Emails' || category === 'Calendar' // Flag to identify integration categories
       }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => {
+        // Keep integration categories at the top
+        if (a.isIntegration && !b.isIntegration) return -1;
+        if (!a.isIntegration && b.isIntegration) return 1;
+        // Then sort by count
+        return b.count - a.count;
+      });
 
     return NextResponse.json({
       categories: categoriesArray,
       totalDocuments: data.matches?.length || 0
     });
 
-  } catch (error) {
-    console.error("Error fetching categories:", error);
+  } catch (_error) {
+    console.error("Error fetching categories:", _error);
     return NextResponse.json(
       { error: "Failed to fetch categories" },
       { status: 500 }

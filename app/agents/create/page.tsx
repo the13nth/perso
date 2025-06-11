@@ -74,8 +74,8 @@ export default function CreateAgentPage() {
         if (!response.ok) throw new Error('Failed to fetch categories');
         const data = await response.json();
         setAvailableCategories(data.categories);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
+      } catch (_error) {
+        console.error('Error fetching categories:', _error);
         toast.error('Failed to load available categories');
       }
     }
@@ -124,9 +124,9 @@ export default function CreateAgentPage() {
       const data = await response.json();
       toast.success('Agent created successfully!');
       router.push(`/agents/${data.agentId}`);
-    } catch (error) {
-      console.error('Error creating agent:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create agent');
+    } catch (_error) {
+      console.error('Error creating agent:', _error);
+      toast.error(_error instanceof Error ? _error.message : 'Failed to create agent');
     } finally {
       setIsSubmitting(false);
     }

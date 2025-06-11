@@ -75,8 +75,8 @@ export default function ToolsPage() {
         builtInCount: data.builtInCount || 0,
         customCount: data.customCount || 0
       });
-    } catch (error) {
-      console.error('Error fetching tools:', error);
+    } catch (_error) {
+      console.error('Error fetching tools:', _error);
       toast.error('Failed to load tools');
     } finally {
       setIsLoading(false);
@@ -112,9 +112,9 @@ export default function ToolsPage() {
         parameters: ''
       });
       toast.success('Tool created successfully!');
-    } catch (error) {
-      console.error('Error creating tool:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create tool');
+    } catch (_error) {
+      console.error('Error creating tool:', _error);
+      toast.error(_error instanceof Error ? _error.message : 'Failed to create tool');
     }
   };
 

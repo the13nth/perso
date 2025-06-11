@@ -69,9 +69,9 @@ async function fetchCategoryEmbeddings(category: string, userId: string, limit: 
     }).filter(Boolean);
 
     return documents;
-  } catch (error) {
-    console.error("Error fetching category embeddings:", error);
-    throw error;
+  } catch (_error) {
+    console.error("Error fetching category embeddings:", _error);
+    throw _error;
   }
 }
 
@@ -129,8 +129,8 @@ export async function POST(req: NextRequest) {
       } else {
         console.log(`Found ${documents.length} documents for category "${category}" with ${insightType} insight type.`);
       }
-    } catch (error) {
-      console.error(`Error fetching documents for category "${category}":`, error);
+    } catch (_error) {
+      console.error(`Error fetching documents for category "${category}":`, _error);
       // Use sample data in case of error
       documents = [
         `This is a sample document in the ${category} category due to an error fetching actual documents.`,
@@ -249,17 +249,17 @@ export async function POST(req: NextRequest) {
         insightType: insightType, // Return the insight type used
         useAllDocuments: useAllDocuments // Return whether all documents were used
       });
-    } catch (error) {
+    } catch (_error) {
       // If parsing fails, still return the raw response
-      console.error("Error parsing model output:", error);
+      console.error("Error parsing model output:", _error);
       return NextResponse.json({ 
         error: "Failed to parse AI response",
         rawOutput: responseText 
       }, { status: 500 });
     }
     
-  } catch (error) {
-    console.error("Error generating insights:", error);
+  } catch (_error) {
+    console.error("Error generating insights:", _error);
     return NextResponse.json(
       { error: "Failed to generate insights" },
       { status: 500 }

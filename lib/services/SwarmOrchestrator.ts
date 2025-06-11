@@ -43,8 +43,8 @@ export class SwarmOrchestrator {
     try {
       // Since we don't have user context in constructor, we'll load sessions per-user when needed
       console.log('🚀 SwarmOrchestrator initialized - sessions will be loaded per-user');
-    } catch (error) {
-      console.error('Error during initialization:', error);
+    } catch (_error) {
+      console.error('Error during initialization:', _error);
     }
   }
 
@@ -63,8 +63,8 @@ export class SwarmOrchestrator {
       }
       
       console.log(`📁 Loaded ${sessions.length} sessions for user ${userId}`);
-    } catch (error) {
-      console.error('Error loading user sessions:', error);
+    } catch (_error) {
+      console.error('Error loading user sessions:', _error);
     }
   }
 
@@ -168,9 +168,9 @@ export class SwarmOrchestrator {
       });
 
       return session;
-    } catch (error) {
-      console.error('❌ Failed to form swarm:', error);
-      throw error;
+    } catch (_error) {
+      console.error('❌ Failed to form swarm:', _error);
+      throw _error;
     }
   }
 
@@ -454,13 +454,13 @@ export class SwarmOrchestrator {
       this.activeSessions.delete(sessionId);
 
       console.log('✅ Swarm dissolved successfully');
-    } catch (error) {
-      console.error('❌ Error dissolving swarm:', error);
+    } catch (_error) {
+      console.error('❌ Error dissolving swarm:', _error);
       session.status = 'error';
       
       // Save error state to Firestore
       await firestoreSwarmStorage.saveSession(session);
-      throw error;
+      throw _error;
     }
   }
 

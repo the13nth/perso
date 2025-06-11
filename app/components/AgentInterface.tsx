@@ -43,8 +43,8 @@ export function AgentInterface({ agentId, agentName, agentDescription }: AgentIn
       }
 
       setMessages(prev => [...prev, { id: String(prev.length), role: 'assistant', content: data.response }]);
-    } catch (error) {
-      console.error('Error getting agent response:', error);
+    } catch (_error) {
+      console.error('Error getting agent response:', _error);
       setMessages(prev => [...prev, { 
         id: String(prev.length),
         role: 'assistant', 

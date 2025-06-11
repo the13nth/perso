@@ -21,11 +21,11 @@ export class DocumentAnalysisTool extends Tool {
           summary: `Analyzed text with ${wordCount} words and ${sentenceCount} sentences.`
         }
       };
-    } catch (error) {
-      console.error('Document analysis error:', error);
+    } catch (_error) {
+      console.error('Document analysis error:', _error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: _error instanceof Error ? _error.message : 'Unknown error',
       };
     }
   }
@@ -48,11 +48,11 @@ export class DatabaseQueryTool extends Tool {
           "Query validated. Would execute: " + input :
           "Only SELECT queries are supported for safety",
       };
-    } catch (error) {
-      console.error('Database query error:', error);
+    } catch (_error) {
+      console.error('Database query error:', _error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: _error instanceof Error ? _error.message : 'Unknown error',
       };
     }
   }
@@ -73,11 +73,11 @@ export class ImageGeneratorTool extends Tool {
         imageUrl: `https://placehold.co/600x400?text=${encodeURIComponent(input)}`,
         prompt: input
       };
-    } catch (error) {
-      console.error('Image generation error:', error);
+    } catch (_error) {
+      console.error('Image generation error:', _error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: _error instanceof Error ? _error.message : 'Unknown error',
       };
     }
   }
@@ -101,11 +101,11 @@ export class CodeInterpreterTool extends Tool {
         result: `Code analysis: ${lines} lines, ${hasFunction ? 'contains' : 'no'} functions`,
         explanation: `Analyzed code snippet: ${input.substring(0, 100)}${input.length > 100 ? '...' : ''}`,
       };
-    } catch (error) {
-      console.error('Code interpreter error:', error);
+    } catch (_error) {
+      console.error('Code interpreter error:', _error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: _error instanceof Error ? _error.message : 'Unknown error',
       };
     }
   }

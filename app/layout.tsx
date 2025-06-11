@@ -11,8 +11,8 @@ import type { ReactNode } from 'react';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Ubumuntu AI",
-  description: "AI-powered platform for RAG",
+  title: "Lang",
+  description: "AI Language Platform",
 };
 
 export default function RootLayout({

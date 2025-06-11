@@ -1,6 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 import { Document } from 'langchain/document';
 import { getAgentConfig, getAgentContext, AgentMetadata } from '../pinecone';
+import { Message } from 'ai';
+import { BaseRAGService, RAGResponse } from './BaseRAGService';
 
 if (!process.env.GOOGLE_API_KEY) {
   throw new Error('Missing GOOGLE_API_KEY environment variable');
@@ -11,22 +13,6 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GOOGLE_API_KEY,
   apiVersion: 'v1'
 });
-
-export interface Message {
-  role: string;
-  content: string;
-}
-
-export interface RAGResponse {
-  success: boolean;
-  response: string;
-  agentId: string;
-  contextUsed: number;
-  relevanceScores: Array<{
-    source?: string;
-    score?: number;
-  }>;
-}
 
 const QUERY_CLARIFICATION_PROMPT = `You are a query understanding assistant. Your job is to analyze user queries and make them more explicit and searchable for a document retrieval system.
 
@@ -159,7 +145,7 @@ function generateContextRecommendations(
   return recommendations.length > 0 ? recommendations.join(', ') : '';
 }
 
-export class AgentRAGService {
+export class AgentRAGService implements BaseRAGService {
   private async clarifyQuery(originalQuery: string, chatHistory: Message[]): Promise<string> {
     console.log('🧠 Clarifying query:', originalQuery);
     
@@ -193,8 +179,8 @@ export class AgentRAGService {
       }
       
       return clarifiedQuery;
-    } catch (error) {
-      console.error('❌ Query clarification failed, using original:', error);
+    } catch (_error) {
+      console.error('❌ Query clarification failed, using original:', _error);
       return originalQuery;
     }
   }
@@ -478,9 +464,9 @@ You can add this data using the "Add Content" button, which will enable me to pr
       });
 
       return result;
-    } catch (error) {
-      console.error('Error in RAG process:', error);
-      throw error;
+    } catch (_error) {
+      console.error('Error in RAG process:', _error);
+      throw _error;
     }
   }
 } 

@@ -75,7 +75,7 @@ Embed and store the splits in a vector database (for demo purposes we use an uno
 
 
 \`\`\`typescript
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { __OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 
 const embeddings = new OpenAIEmbeddings();
@@ -359,7 +359,7 @@ To start, we need a retriever to use! The code here is mostly just example code.
 
 \`\`\`typescript
 import { FaissStore } from "langchain/vectorstores/faiss";
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { __OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { TextLoader } from "langchain/document_loaders/fs/text";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 

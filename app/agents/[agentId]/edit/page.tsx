@@ -78,8 +78,8 @@ export default function EditAgentPage() {
           triggers: Array.isArray(data.triggers) ? data.triggers.join(', ') : '',
           isPublic: Boolean(data.isPublic)
         });
-      } catch (error) {
-        console.error('Error fetching agent details:', error);
+      } catch (_error) {
+        console.error('Error fetching agent details:', _error);
         toast.error('Failed to load agent details');
       } finally {
         setIsLoading(false);
@@ -132,9 +132,9 @@ export default function EditAgentPage() {
 
       toast.success('Agent updated successfully!');
       router.push(`/agents/${agentId}`);
-    } catch (error) {
-      console.error('Error updating agent:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update agent');
+    } catch (_error) {
+      console.error('Error updating agent:', _error);
+      toast.error(_error instanceof Error ? _error.message : 'Failed to update agent');
     } finally {
       setIsSubmitting(false);
     }

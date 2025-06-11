@@ -12,7 +12,7 @@ const ClientVisualization = dynamic(
     loading: () => (
       <div className="flex justify-center items-center min-h-screen px-4">
         <div className="text-center">
-          <div className="text-base sm:text-lg text-foreground">Loading visualization...</div>
+          <div className="text-base sm:text-lg text-foreground">Loading embeddings data...</div>
         </div>
       </div>
     )
@@ -47,7 +47,7 @@ export default function VisualizePage() {
           <div className="flex justify-center items-center min-h-screen px-4">
             <div className="text-center">
               <div className="text-base sm:text-lg text-foreground">
-              Initializing 3D visualization...
+              Loading embeddings data...
               </div>
             </div>
           </div>
@@ -57,4 +57,4 @@ export default function VisualizePage() {
       </Suspense>
     </div>
   );
-} 
+}

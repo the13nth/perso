@@ -74,9 +74,9 @@ export async function storeAgentContext(
 
     console.log('[DEBUG] Successfully stored context');
     console.log('[DEBUG] Total contexts for agent:', updatedContexts.length);
-  } catch (error) {
-    console.error('[ERROR] Failed to store context:', error);
-    throw error;
+  } catch (_error) {
+    console.error('[ERROR] Failed to store context:', _error);
+    throw _error;
   }
 }
 
@@ -125,9 +125,9 @@ export async function getAgentContext(
 
     console.log('[DEBUG] Returning relevant contexts:', relevantContexts.length);
     return relevantContexts;
-  } catch (error) {
-    console.error('[ERROR] Failed to get context:', error);
-    throw error;
+  } catch (_error) {
+    console.error('[ERROR] Failed to get context:', _error);
+    throw _error;
   }
 }
 
@@ -136,9 +136,9 @@ export async function clearAgentContext(agentId: string): Promise<void> {
     console.log('[DEBUG] Clearing context for agent:', agentId);
     contextStore.delete(agentId);
     console.log('[DEBUG] Successfully cleared context');
-  } catch (error) {
-    console.error('[ERROR] Failed to clear context:', error);
-    throw error;
+  } catch (_error) {
+    console.error('[ERROR] Failed to clear context:', _error);
+    throw _error;
   }
 }
 
@@ -147,8 +147,8 @@ export async function deleteAgentContext(agentId: string): Promise<void> {
     const vectorStore = await initStore();
     await vectorStore.delete({ filter: { agentId } });
     console.log(`[INFO] Deleted all contexts for agent ${agentId}`);
-  } catch (error) {
-    console.error('[ERROR] Failed to delete agent context:', error);
+  } catch (_error) {
+    console.error('[ERROR] Failed to delete agent context:', _error);
     throw new Error('Failed to delete agent context');
   }
 } 

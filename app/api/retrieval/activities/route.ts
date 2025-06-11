@@ -91,12 +91,12 @@ export async function POST(req: NextRequest) {
       structuredData: structuredData,
     });
 
-  } catch (error) {
-    console.error("Error saving activity:", error);
+  } catch (_error) {
+    console.error("Error saving activity:", _error);
     return NextResponse.json(
       { 
         message: "Failed to save activity", 
-        error: error instanceof Error ? error.message : "Unknown error" 
+        error: _error instanceof Error ? _error.message : "Unknown error" 
       },
       { status: 500 }
     );

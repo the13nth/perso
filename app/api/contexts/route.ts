@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
 
     const contexts = await getUserContexts(userId);
     return NextResponse.json({ contexts });
-  } catch (error) {
-    console.error('Error fetching contexts:', error);
+  } catch (_error) {
+    console.error('Error fetching contexts:', _error);
     return NextResponse.json(
       { error: 'Failed to fetch contexts' },
       { status: 500 }

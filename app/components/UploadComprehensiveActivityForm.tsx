@@ -208,8 +208,8 @@ export function UploadComprehensiveActivityForm({
           description: errorData.message || "An error occurred while saving your activity.",
         });
       }
-    } catch (error) {
-      console.error("Error saving activity:", error);
+    } catch (_error) {
+      console.error("Error saving activity:",  _error);
       toast.error("Failed to save activity", {
         description: "An unexpected error occurred. Please try again.",
       });

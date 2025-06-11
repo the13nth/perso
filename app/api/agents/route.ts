@@ -44,8 +44,8 @@ export async function POST(req: Request) {
     // TODO: Store the agent in your database
     // For now, we'll just return the created agent
     return NextResponse.json(agent);
-  } catch (error) {
-    console.error("[AGENTS_POST]", error);
+  } catch (_error) {
+    console.error("[AGENTS_POST]", _error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -74,8 +74,8 @@ export async function GET(_req: Request) {
     ];
 
     return NextResponse.json(agents);
-  } catch (error) {
-    console.error("[AGENTS_GET]", error);
+  } catch (_error) {
+    console.error("[AGENTS_GET]", _error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 } 

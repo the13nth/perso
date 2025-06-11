@@ -20,8 +20,8 @@ export async function detectLanguage(text: string): Promise<string> {
     });
     const response = result.response.text().trim().toLowerCase();
     return response.length === 2 ? response : 'en';
-  } catch (error) {
-    console.error('Error detecting language:', error);
+  } catch (_error) {
+    console.error('Error detecting language:', _error);
     return 'en'; // Default to English on error
   }
 }
@@ -40,8 +40,8 @@ export async function assessComplexity(text: string): Promise<'basic' | 'interme
     });
     const response = result.response.text().trim().toLowerCase();
     return response as 'basic' | 'intermediate' | 'advanced';
-  } catch (error) {
-    console.error('Error assessing complexity:', error);
+  } catch (_error) {
+    console.error('Error assessing complexity:', _error);
     return 'intermediate'; // Default to intermediate on error
   }
 }
@@ -60,8 +60,8 @@ export async function extractTopics(text: string): Promise<string[]> {
     });
     const response = result.response.text().trim();
     return response.split(',').map((topic: string) => topic.trim());
-  } catch (error) {
-    console.error('Error extracting topics:', error);
+  } catch (_error) {
+    console.error('Error extracting topics:', _error);
     return []; // Return empty array on error
   }
 } 

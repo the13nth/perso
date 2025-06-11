@@ -49,8 +49,8 @@ export class AgentDiscoveryService {
 
       console.log(`✅ Found ${result.length} candidate agents`);
       return result;
-    } catch (error) {
-      console.error('❌ Error finding candidate agents:', error);
+    } catch (_error) {
+      console.error('❌ Error finding candidate agents:', _error);
       return [];
     }
   }

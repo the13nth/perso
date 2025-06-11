@@ -77,8 +77,8 @@ export default function SwarmsPage() {
         console.error('❌ API returned error:', data.error);
         toast.error('Failed to load swarms');
       }
-    } catch (error) {
-      console.error('Error fetching swarms:', error);
+    } catch (_error) {
+      console.error('Error fetching swarms:', _error);
       toast.error('Failed to load swarms');
     } finally {
       setLoading(false);
@@ -100,8 +100,8 @@ export default function SwarmsPage() {
       } else {
         toast.error(data.error || 'Failed to dissolve swarm');
       }
-    } catch (error) {
-      console.error('Error dissolving swarm:', error);
+    } catch (_error) {
+      console.error('Error dissolving swarm:', _error);
       toast.error('Failed to dissolve swarm');
     }
   };

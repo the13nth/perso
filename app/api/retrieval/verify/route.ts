@@ -128,8 +128,8 @@ export async function GET(req: NextRequest) {
             }));
           }
         }
-      } catch (error) {
-        console.error("Error retrieving full document text:", error);
+      } catch (_error) {
+        console.error("Error retrieving full document text:", _error);
       }
     }
 
@@ -140,12 +140,12 @@ export async function GET(req: NextRequest) {
       documents: Array.from(documentIds).map(id => documentInfo[id])
     });
 
-  } catch (error) {
-    console.error("Error verifying document ingestion:", error);
+  } catch (_error) {
+    console.error("Error verifying document ingestion:", _error);
     return NextResponse.json({
       success: false,
       error: "Failed to retrieve document information",
-      message: error instanceof Error ? error.message : "Unknown error"
+      message: _error instanceof Error ? _error.message : "Unknown error"
     }, { status: 500 });
   }
 }
@@ -220,12 +220,12 @@ export async function POST(req: NextRequest) {
         text: chunk.metadata?.text,
       }))
     });
-  } catch (error) {
-    console.error("Error retrieving document:", error);
+  } catch (_error) {
+    console.error("Error retrieving document:", _error);
     return NextResponse.json({
       success: false,
       error: "Failed to retrieve document",
-      message: error instanceof Error ? error.message : "Unknown error"
+      message: _error instanceof Error ? _error.message : "Unknown error"
     }, { status: 500 });
   }
 } 

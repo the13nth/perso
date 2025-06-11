@@ -133,14 +133,14 @@ export class AgentSupervisor {
         response,
         steps: showSteps ? steps : undefined
       };
-    } catch (error) {
+    } catch (_error) {
       const failedStep = steps.find(s => s.status === 'running');
       if (failedStep) {
         failedStep.status = 'error';
-        failedStep.details = error instanceof Error ? error.message : 'An unknown error occurred';
+        failedStep.details = _error instanceof Error ? _error.message : 'An unknown error occurred';
       }
 
-      throw error;
+      throw _error;
     }
   }
 

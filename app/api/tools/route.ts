@@ -141,8 +141,8 @@ async function calculateToolUsage(userId: string) {
     });
     
     return toolUsage;
-  } catch (error) {
-    console.error('Error calculating tool usage:', error);
+  } catch (_error) {
+    console.error('Error calculating tool usage:', _error);
     // Return empty usage if there's an error (e.g., Pinecone connection issues)
     return {};
   }
@@ -189,8 +189,8 @@ export async function GET(_request: NextRequest) {
       totalUsage: Object.values(toolUsage).reduce((sum, count) => sum + count, 0)
     });
 
-  } catch (error) {
-    console.error("Error fetching tools:", error);
+  } catch (_error) {
+    console.error("Error fetching tools:", _error);
     return NextResponse.json(
       { error: "Failed to fetch tools" },
       { status: 500 }
@@ -275,9 +275,9 @@ export async function POST(request: NextRequest) {
         if (typeof toolFunction !== 'function') {
           throw new Error('Code must be a valid function');
         }
-      } catch (error) {
+      } catch (_error) {
         return NextResponse.json(
-          { error: "Invalid function code: " + (error instanceof Error ? error.message : 'Unknown error') },
+          { error: "Invalid function code: " + (_error instanceof Error ? _error.message : 'Unknown error') },
           { status: 400 }
         );
       }
@@ -315,8 +315,8 @@ export async function POST(request: NextRequest) {
       message: "Tool created successfully"
     });
 
-  } catch (error) {
-    console.error("Error creating tool:", error);
+  } catch (_error) {
+    console.error("Error creating tool:", _error);
     return NextResponse.json(
       { error: "Failed to create tool" },
       { status: 500 }

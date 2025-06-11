@@ -57,8 +57,8 @@ export async function remixAgents(agents: RemixState['parentAgents']) {
       parentAgents: agents.map(a => a.agentId),
       selectedContextIds: (finalState as RemixState).context.mergedContextIds
     };
-  } catch (error) {
-    console.error("Error in remixAgents:", error);
-    throw error;
+  } catch (_error) {
+    console.error("Error in remixAgents:", _error);
+    throw _error;
   }
 } 

@@ -196,7 +196,7 @@ export class TaskExecutionEngine {
       // Use the official SDK with correct method
       const ai = new GoogleGenerativeAI(apiKey);
       const prompt = `${contextSection}${task.description}`;
-      const model = ai.getGenerativeModel({ model: "gemini-pro" });
+      const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-001" });
       const result = await model.generateContent(prompt);
       
       if (!result.response) {

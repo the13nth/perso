@@ -40,8 +40,8 @@ export class TaskDecomposer {
       
       console.log('✅ Task decomposed into', breakdown.subTasks.length, 'subtasks');
       return breakdown;
-    } catch (error) {
-      console.error('❌ Task decomposition failed:', error);
+    } catch (_error) {
+      console.error('❌ Task decomposition failed:', _error);
       // Fallback to simple decomposition
       return this.createFallbackDecomposition(task);
     }
@@ -172,8 +172,8 @@ Provide only the JSON response, no additional text.`;
         estimatedComplexity: parsed.estimatedComplexity || 5,
         requiredCapabilities: parsed.requiredCapabilities || []
       };
-    } catch (error) {
-      console.error('Failed to parse decomposition response:', error);
+    } catch (_error) {
+      console.error('Failed to parse decomposition response:', _error);
       return this.createFallbackDecomposition(task);
     }
   }

@@ -63,8 +63,8 @@ export async function GET(_request: NextRequest) {
       stats
     });
 
-  } catch (error) {
-    console.error('Error listing swarms:', error);
+  } catch (_error) {
+    console.error('Error listing swarms:', _error);
     return NextResponse.json(
       { success: false, error: "Failed to list swarms" },
       { status: 500 }

@@ -10,8 +10,8 @@ export interface ContentIngestion {
   
   // Metadata extraction
   extractMetadata(content: ProcessedContent): Promise<ContentMetadata>;
-  generateSearchableText(content: ProcessedContent): string;
-  extractKeywords(content: ProcessedContent): string[];
+  generateSearchableText(content: ContentChunk): string;
+  extractKeywords(content: ContentChunk): string[];
   
   // Relationship handling
   processReferences(content: ProcessedContent): Promise<ContentReference[]>;
@@ -33,4 +33,4 @@ export interface ContentReference {
   id: string;
   type: string;
   context: string;
-} 
+}

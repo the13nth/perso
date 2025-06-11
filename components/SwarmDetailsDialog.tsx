@@ -106,8 +106,8 @@ export function SwarmDetailsDialog({ open, onOpenChange, swarm }: SwarmDetailsDi
       } else {
         toast.error('Failed to load swarm details');
       }
-    } catch (error) {
-      console.error('Error fetching swarm details:', error);
+    } catch (_error) {
+      console.error('Error fetching swarm details:', _error);
       toast.error('Failed to load swarm details');
     } finally {
       setLoading(false);
@@ -252,7 +252,7 @@ export function SwarmDetailsDialog({ open, onOpenChange, swarm }: SwarmDetailsDi
                             try {
                               const parsed = JSON.parse(displayResult);
                               if (parsed.agentResponse) displayResult = parsed.agentResponse;
-                            } catch (e) {}
+                            } catch (_e) {}
                           }
                           return (
                             <div className="p-3 bg-gray-50 rounded-md border-l-4 border-green-500">

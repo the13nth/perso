@@ -68,9 +68,9 @@ export function RemixAgentDialog({
       toast.success("Super agent created successfully");
       router.push(`/agents/${data.agentId}`);
       onClose();
-    } catch (error) {
-      console.error("Error creating super agent:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to create super agent");
+    } catch (_error) {
+      console.error("Error creating super agent:", _error);
+      toast.error(_error instanceof Error ? _error.message : "Failed to create super agent");
     } finally {
       setIsLoading(false);
     }
