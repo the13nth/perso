@@ -1,5 +1,10 @@
 [build]
-  command = "yarn build --no-lint"
+  command = "NODE_OPTIONS='--max_old_space_size=4096' yarn build --no-lint"
+  publish = ".next"
+
+[build.environment]
+NEXT_TELEMETRY_DISABLED = "1"
+NODE_VERSION = "18"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
