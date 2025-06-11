@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Plus, Loader2, ExternalLink, AlertCircle, RefreshCw } from "lucide-react";
+import { Bot, Plus, Loader2, ExternalLink, AlertCircle, RefreshCw, Rocket, Activity, Brain, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -11,6 +11,23 @@ import { AgentMetadata } from "@/lib/pinecone";
 import { useAuth } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 import { toast } from 'sonner';
+import { Progress } from "@/components/ui/progress";
+import { AgentRunMetrics } from '@/lib/services/agent-runner';
+import { AgentResultsDialog } from '@/app/components/AgentResultsDialog';
+
+interface AgentMetrics {
+  successRate: number;
+  totalRuns: number;
+  averageResponseTime: number;
+  status: 'idle' | 'running' | 'completed' | 'error';
+}
+
+interface DashboardMetrics {
+  totalAgents: number;
+  activeAgents: number;
+  totalRuns: number;
+  overallSuccess: number;
+}
 
 interface AgentCardProps {
   agent: AgentMetadata;
@@ -125,12 +142,111 @@ function ErrorState({ message, onRetry }: { message: string, onRetry: () => void
   );
 }
 
+function DashboardCard({ title, value, icon: Icon, description, trend }: { 
+  title: string;
+  value: string | number;
+  icon: any;
+  description?: string;
+  trend?: { value: number; isPositive: boolean };
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">
+          {title}
+        </CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {description}
+          </p>
+        )}
+        {trend && (
+          <div className={`text-xs mt-1 flex items-center ${trend.isPositive ? 'text-green-500' : 'text-red-500'}`}>
+            {trend.isPositive ? '↑' : '↓'} {trend.value}%
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AgentMetricsCard({ agent, metrics }: { agent: AgentMetadata; metrics: AgentRunMetrics }) {
+  const [showResults, setShowResults] = useState(false);
+
+  return (
+    <>
+      <Card className="flex flex-col">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            {agent.name}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Success Rate</span>
+            <span className="text-sm font-medium">{metrics.successRate}%</span>
+          </div>
+          <Progress value={metrics.successRate} className="h-1" />
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <div>
+              <div className="text-sm font-medium">{metrics.totalRuns}</div>
+              <div className="text-xs text-muted-foreground">Total Runs</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium">{metrics.averageResponseTime}ms</div>
+              <div className="text-xs text-muted-foreground">Avg. Response</div>
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="pt-2 flex gap-2">
+          <Badge 
+            variant={metrics.status === 'running' ? 'default' : metrics.status === 'completed' ? 'outline' : 'secondary'}
+            className="flex-1 justify-center"
+          >
+            {metrics.status.charAt(0).toUpperCase() + metrics.status.slice(1)}
+          </Badge>
+          {metrics.status === 'completed' && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="flex-1"
+              onClick={() => setShowResults(true)}
+            >
+              View Results
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+
+      <AgentResultsDialog
+        open={showResults}
+        onOpenChange={setShowResults}
+        agent={agent}
+        metrics={metrics}
+      />
+    </>
+  );
+}
+
 function AgentsContent() {
   const [publicAgents, setPublicAgents] = useState<AgentMetadata[]>([]);
   const [userAgents, setUserAgents] = useState<AgentMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('my-agents');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [agentMetrics, setAgentMetrics] = useState<Record<string, AgentRunMetrics>>({});
+  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics>({
+    totalAgents: 0,
+    activeAgents: 0,
+    totalRuns: 0,
+    overallSuccess: 0
+  });
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -186,12 +302,45 @@ function AgentsContent() {
     fetchAgents();
   }, [fetchAgents]);
 
-  const handleCreateClick = () => {
-    window.location.href = '/agents/create';
-  };
+  const launchAllAgents = async () => {
+    if (userAgents.length === 0) {
+      toast.error('No agents available to launch');
+      return;
+    }
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
+    setIsLaunching(true);
+    try {
+      const response = await fetch('/api/agents/chain/launch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agents: userAgents
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to launch agents');
+      }
+
+      const result = await response.json();
+      
+      setAgentMetrics(result.metrics);
+      setDashboardMetrics({
+        totalAgents: userAgents.length,
+        activeAgents: result.activeAgents,
+        totalRuns: result.totalRuns,
+        overallSuccess: result.overallSuccess
+      });
+
+      toast.success('All agents launched successfully!');
+    } catch (error) {
+      console.error('Error launching agents:', error);
+      toast.error('Failed to launch agents');
+    } finally {
+      setIsLaunching(false);
+    }
   };
 
   if (error) {
@@ -206,22 +355,81 @@ function AgentsContent() {
     <div className="container max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">AI Agents</h1>
-          <p className="text-muted-foreground mt-1">Create and manage your AI agents</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">AI Agents Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Monitor and manage your AI agents</p>
         </div>
-        <Link href="/agents/create">
-          <Button className="w-full sm:w-auto shadow-sm">
-            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-            Create Agent
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button 
+            className="flex-1 sm:flex-none shadow-sm"
+            size="lg"
+            onClick={launchAllAgents}
+            disabled={isLaunching || userAgents.length === 0}
+          >
+            <Rocket className="h-5 w-5 mr-2" aria-hidden="true" />
+            {isLaunching ? 'Launching...' : 'Launch All Agents'}
           </Button>
-        </Link>
+          <Link href="/agents/create">
+            <Button variant="outline" className="w-full sm:w-auto shadow-sm" size="lg">
+              <Plus className="h-5 w-5 mr-2" aria-hidden="true" />
+              Create Agent
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 max-w-[400px]">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="my-agents">My Agents</TabsTrigger>
           <TabsTrigger value="public">Public Agents</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="dashboard" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <DashboardCard
+              title="Total Agents"
+              value={dashboardMetrics.totalAgents}
+              icon={Bot}
+              description="Total number of your agents"
+            />
+            <DashboardCard
+              title="Active Agents"
+              value={dashboardMetrics.activeAgents}
+              icon={Activity}
+              description="Currently active agents"
+              trend={{ value: 12, isPositive: true }}
+            />
+            <DashboardCard
+              title="Total Runs"
+              value={dashboardMetrics.totalRuns}
+              icon={Zap}
+              description="Total agent executions"
+              trend={{ value: 8, isPositive: true }}
+            />
+            <DashboardCard
+              title="Success Rate"
+              value={`${dashboardMetrics.overallSuccess}%`}
+              icon={Brain}
+              description="Overall success rate"
+              trend={{ value: 4, isPositive: true }}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {userAgents.map((agent) => (
+              <AgentMetricsCard 
+                key={agent.agentId} 
+                agent={agent} 
+                metrics={agentMetrics[agent.agentId] || {
+                  successRate: 0,
+                  totalRuns: 0,
+                  averageResponseTime: 0,
+                  status: 'idle'
+                }} 
+              />
+            ))}
+          </div>
+        </TabsContent>
 
         <TabsContent value="my-agents" className="space-y-6">
           {isLoading ? (
@@ -233,7 +441,7 @@ function AgentsContent() {
               ))}
             </div>
           ) : (
-            <EmptyState type="user" onCreateClick={handleCreateClick} />
+            <EmptyState type="user" onCreateClick={() => window.location.href = '/agents/create'} />
           )}
         </TabsContent>
 

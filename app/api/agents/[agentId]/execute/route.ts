@@ -1,54 +1,57 @@
-import { NextResponse } from 'next/server';
-import { AgentRAGService } from '../../../../lib/services/AgentRAGService';
+import { NextRequest } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { agentRunner } from '@/lib/services/agent-runner';
 
-const ragService = new AgentRAGService();
+// Get the base URL from environment or default to localhost in development
+const BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL 
+  ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` 
+  : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
 export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ agentId: string }> }
+  req: NextRequest,
+  { params }: { params: { agentId: string } }
 ) {
   try {
-    const { agentId } = await params;
-    
-    if (!agentId || typeof agentId !== 'string') {
-      return NextResponse.json(
-        { error: "Agent ID is required and must be a string" },
-        { status: 400 }
-      );
+    const session = await auth();
+    if (!session?.userId) {
+      return new Response('Unauthorized', { status: 401 });
     }
 
-    // Parse the request body
-    const { messages } = await request.json();
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: "Messages array is required" },
-        { status: 400 }
-      );
+    const { agentId } = params;
+    const body = await req.json();
+
+    // Get auth token
+    const authToken = await session.getToken();
+
+    // Execute the agent's task using absolute URL
+    const response = await fetch(`${BASE_URL}/api/agents/${agentId}/questions/execute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        question: "What tasks can you help me with?",
+        context: body.context
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Agent execution failed: ${response.status} ${response.statusText}\n${errorText}`);
     }
 
-    // Generate response using the RAG service
-    const response = await ragService.generateResponse(agentId, messages);
+    const result = await response.json();
+    return Response.json(result);
 
-    return NextResponse.json(response);
-  } catch (error: Error | unknown) {
+  } catch (error) {
     console.error('Error executing agent:', error);
-    
-    let errorMessage = 'Failed to execute agent';
-    let statusCode = 500;
-
-    if (error instanceof Error) {
-      if (error.message?.includes('API key')) {
-        errorMessage = 'Invalid or missing API key';
-        statusCode = 401;
-      } else if (error.message?.includes('not found')) {
-        errorMessage = 'Agent not found';
-        statusCode = 404;
-      }
-    }
-    
-    return NextResponse.json(
-      { error: errorMessage, details: error instanceof Error ? error.message : error },
-      { status: statusCode }
+    return new Response(
+      JSON.stringify({ 
+        error: 'Failed to execute agent',
+        details: error instanceof Error ? error.message : String(error)
+      }),
+      { status: 500 }
     );
   }
 } 

@@ -206,7 +206,9 @@ export function Navbar() {
         {/* Logo and mobile menu button */}
         <div className="col-span-3 flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/images/logo.png" width={32} height={32} alt="Logo" className="w-8 h-8" />
+            <div className="w-8 h-8">
+              <img src="/images/logo.svg" alt="Logo" className="w-full h-full" />
+            </div>
             <span className="font-semibold">Ubumuntu AI</span>
           </Link>
         </div>

@@ -73,6 +73,11 @@ export default function HomePage() {
             <span className="text-sm font-medium text-primary">Powered by Dumb AI</span>
           </div>
           
+          {/* Logo */}
+          <div className="w-48 h-48 mx-auto mb-8 animate-fade-in-up">
+            <img src="/images/logo.svg" alt="Ubumuntu AI Logo" className="w-full h-full" />
+          </div>
+          
           {/* Main Heading */}
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold mb-8 animate-fade-in-up leading-tight">
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary/80 to-primary/60">

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Glowing effect -->
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Main circular orbit with gradient -->
+  <circle cx="24" cy="24" r="22" stroke="url(#orbitGradient)" stroke-width="2" stroke-dasharray="4 2" opacity="0.7">
+    <animate attributeName="stroke-dashoffset" from="0" to="24" dur="8s" repeatCount="indefinite" />
+  </circle>
+
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="orbitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8" />
+      <stop offset="100%" style="stop-color:#6366F1" />
+    </linearGradient>
+    <linearGradient id="coreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8" />
+      <stop offset="100%" style="stop-color:#6366F1" />
+    </linearGradient>
+    <radialGradient id="agentGlow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" style="stop-color:#C7D2FE" />
+      <stop offset="100%" style="stop-color:#818CF8" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Inner hexagon (core) with gradient and pulse -->
+  <path d="M24 14L31 18V26L24 30L17 26V18L24 14Z" fill="url(#coreGradient)" filter="url(#glow)">
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" />
+  </path>
+  
+  <!-- Orbiting agents with glow -->
+  <g filter="url(#glow)">
+    <circle cx="34" cy="24" r="4" fill="url(#agentGlow)">
+      <animate attributeName="transform" attributeType="XML" type="rotate" from="0 24 24" to="360 24 24" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" />
+    </circle>
+    
+    <circle cx="19" cy="34" r="4" fill="url(#agentGlow)">
+      <animate attributeName="transform" attributeType="XML" type="rotate" from="120 24 24" to="480 24 24" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" begin="0.6s" />
+    </circle>
+    
+    <circle cx="19" cy="14" r="4" fill="url(#agentGlow)">
+      <animate attributeName="transform" attributeType="XML" type="rotate" from="240 24 24" to="600 24 24" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" begin="1.2s" />
+    </circle>
+  </g>
+  
+  <!-- Connection lines with gradient and glow -->
+  <g stroke="url(#orbitGradient)" stroke-width="1.5" opacity="0.6" filter="url(#glow)">
+    <line x1="24" y1="24" x2="34" y2="24">
+      <animate attributeName="transform" attributeType="XML" type="rotate" from="0 24 24" to="360 24 24" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.4;0.8;0.4" dur="2s" repeatCount="indefinite" />
+    </line>
+    <line x1="24" y1="24" x2="19" y2="34">
+      <animate attributeName="transform" attributeType="XML" type="rotate" from="120 24 24" to="480 24 24" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.4;0.8;0.4" dur="2s" repeatCount="indefinite" begin="0.6s" />
+    </line>
+    <line x1="24" y1="24" x2="19" y2="14">
+      <animate attributeName="transform" attributeType="XML" type="rotate" from="240 24 24" to="600 24 24" dur="8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.4;0.8;0.4" dur="2s" repeatCount="indefinite" begin="1.2s" />
+    </line>
+  </g>
+</svg> 

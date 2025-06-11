@@ -2465,7 +2465,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google/generative-ai@npm:^0.24.0":
+"@google/generative-ai@npm:^0.24.0, @google/generative-ai@npm:^0.24.1":
   version: 0.24.1
   resolution: "@google/generative-ai@npm:0.24.1"
   checksum: d999b98acf1a6dba36a3e3693e02fde270c21b8d20333e2d458cf085e90508b24fad6c8d05d9475817fdf9d1ff1bf4082c86a4b09d2e59af739d391e59bca7ed
@@ -18715,6 +18715,7 @@ __metadata:
     "@clerk/nextjs": ^6.19.4
     "@eslint/js": ^9.28.0
     "@google/genai": latest
+    "@google/generative-ai": ^0.24.1
     "@hookform/resolvers": ^5.1.1
     "@langchain/community": ^0.3.37
     "@langchain/core": ^0.3.57

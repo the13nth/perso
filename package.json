@@ -19,6 +19,7 @@
     "@ai-sdk/langchain": "^1.0.0-canary.12",
     "@clerk/nextjs": "^6.19.4",
     "@google/genai": "latest",
+    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^5.1.1",
     "@langchain/community": "^0.3.37",
     "@langchain/core": "^0.3.57",
