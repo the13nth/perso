@@ -23,14 +23,15 @@ export async function POST() {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Generate OAuth URL
+    // Generate OAuth URL with optimized configuration
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
       state: userId,
-      include_granted_scopes: false,
-      prompt: 'consent',
-      login_hint: 'calendar_integration'
+      // Enable incremental authorization
+      include_granted_scopes: true,
+      // Only prompt for consent if we don't have a valid refresh token
+      prompt: 'select_account consent'
     });
 
     return NextResponse.json({ authUrl });

@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Lang",
+  title: "Ubumuntu AI",
   description: "AI Language Platform",
 };
 

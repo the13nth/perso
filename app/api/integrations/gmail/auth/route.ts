@@ -11,10 +11,10 @@ const oauth2Client = new OAuth2Client(
 
 // Gmail API scopes we need
 const SCOPES = [
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.metadata',
-  'https://www.googleapis.com/auth/gmail.labels',
-  'https://mail.google.com/'
+  'https://mail.google.com/',  // Full email access including reading content
+  'https://www.googleapis.com/auth/gmail.readonly',  // Read all resources
+  'https://www.googleapis.com/auth/gmail.metadata',  // Read metadata
+  'https://www.googleapis.com/auth/gmail.labels'     // Manage labels
 ];
 
 export async function POST() {
@@ -24,14 +24,15 @@ export async function POST() {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Generate OAuth URL
+    // Generate OAuth URL with optimized configuration
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
       state: userId,
-      include_granted_scopes: false,
-      prompt: 'consent',
-      login_hint: 'gmail_integration'
+      // Enable incremental authorization
+      include_granted_scopes: true,
+      // Force consent to ensure we get all permissions
+      prompt: 'consent'
     });
 
     return NextResponse.json({ authUrl });

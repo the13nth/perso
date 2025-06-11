@@ -170,9 +170,63 @@ const systemItems: DropdownItem[] = [
   },
 ];
 
+interface MobileDropdownProps {
+  label: string;
+  icon: ReactNode;
+  items: DropdownItem[];
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+const MobileDropdown = ({ label, items, icon, isOpen, onToggle }: MobileDropdownProps) => {
+  const pathname = usePathname();
+  
+  return (
+    <div className="border-t border-border/50 first:border-t-0">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium transition-colors hover:text-accent-foreground"
+      >
+        <div className="flex items-center gap-2">
+          {icon}
+          {label}
+        </div>
+        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+      </button>
+      <div
+        className={cn(
+          "grid transition-all duration-200 ease-in-out",
+          isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        )}
+      >
+        <div className="overflow-hidden">
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-2 px-6 py-2 text-sm transition-colors hover:text-accent-foreground",
+                pathname === item.href && "text-accent-foreground"
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [mobileDropdowns, setMobileDropdowns] = useState({
+    'ai-tools': false,
+    'data': false,
+    'system': false,
+  });
   const pathname = usePathname();
   const { isSignedIn } = useUser();
 
@@ -285,28 +339,57 @@ export function Navbar() {
       {/* Mobile Navigation */}
       <div 
         className={cn(
-          "md:hidden grid grid-cols-1 border-t border-border/50 transition-all duration-300 ease-in-out z-[99]",
+          "md:hidden transition-all duration-300 ease-in-out",
           mobileMenuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"
         )}
       >
-        <ActiveLink href="/retrieval" icon={<MessageSquare className="w-4 h-4" />}>
-          Chat
-        </ActiveLink>
-        {aiToolsItems.map((item) => (
-          <ActiveLink key={item.href} href={item.href} icon={item.icon}>
-            {item.label}
+        <div className="border-t border-border/50">
+          <ActiveLink href="/retrieval" icon={<MessageSquare className="w-4 h-4" />}>
+            Chat
           </ActiveLink>
-        ))}
-        {dataItems.map((item) => (
-          <ActiveLink key={item.href} href={item.href} icon={item.icon}>
-            {item.label}
-          </ActiveLink>
-        ))}
-        {systemItems.map((item) => (
-          <ActiveLink key={item.href} href={item.href} icon={item.icon}>
-            {item.label}
-          </ActiveLink>
-        ))}
+          
+          <MobileDropdown
+            label="AI Tools"
+            icon={<Brain className="w-4 h-4" />}
+            items={aiToolsItems}
+            isOpen={mobileDropdowns['ai-tools']}
+            onToggle={() => setMobileDropdowns(prev => ({ ...prev, 'ai-tools': !prev['ai-tools'] }))}
+          />
+          
+          <MobileDropdown
+            label="Data"
+            icon={<Database className="w-4 h-4" />}
+            items={dataItems}
+            isOpen={mobileDropdowns['data']}
+            onToggle={() => setMobileDropdowns(prev => ({ ...prev, 'data': !prev['data'] }))}
+          />
+          
+          <MobileDropdown
+            label="System"
+            icon={<Settings className="w-4 h-4" />}
+            items={systemItems}
+            isOpen={mobileDropdowns['system']}
+            onToggle={() => setMobileDropdowns(prev => ({ ...prev, 'system': !prev['system'] }))}
+          />
+          
+          {/* Mobile User section */}
+          <div className="border-t border-border/50 p-3">
+            {isSignedIn ? (
+              <div className="flex justify-center">
+                <UserButton afterSignOutUrl="/" />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <SignInButton mode="modal">
+                  <Button variant="ghost" className="w-full">Sign in</Button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <Button className="w-full">Sign up</Button>
+                </SignUpButton>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </nav>
   );

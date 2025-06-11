@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { google } from "googleapis";
 import { adminDb } from "@/lib/firebase/admin";
+import { refreshTokenIfNeeded } from "@/lib/services/googleAuth";
 import { Credentials } from 'google-auth-library';
 
 // Initialize OAuth2 client
@@ -22,11 +23,10 @@ function getTimeRange() {
   
   return {
     timeMin: pastWeek.toISOString(),
-    timeMax: nextWeek.toISOString()
+    timeMax: nextWeek.toISOString(),
+    description: `${pastWeek.toLocaleDateString()} to ${nextWeek.toLocaleDateString()}`
   };
 }
-
-// Add token refresh logic
 
 // Fetch calendar events with proper scopes
 export async function GET() {
@@ -38,27 +38,25 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get Calendar tokens
-    console.log("[DEBUG] Fetching Calendar tokens...");
-    const tokenDoc = await adminDb.collection('calendar_tokens').doc(userId).get();
-    const tokens = tokenDoc.data() as Credentials | undefined;
-    
-    if (!tokens) {
-      console.log("[DEBUG] No Calendar tokens found");
+    // Get Calendar tokens with automatic refresh
+    console.log("[DEBUG] Fetching and refreshing Calendar tokens if needed...");
+    try {
+      const tokens = await refreshTokenIfNeeded(oauth2Client, userId, 'calendar_tokens');
+      oauth2Client.setCredentials(tokens);
+    } catch (error) {
+      console.error("[DEBUG] Token refresh failed:", error);
       return NextResponse.json({ error: "Calendar not connected" }, { status: 400 });
     }
-
+    
     // Set up Calendar API
     console.log("[DEBUG] Setting up Calendar client...");
-    oauth2Client.setCredentials(tokens);
-    
     const calendar = google.calendar({
       version: 'v3',
       auth: oauth2Client
     });
 
     // Get time range for events
-    const { timeMin, timeMax } = getTimeRange();
+    const { timeMin, timeMax, description: timeRange } = getTimeRange();
 
     // Fetch events with retries
     console.log("[DEBUG] Fetching events...");
@@ -85,31 +83,38 @@ export async function GET() {
 
     if (!response?.data.items) {
       console.log("[DEBUG] No events found");
-      return NextResponse.json({ events: [] });
+      return NextResponse.json({ 
+        events: [],
+        status: {
+          totalEvents: 0,
+          timeRange
+        }
+      });
     }
 
-    // Process and return events
+    // Process events to match the expected format
     const events = response.data.items.map(event => ({
       id: event.id,
-      summary: event.summary,
-      start: event.start,
-      end: event.end,
-      attendees: event.attendees,
-      location: event.location,
+      summary: event.summary || 'Untitled Event',
+      start: event.start?.dateTime || event.start?.date,
+      end: event.end?.dateTime || event.end?.date,
+      attendees: event.attendees?.length || 0,
       description: event.description,
-      recurrence: event.recurrence
+      location: event.location,
+      status: event.status,
+      isRecurring: !!event.recurrence
     }));
 
-    console.log(`[DEBUG] Successfully fetched ${events.length} events`);
-    return NextResponse.json({ 
+    return NextResponse.json({
       events,
       status: {
-        totalEvents: events.length
+        totalEvents: events.length,
+        timeRange
       }
     });
 
   } catch (_error) {
-    console.error("[DEBUG] Error fetching events:", _error);
+    console.error("[DEBUG] Error fetching calendar events:", _error);
     return NextResponse.json(
       { error: "Failed to fetch calendar events" },
       { status: 500 }
