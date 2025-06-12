@@ -1,68 +1,55 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { PCA } from 'ml-pca';
+// @ts-ignore - ml-kmeans doesn't have type definitions
+import { kmeans } from 'ml-kmeans';
 
-export async function POST(req: Request) {
-  console.log('Processing vectors request received');
-  
+interface EmbeddingPoint {
+  vector: number[];
+  metadata: {
+    text: string;
+    [key: string]: any;
+  };
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { vectors } = body;
-    
-    if (!vectors || !Array.isArray(vectors) || vectors.length === 0) {
-      console.error('Invalid vectors data:', { 
-        hasVectors: !!vectors,
-        isArray: Array.isArray(vectors),
-        length: vectors?.length 
-      });
-      return NextResponse.json({ error: 'Invalid vectors data' }, { status: 400 });
+    const { embeddings } = await req.json() as { embeddings: EmbeddingPoint[] };
+
+    if (!embeddings || !Array.isArray(embeddings)) {
+      return NextResponse.json(
+        { error: 'Invalid embeddings data' },
+        { status: 400 }
+      );
     }
 
-    console.log(`Processing ${vectors.length} vectors`);
+    // Extract vectors for PCA
+    const vectors = embeddings.map(e => e.vector);
 
-    // Validate vector dimensions
-    const dimension = vectors[0].length;
-    if (!vectors.every(v => Array.isArray(v) && v.length === dimension)) {
-      console.error('Inconsistent vector dimensions');
-      return NextResponse.json({ error: 'Inconsistent vector dimensions' }, { status: 400 });
-    }
+    // Perform PCA to reduce dimensions to 3
+    const pca = new PCA(vectors);
+    const reducedVectors = pca.predict(vectors, { nComponents: 3 }).to2DArray();
 
-    // Validate vector values
-    if (!vectors.every(v => v.every((n: number) => typeof n === 'number' && !isNaN(n)))) {
-      console.error('Invalid vector values detected');
-      return NextResponse.json({ error: 'Invalid vector values' }, { status: 400 });
-    }
+    // Perform k-means clustering
+    const numClusters = Math.min(15, Math.floor(vectors.length / 10));
+    const { clusters } = kmeans(vectors, numClusters, {
+      initialization: 'kmeans++',
+      seed: 42
+    });
 
-    // Perform PCA with error handling
-    let pca: PCA;
-    try {
-      pca = new PCA(vectors);
-    } catch (_error) {
-      console.error('PCA initialization failed:', _error);
-      return NextResponse.json({ error: 'PCA initialization failed' }, { status: 500 });
-    }
-
-    let reducedVectors: number[][];
-    try {
-      reducedVectors = pca.predict(vectors, { nComponents: 3 }).to2DArray();
-    } catch (_error) {
-      console.error('PCA prediction failed:', _error);
-      return NextResponse.json({ error: 'PCA prediction failed' }, { status: 500 });
-    }
-
-    // Scale the vectors
-    const coordinates = reducedVectors.map(v => ({
-      x: v[0] * 8.0,
-      y: v[1] * 8.0,
-      z: v[2] * 8.0
+    // Scale the coordinates for better visualization
+    const points = reducedVectors.map((coords, i) => ({
+      x: coords[0] * 20,
+      y: coords[1] * 20,
+      z: coords[2] * 20,
+      cluster: clusters[i],
+      label: embeddings[i].metadata.text
     }));
 
-    console.log('Vector processing completed successfully');
-    
-    return NextResponse.json({ coordinates });
-  } catch (_error) {
-    console.error('Error processing vectors:', _error);
+    return NextResponse.json({ points });
+  } catch (error) {
+    console.error('Error processing embeddings:', error);
     return NextResponse.json(
-      { error: 'Failed to process vectors', details: _error instanceof Error ? _error.message : 'Unknown error' },
+      { error: 'Failed to process embeddings' },
       { status: 500 }
     );
   }

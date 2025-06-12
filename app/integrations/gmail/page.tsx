@@ -18,8 +18,10 @@ interface Email {
   id: string;
   subject: string;
   from: string;
-  date: string;
-  content: string;
+  date: string; // human-readable date string
+  body?: string;    // full body when available
+  snippet?: string; // fallback preview
+  isIngesting?: boolean; // Track ingestion state
 }
 
 export default function GmailIntegrationPage() {
@@ -158,7 +160,17 @@ export default function GmailIntegrationPage() {
         throw new Error(data.error);
       }
       
-      setEmails(data.emails);
+      // Map API response to local Email shape so we always have date & body/snippet fields
+      const mapped: Email[] = (data.emails as any[]).map((e) => ({
+        id: e.id,
+        subject: e.subject,
+        from: e.from,
+        date: e.receivedDate ?? e.date ?? "", // the API uses receivedDate
+        body: e.body,
+        snippet: e.snippet,
+      }));
+
+      setEmails(mapped);
       console.log(data.emails);
       setIsDebugModalOpen(true);
     } catch (_error) {
@@ -166,6 +178,58 @@ export default function GmailIntegrationPage() {
       setError(_error instanceof Error ? _error.message : "Failed to fetch emails");
     } finally {
       setIsLoadingEmails(false);
+    }
+  };
+
+  const handleIngestEmail = async (emailId: string, emailData: Email) => {
+    // Update loading state for this specific email
+    setEmails(prev => prev.map(e => 
+      e.id === emailId ? { ...e, isIngesting: true } : e
+    ));
+
+    try {
+      // Create a rich metadata summary for this specific email
+      const summary = `
+Subject: ${emailData.subject}
+From: ${emailData.from}
+Date: ${emailData.date}
+
+${emailData.body || emailData.snippet || "No content available"}
+`.trim();
+
+      const response = await fetch('/api/retrieval/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'email',
+          content: summary,
+          metadata: {
+            emailId,
+            from: emailData.from,
+            subject: emailData.subject,
+            date: emailData.date,
+            categories: ['Emails', 'Gmail', 'Communication'],
+            access: 'personal',
+            source: 'gmail',
+            type: 'single_email'
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to ingest email');
+      }
+
+      // Update success state
+      setEmails(prev => prev.map(e => 
+        e.id === emailId ? { ...e, isIngesting: false } : e
+      ));
+    } catch (_error) {
+      console.error('Error ingesting email:', _error);
+      // Reset loading state on error
+      setEmails(prev => prev.map(e => 
+        e.id === emailId ? { ...e, isIngesting: false } : e
+      ));
     }
   };
 
@@ -273,29 +337,51 @@ export default function GmailIntegrationPage() {
           <DialogHeader>
             <DialogTitle>Debug: Email Headers Preview</DialogTitle>
             <DialogDescription>
-              Showing metadata for the latest {emails.length} emails from your inbox
+              Showing the most recent emails from your Gmail account.
             </DialogDescription>
           </DialogHeader>
-          
           <div className="space-y-4">
             {emails.map((email) => (
-              <div key={email.id} className="border rounded-lg p-4">
+              <Card key={email.id} className="p-4">
                 <div className="space-y-2">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-semibold">{email.subject}</h3>
-                    <span className="text-sm text-muted-foreground whitespace-nowrap ml-4">{email.date}</span>
+                  {email.from && (
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {email.from}
+                    </p>
+                  )}
+                  {email.subject && (
+                    <p className="text-sm font-semibold">
+                      {email.subject}
+                    </p>
+                  )}
+                  {(email.body || email.snippet) && (
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-40 overflow-auto">
+                      {email.body || email.snippet}
+                    </p>
+                  )}
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleIngestEmail(email.id, email)}
+                      disabled={email.isIngesting}
+                    >
+                      {email.isIngesting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Ingesting...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="h-4 w-4 mr-2" />
+                          Ingest Email
+                        </>
+                      )}
+                    </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">{email.from}</p>
-                  <p className="text-sm italic text-muted-foreground">{email.content}</p>
                 </div>
-              </div>
+              </Card>
             ))}
-            
-            {emails.length === 0 && (
-              <div className="text-center py-4 text-muted-foreground">
-                No emails found in inbox
-              </div>
-            )}
           </div>
         </DialogContent>
       </Dialog>

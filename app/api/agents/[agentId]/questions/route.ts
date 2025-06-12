@@ -37,18 +37,19 @@ Name: {agentName}
 Description: {agentDescription}
 Contexts: {contexts}
 
-USER'S DATA SAMPLES:
+DATA AVAILABILITY:
 {dataSamples}
 
-Based on the agent's purpose and the actual data samples provided, generate 3 specific and relevant questions that the user could ask this AI agent.
+Based on the agent's purpose and data availability, generate 3 specific and relevant questions.
 
-The questions should:
-1. Reference actual content from the data samples when possible
-2. Help users understand insights from their data
-3. Be specific to the agent's purpose and contexts
-4. If the agent has email access, include questions about email patterns, important communications, or email organization
-
-If there isn't enough data, generate general questions about the agent's capabilities.
+RULES:
+1. If actual data samples are provided, create questions that reference specific data points
+2. If NO data samples are provided, generate questions about:
+   - The agent's general capabilities
+   - How to provide/upload relevant data
+   - What types of insights the agent could provide once data is available
+3. NEVER generate questions that assume data exists when it doesn't
+4. Be explicit when asking about hypothetical scenarios vs actual data
 
 Format your response as a simple numbered list:
 1. [First Question]

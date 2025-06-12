@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, useEffect } from "react";
+import { useState, type FormEvent, useEffect, useCallback } from "react";
 import DEFAULT_RETRIEVAL_TEXT from "@/data/DefaultRetrievalText";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -15,6 +15,9 @@ import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { ContentType } from '@/app/lib/content/types';
+import { useDropzone } from 'react-dropzone';
+import { v4 as uuidv4 } from 'uuid';
+import { saveDocument } from '@/lib/firebase/collections/documents';
 
 export interface UploadDocumentsFormProps {
   fileTypes?: string;
@@ -38,6 +41,8 @@ export function UploadDocumentsForm({
   const [accessLevel, setAccessLevel] = useState<"public" | "personal">("personal");
   const [activeTab, setActiveTab] = useState<"document" | "settings">("document");
   const { user } = useUser();
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Check if we're in production environment
   const isProduction = typeof window !== 'undefined' && (
@@ -48,10 +53,10 @@ export function UploadDocumentsForm({
     (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'))
   );
   
-  // Document size limits
-  const MAX_DOCUMENT_SIZE_PRODUCTION = 1000000; // 1MB for production
-  // No limit for local development, but show async threshold
-  const ASYNC_THRESHOLD_LOCAL = 50000; // 50KB async threshold for local
+  // Document size limits - removed limits for unlimited processing
+  const MAX_DOCUMENT_SIZE_PRODUCTION = Number.MAX_SAFE_INTEGER;
+  // No limit for local development, but show async threshold for UX
+  const ASYNC_THRESHOLD_LOCAL = 50000;
 
   // Poll for document processing status when in async processing mode
   useEffect(() => {
@@ -168,6 +173,74 @@ export function UploadDocumentsForm({
       return [...current, value];
     });
   };
+
+  const processFile = async (file: File) => {
+    try {
+      // Read file content
+      const content = await file.text();
+      
+      // Generate unique ID for document
+      const documentId = uuidv4();
+      
+      // Save to Firestore
+      await saveDocument({
+        id: documentId,
+        content,
+        metadata: {
+          userId: user?.id || '',
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          uploadedAt: new Date(),
+          status: 'pending',
+          categories: ['general'],
+          access: 'personal',
+          embeddings: {
+            status: 'pending',
+            count: 0
+          }
+        }
+      });
+
+      return documentId;
+    } catch (error) {
+      console.error('Error processing file:', error);
+      throw error;
+    }
+  };
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    setUploading(true);
+    setError(null);
+    setProcessingProgress(0);
+
+    try {
+      const total = acceptedFiles.length;
+      let completed = 0;
+
+      // Process files sequentially
+      for (const file of acceptedFiles) {
+        await processFile(file);
+        completed++;
+        setProcessingProgress((completed / total) * 100);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError('Failed to upload documents. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  }, [user]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'text/plain': ['.txt'],
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls']
+    }
+  });
 
   const ingest = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -351,12 +424,12 @@ export function UploadDocumentsForm({
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-medium text-blue-900 dark:text-blue-300 mb-1">Document Size Limits</h3>
+            <h3 className="font-medium text-blue-900 dark:text-blue-300 mb-1">Document Processing Information</h3>
             <p className="text-blue-700 dark:text-blue-400 text-sm">
               {isProduction ? (
                 <>
-                  <strong>Free tier limit:</strong> Maximum {Math.round(MAX_DOCUMENT_SIZE_PRODUCTION/1000)}KB per document. 
-                  For larger documents, upgrade to Pro plan for unlimited processing or use the application locally.
+                  <strong>Production environment:</strong> No size limit. 
+                  Large documents will be processed asynchronously in the background.
                 </>
               ) : (
                 <>
@@ -405,14 +478,20 @@ export function UploadDocumentsForm({
                 </div>
                 
                 <div className="flex flex-col items-center">
-                  <Input 
-                    id="document-upload" 
-                    type="file" 
-                    accept={fileTypes} 
-                    onChange={handleFileChange}
-                    required
-                    className="max-w-xs sm:max-w-md"
-                  />
+                  <div
+                    {...getRootProps()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                      ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}
+                  >
+                    <input {...getInputProps()} />
+                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                    <p className="mt-2 text-sm text-gray-600">
+                      {isDragActive ? 'Drop the files here...' : 'Drag & drop files here, or click to select files'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Supported formats: .txt, .pdf, .xlsx, .xls
+                    </p>
+                  </div>
                   {file && (
                     <div className="mt-4 p-3 bg-muted rounded-md inline-block">
                       <p className="text-sm text-muted-foreground flex items-center">

@@ -2,10 +2,10 @@ import { google } from 'googleapis';
 import { adminDb } from '@/lib/firebase/admin';
 
 const REQUIRED_GMAIL_SCOPES = [
-  'https://mail.google.com/',
+  // 'https://mail.google.com/',
   'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.metadata',
-  'https://www.googleapis.com/auth/gmail.labels'
+  // 'https://www.googleapis.com/auth/gmail.metadata',
+  // 'https://www.googleapis.com/auth/gmail.labels'
 ];
 
 export async function refreshTokenIfNeeded(
@@ -30,12 +30,17 @@ export async function refreshTokenIfNeeded(
   // Check if we have all required scopes for Gmail
   if (collectionName === 'gmail_tokens') {
     const tokenScopes = tokens.scope.split(' ');
-    const missingScopes = REQUIRED_GMAIL_SCOPES.filter(scope => !tokenScopes.includes(scope));
+    const missingScopes = REQUIRED_GMAIL_SCOPES.filter(scope => {
+      // Normalize scopes by trimming and converting to lowercase for comparison
+      const normalizedScope = scope.trim().toLowerCase();
+      return !tokenScopes.some(ts => ts.trim().toLowerCase() === normalizedScope);
+    });
+    
     if (missingScopes.length > 0) {
       console.error('Missing required scopes:', missingScopes);
       // Delete tokens to force re-authentication with correct scopes
       await adminDb.collection(collectionName).doc(userId).delete();
-      throw new Error('Missing required Gmail scopes');
+      throw new Error(`Missing required Gmail scopes: ${missingScopes.join(', ')}`);
     }
   }
 

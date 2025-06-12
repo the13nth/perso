@@ -7,8 +7,8 @@ import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { processPDF } from "@/app/lib/utils/pdfUtils";
 
-// Maximum file size (5MB)
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+// Maximum file size - set to effectively unlimited
+const MAX_FILE_SIZE = Number.MAX_SAFE_INTEGER;
 
 // Supported file types
 const SUPPORTED_EXTENSIONS = new Set(['.txt', '.pdf', '.xlsx', '.xls']);

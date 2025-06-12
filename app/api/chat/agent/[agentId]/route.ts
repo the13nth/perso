@@ -145,14 +145,19 @@ export async function POST(
     // Get agent configuration
     const agentConfig = await getAgentConfig(agentId);
     
-    // Choose the appropriate service based on agent type
+    // Choose the appropriate service based on agent type and primary context
     let service: BaseRAGService = ragService;
-    if (agentConfig.selectedContextIds?.includes('Emails')) {
+
+    // Only use specialized services if they are the PRIMARY context
+    const primaryContext = agentConfig.primaryCategory || agentConfig.selectedContextIds?.[0];
+    if (primaryContext === 'Emails') {
       service = emailAgentService;
-      console.log('Using EmailAgentRAGService');
-    } else if (agentConfig.selectedContextIds?.includes('Calendar')) {
+      console.log('Using EmailAgentRAGService for primary email context');
+    } else if (primaryContext === 'Calendar') {
       service = calendarAgentService;
-      console.log('Using CalendarAgentRAGService');
+      console.log('Using CalendarAgentRAGService for primary calendar context');
+    } else {
+      console.log('Using standard RAGService for multi-context agent');
     }
 
     // Generate response using the selected service
@@ -161,15 +166,24 @@ export async function POST(
     // Format the response into UI sections
     const formattedContent = formatResponse(response.response);
 
-    // Return JSON response with formatted content
+    // Add category contexts to response headers
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    
+    if (response.categoryContexts) {
+      headers.set(
+        'x-category-contexts',
+        Buffer.from(JSON.stringify(response.categoryContexts)).toString('base64')
+      );
+    }
+
+    // Return JSON response with formatted content and category contexts
     return new NextResponse(JSON.stringify({
       ...response,
       formattedContent,
     }), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers
     });
   } catch (error: Error | unknown) {
     console.error('Error in agent chat:', error);

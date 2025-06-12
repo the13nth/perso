@@ -145,7 +145,70 @@ function generateContextRecommendations(
   return recommendations.length > 0 ? recommendations.join(', ') : '';
 }
 
+interface CategoryContext {
+  category: string;
+  docs: Document[];
+  relevantDocs: Document[];
+}
+
+interface AgentResponse {
+  insights?: Array<{
+    insight: string;
+    evidence: string;
+    confidence: number;
+    category: string;
+  }>;
+  response?: string;
+  metadata: {
+    responseTime: number;
+    contextUsed: boolean;
+    categoriesAnalyzed: string[];
+    confidenceScore: number;
+  };
+  error?: string;
+}
+
 export class AgentRAGService implements BaseRAGService {
+  private readonly MAX_CATEGORIES = 2;
+
+  private validateCategories(categories: string[]): { primaryCategory: string; secondaryCategory?: string } {
+    if (!categories.length) {
+      throw new Error("At least one category is required");
+    }
+    if (categories.length > this.MAX_CATEGORIES) {
+      console.warn(`More than ${this.MAX_CATEGORIES} categories provided. Using only the first two.`);
+    }
+    return {
+      primaryCategory: categories[0],
+      secondaryCategory: categories[1]
+    };
+  }
+
+  private async gatherCategoryContext(agentId: string, query: string, category: string): Promise<CategoryContext> {
+    console.log(`Gathering context for category: ${category}`);
+    const docs = await getAgentContext(agentId, `${query} ${category}`);
+    return {
+      category,
+      docs,
+      relevantDocs: docs.filter(doc => (doc.metadata?.score ?? 0) > 0.7)
+    };
+  }
+
+  private formatCategoryContext(context: CategoryContext): string {
+    return `
+CATEGORY: ${context.category.toUpperCase()}
+RELEVANT DOCUMENTS (${context.relevantDocs.length}/${context.docs.length}):
+${context.relevantDocs.map(doc => `
+SOURCE: ${doc.metadata?.source || 'Unknown'}
+CONTENT: ${doc.pageContent}
+`).join('\n')}
+
+ADDITIONAL CONTEXT (${context.docs.length - context.relevantDocs.length} documents):
+${context.docs.filter(doc => (doc.metadata?.score ?? 0) <= 0.7)
+  .map(doc => doc.pageContent)
+  .join('\n')}`;
+  }
+
   private async clarifyQuery(originalQuery: string, chatHistory: Message[]): Promise<string> {
     console.log('🧠 Clarifying query:', originalQuery);
     
@@ -159,11 +222,12 @@ export class AgentRAGService implements BaseRAGService {
         .replace('{original_query}', originalQuery);
 
       // Generate clarified query
+      
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: [{ role: 'user', parts: [{ text: clarificationPrompt }] }],
         config: {
-          maxOutputTokens: 512,
+          maxOutputTokens: 2048,
           temperature: 0.3
         }
       });
@@ -215,45 +279,56 @@ ${doc.pageContent}`;
       .join('\n\n');
   }
 
-  private createSystemPrompt(agentConfig: AgentMetadata, formattedContext: string, includeRecommendations: boolean = false, contextRecommendations: string = ''): string {
-    // Generate analysis guidelines based on agent's category and capabilities
-    const analysisGuidelines = this.generateAnalysisGuidelines(agentConfig);
+  private processUnifiedContext(contexts: CategoryContext[]): string {
+    return contexts
+      .map(context => this.formatCategoryContext(context))
+      .join('\n\n');
+  }
 
-    const basePrompt = `You are ${agentConfig.title || agentConfig.name}, an AI agent with expertise in ${agentConfig.primaryCategory || agentConfig.category || 'your assigned domain'}.
+  private createSystemPrompt(
+    agentConfig: AgentMetadata,
+    context: string,
+    requireInsights: boolean = false,
+    recommendations: string[] = []
+  ): string {
+    const category = agentConfig.category || (agentConfig.selectedContextIds && agentConfig.selectedContextIds[0]) || 'general';
+    let prompt = `You are an AI assistant specializing in ${category}.
+Your task is to provide accurate, data-driven responses based on the available context.
 
-ROLE AND EXPERTISE:
-- Primary Category: ${agentConfig.primaryCategory || agentConfig.category || 'Specialized Analysis'}
-- Core Purpose: ${agentConfig.agent?.useCases || agentConfig.description || "Detailed analysis and insights"}
-- Available Tools: ${Array.isArray(agentConfig.agent?.tools) ? agentConfig.agent.tools.join(", ") : "Analysis tools"}
-- Capabilities: ${Array.isArray(agentConfig.agent?.capabilities) ? agentConfig.agent.capabilities.join(", ") : "Data analysis and insights"}
+CONTEXT INFORMATION:
+${context}
 
-RESPONSE GUIDELINES:
-1. ALWAYS analyze and reference the provided context in your responses
-2. When analyzing the data:${analysisGuidelines}
-3. Be specific and cite relevant data points
-4. Provide numerical summaries when possible
-5. Highlight important insights or patterns
-6. If information is missing or unclear, explicitly state what's missing
-7. Maintain a professional but conversational tone
-8. Structure your response in a clear, organized manner
+${recommendations.length ? `RECOMMENDATIONS:\n${recommendations.join('\n')}\n` : ''}
 
-CONTEXT DOCUMENTS:
-${formattedContext}`;
-
-    if (includeRecommendations && contextRecommendations) {
-      return basePrompt + `
-
-IMPORTANT NOTES:
-1. When you find gaps in the available data, suggest what additional information would help provide better insights
-2. Recommended additional data: ${contextRecommendations}
-3. Always provide concrete examples from the context to support your analysis
-4. If you notice patterns or trends, explain their significance
-5. When relevant, suggest actionable insights based on the data
-
-Include these suggestions naturally in your response when appropriate.`;
+RESPONSE REQUIREMENTS:
+You MUST respond with a JSON object in the following format:
+{
+  "insights": [
+    {
+      "insight": "Clear, specific observation about ${category}",
+      "evidence": "Direct quote or reference from context",
+      "confidence": number between 0-100,
+      "category": "${category}"
     }
+  ],
+  "response": "Natural language response to the query",
+  "metadata": {
+    "responseTime": number,
+    "contextUsed": boolean,
+    "categoriesAnalyzed": ["${category}"],
+    "confidenceScore": number
+  }
+}
 
-    return basePrompt;
+CRITICAL RULES:
+1. ALWAYS include at least one insight, even for simple queries
+2. Use the exact category name "${category}" in the response
+3. Base confidence scores on evidence strength
+4. Include relevant context quotes as evidence
+5. Keep insights focused on ${category} domain
+6. Make insights specific and actionable`;
+
+    return prompt;
   }
 
   /**
@@ -358,115 +433,148 @@ Include these suggestions naturally in your response when appropriate.`;
     ];
   }
 
-  public async generateResponse(agentId: string, messages: Message[]): Promise<RAGResponse> {
-    try {
-      console.log('Generating response for agent:', agentId);
-      console.log('Message count:', messages.length);
+  private generateContextRecommendations(agentConfig: AgentMetadata, categoryContexts: { category: string, docs: Document[] }[]): string[] {
+    const missingCategories = (agentConfig.selectedContextIds || [])
+      .filter(category => !categoryContexts.some(ctx => ctx.category === category && ctx.docs.length > 0));
 
-      // Get the last user message
-      const lastUserMessage = messages[messages.length - 1];
-      if (!lastUserMessage || lastUserMessage.role !== "user") {
-        throw new Error("Last message must be from user");
-      }
+    if (missingCategories.length === 0) {
+      return [];
+    }
 
-      console.log('User query:', lastUserMessage.content);
+    return missingCategories
+      .map(category => `- ${category.charAt(0).toUpperCase() + category.slice(1)} related documents and data`);
+  }
 
-      // Step 1: Clarify the query using chat history context
-      const chatHistory = messages.slice(0, -1); // All messages except the last one
-      const clarifiedQuery = await this.clarifyQuery(lastUserMessage.content, chatHistory);
+  async generateResponse(agentId: string, messages: Message[]): Promise<RAGResponse> {
+    console.log('\n=== STEP 1: AGENT SCOPE ===');
+    const agentConfig = await getAgentConfig(agentId);
+    console.log('Agent Name:', agentConfig.name);
+    // Get primary category from either category field or first selectedContextId
+    const primaryCategory = agentConfig.category || (agentConfig.selectedContextIds && agentConfig.selectedContextIds[0]) || 'general';
+    const secondaryCategory = agentConfig.selectedContextIds && agentConfig.selectedContextIds[1];
+    console.log('Primary Category:', primaryCategory);
+    console.log('Secondary Category:', secondaryCategory || 'None');
 
-      // Step 2: Get agent configuration and context using the clarified query
-      const [agentConfig, contextDocs] = await Promise.all([
-        getAgentConfig(agentId),
-        getAgentContext(agentId, clarifiedQuery)
-      ]);
+    // Step 2: Gather context for each category
+    console.log('\n=== STEP 2: GATHERING CONTEXT ===');
+    const categoryContexts = await Promise.all([
+      this.gatherCategoryContext(agentId, messages[messages.length - 1].content, primaryCategory),
+      secondaryCategory ? 
+        this.gatherCategoryContext(agentId, messages[messages.length - 1].content, secondaryCategory) : 
+        Promise.resolve(null)
+    ]);
 
-      console.log('Retrieved context documents:', contextDocs.length);
-      console.log('Agent config:', {
-        name: agentConfig.name,
-        category: agentConfig.category,
-        description: agentConfig.description
-      });
+    // Step 3: Process and unify context
+    console.log('\n=== STEP 3: PROCESSING UNIFIED CONTEXT ===');
+    const validContexts = categoryContexts.filter((ctx): ctx is CategoryContext => ctx !== null);
+    const unifiedContext = this.processUnifiedContext(validContexts);
+    console.log('Total documents across categories:', validContexts.reduce((sum, ctx) => sum + ctx.docs.length, 0));
 
-      // Step 3: If clarified query returns no context, try with original query as fallback
-      let finalContextDocs = contextDocs;
-      if (contextDocs.length === 0 && clarifiedQuery !== lastUserMessage.content) {
-        console.log('🔄 No context with clarified query, trying original query as fallback');
-        finalContextDocs = await getAgentContext(agentId, lastUserMessage.content);
-        console.log('📄 Fallback context documents:', finalContextDocs.length);
-      }
-
-      // Generate context enhancement recommendations
-      const contextRecommendations = generateContextRecommendations(
-        agentConfig,
-        finalContextDocs.length,
-        agentConfig.selectedContextIds || []
-      );
-
-      // Format context and create system prompt - always include recommendations for better guidance
-      const formattedContext = this.formatContext(finalContextDocs);
+    // Step 4: Generate response with unified context
+    console.log('\n=== STEP 4: GENERATING RESPONSE ===');
+    const requireInsights = messages[messages.length - 1].content.toLowerCase().includes('generate 3 insights');
+    
       const systemPrompt = this.createSystemPrompt(
         agentConfig, 
-        formattedContext, 
-        true, // Always include recommendations for better user guidance
-        contextRecommendations
+      unifiedContext,
+      requireInsights,
+      this.generateContextRecommendations(agentConfig, validContexts)
       );
 
       // Format conversation history
       const fullConversation = this.formatConversationHistory(messages, systemPrompt);
 
       // Generate response using the model
+    const startTime = Date.now();
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
-        contents: fullConversation,
-        config: {
-          maxOutputTokens: 2048,
-          temperature: 0.7
-        }
+      contents: fullConversation
       });
 
-      let responseText = response.text || 'I apologize, but I could not generate a response based on the available context.';
-
-      // If no context available, provide a helpful response with recommendations
-      if (finalContextDocs.length === 0) {
-        responseText = `I'd be happy to help you, but I don't currently have access to relevant data to answer your question comprehensively.
-
-To provide you with personalized insights and analysis, I would need you to upload some data related to ${agentConfig.category}. Specifically, uploading the following types of information would greatly enhance my ability to help:
-
-${contextRecommendations}
-
-You can upload this data through the "Add Content" button in the chat interface, which will allow me to provide much more detailed and personalized responses to your questions.
-
-Is there anything specific about ${agentConfig.category} that you'd like me to help you with once you've uploaded some relevant data?`;
-      }
-      // If context exists but response indicates inability to fulfill request, add recommendations
-      else if (responseText.toLowerCase().includes('cannot') || responseText.toLowerCase().includes('sorry') || responseText.toLowerCase().includes('unable')) {
-        responseText += `\n\nTo better assist you with questions like this, consider uploading: ${contextRecommendations}
-
-You can add this data using the "Add Content" button, which will enable me to provide more detailed and accurate responses to your queries.`;
-      }
-
-      const result: RAGResponse = {
+    const responseText = response.text?.trim() || '';
+    const processedResponse = await this.processResponse(responseText, requireInsights);
+    
+    const responseForReturn = requireInsights ? processedResponse : processedResponse.response || '';
+    
+    return {
+      success: true,
+      response: JSON.stringify(responseForReturn),
+      agentId,
+      contextUsed: validContexts.reduce((sum, ctx) => sum + ctx.docs.length, 0),
+      results: [{
+        timestamp: Date.now(),
         success: true,
-        response: responseText,
-        agentId: agentId,
-        contextUsed: finalContextDocs.length,
-        relevanceScores: finalContextDocs.map(doc => ({
-          source: doc.metadata?.source,
-          score: doc.metadata?.score
+        responseTime: Date.now() - startTime,
+        output: {
+          insights: processedResponse.insights || [],
+          metadata: {
+            responseTime: Date.now() - startTime,
+            contextUsed: validContexts.length > 0,
+            categoriesAnalyzed: validContexts.map(ctx => ctx.category),
+            confidenceScore: processedResponse.metadata?.confidenceScore || 0
+          }
+        },
+        metrics: {
+          contextRelevance: validContexts.reduce((avg, ctx) => 
+            avg + (ctx.relevantDocs.length / Math.max(ctx.docs.length, 1)), 0) / Math.max(validContexts.length, 1),
+          insightQuality: processedResponse.insights ? 
+            processedResponse.insights.reduce((avg, insight) => avg + (insight.confidence / 100), 0) / processedResponse.insights.length : 
+            0,
+          responseLatency: Date.now() - startTime
+        }
+      }],
+      relevanceScores: validContexts.flatMap(ctx => 
+        ctx.docs.map(doc => ({
+          source: doc.metadata?.source || 'unknown',
+          score: doc.metadata?.score || 0,
+          category: ctx.category
+        }))
+      ),
+      categoryContexts: validContexts.map(ctx => ({
+        category: ctx.category,
+        count: ctx.docs.length,
+        relevantCount: ctx.relevantDocs.length
         }))
       };
+  }
 
-      console.log('Response generated:', {
-        contextUsed: result.contextUsed,
-        scoreCount: result.relevanceScores.length,
-        includesRecommendations: true
-      });
-
-      return result;
-    } catch (_error) {
-      console.error('Error in RAG process:', _error);
-      throw _error;
+  private async processResponse(responseText: string, requireInsights: boolean): Promise<AgentResponse> {
+    try {
+      // Remove any markdown formatting if present
+      const cleanJson = responseText.replace(/\`\`\`json|\`\`\`|\n/g, '').trim();
+      console.log('[DEBUG] Raw response:', responseText);
+      console.log('[DEBUG] Cleaned JSON:', cleanJson);
+      
+      const parsedResponse = JSON.parse(cleanJson);
+      console.log('[DEBUG] Parsed response:', parsedResponse);
+      
+      const response = {
+        insights: parsedResponse.insights || [],
+        response: parsedResponse.response || responseText,
+        metadata: {
+          responseTime: parsedResponse.metadata?.responseTime || 0,
+          contextUsed: parsedResponse.metadata?.contextUsed || false,
+          categoriesAnalyzed: parsedResponse.metadata?.categoriesAnalyzed || [],
+          confidenceScore: parsedResponse.metadata?.confidenceScore || 0
+        }
+      };
+      
+      console.log('[DEBUG] Processed response with insights:', response);
+      return response;
+    } catch (error) {
+      console.error('Failed to parse JSON response:', error);
+      // Return a structured error response
+      return {
+        insights: [],
+        response: responseText,
+        metadata: {
+          responseTime: 0,
+          contextUsed: false,
+          categoriesAnalyzed: [],
+          confidenceScore: 0
+        },
+        error: 'Failed to generate structured insights'
+      };
     }
   }
 } 

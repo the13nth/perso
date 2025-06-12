@@ -518,8 +518,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Size validation (10MB text limit)
-    const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
+    // Size validation - effectively unlimited
+    const MAX_CONTENT_SIZE = Number.MAX_SAFE_INTEGER;
     if (sanitizedContent.length > MAX_CONTENT_SIZE) {
       return new Response(JSON.stringify({ 
         error: `Content size exceeds maximum limit of ${MAX_CONTENT_SIZE / (1024 * 1024)}MB` 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Embeddings3DPlot from "./Embeddings3DPlot";
+import type { Point as PlotPoint } from "./types";
 import EmbeddingAnalytics from "./EmbeddingAnalytics";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,6 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+type Point = PlotPoint & {
+  id: string;
+  vector: number[];
+  metadata: {
+    text: string;
+    categories: string[];
+    [key: string]: any;
+  };
+};
 
 interface EmbeddingMetadata {
   text: string;
@@ -88,6 +99,7 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [isAnalyticsLoaded, setIsAnalyticsLoaded] = useState(false);
+  const [processedPoints, setProcessedPoints] = useState<Point[]>([]);
 
   // Update local embeddings when props change
   useEffect(() => {
@@ -98,6 +110,37 @@ export default function Dashboard({ embeddings }: DashboardProps) {
   useEffect(() => {
     setSelectedIds(new Set());
   }, [search, selectedCategories]);
+
+  // Only normalize embeddings when needed
+  const normalizedEmbeddings = useMemo(() => {
+    if (activeTab === 'table' || activeTab === 'summary') {
+      return embeddings.map(normalizeEmbedding);
+    }
+    return [] as NormalizedEmbedding[];
+  }, [embeddings, activeTab]);
+
+  // Process embeddings for 3D visualization
+  useEffect(() => {
+    if (activeTab === 'summary' && normalizedEmbeddings.length > 0) {
+      fetch('/api/embeddings/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeddings: normalizedEmbeddings })
+      })
+      .then(res => res.json())
+      .then(data => {
+        // Map the processed points to include original metadata
+        const pointsWithMetadata = data.points.map((point: PlotPoint, i: number) => ({
+          ...point,
+          id: normalizedEmbeddings[i].id,
+          vector: normalizedEmbeddings[i].vector,
+          metadata: normalizedEmbeddings[i].metadata
+        }));
+        setProcessedPoints(pointsWithMetadata);
+      })
+      .catch(console.error);
+    }
+  }, [normalizedEmbeddings, activeTab]);
 
   // Delete embedding function
   const deleteEmbedding = async (embeddingId: string) => {
@@ -193,14 +236,6 @@ export default function Dashboard({ embeddings }: DashboardProps) {
       setBulkDeleting(false);
     }
   };
-
-  // Only normalize embeddings when needed
-  const normalizedEmbeddings = useMemo(() => {
-    if (activeTab === 'table' || activeTab === 'summary') {
-      return embeddings.map(normalizeEmbedding);
-    }
-    return [] as NormalizedEmbedding[];
-  }, [embeddings, activeTab]);
 
   // Extract all unique categories
   const allCategories = useMemo(() => {
@@ -446,14 +481,11 @@ export default function Dashboard({ embeddings }: DashboardProps) {
           
           <div className="mt-4 sm:mt-6">
             <TabsContent value="summary" className="space-y-4 sm:space-y-6">
-              {activeTab === 'summary' && normalizedEmbeddings.length > 0 ? (
+              {processedPoints.length > 0 && (
                 <div className="mb-6 sm:mb-8">
-                  <Embeddings3DPlot data={{
-                    points: normalizedEmbeddings,
-                    categories: allCategories
-                  }} />
+                  <Embeddings3DPlot data={{ points: processedPoints, categories: allCategories }} />
                 </div>
-              ) : null}
+              )}
             </TabsContent>
             
             <TabsContent value="table" className="space-y-4 sm:space-y-6">

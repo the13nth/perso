@@ -11,10 +11,7 @@ const oauth2Client = new OAuth2Client(
 
 // Gmail API scopes we need
 const SCOPES = [
-  'https://mail.google.com/',  // Full email access including reading content
-  'https://www.googleapis.com/auth/gmail.readonly',  // Read all resources
-  'https://www.googleapis.com/auth/gmail.metadata',  // Read metadata
-  'https://www.googleapis.com/auth/gmail.labels'     // Manage labels
+  'https://www.googleapis.com/auth/gmail.readonly',  // Read all resources  // Manage labels
 ];
 
 export async function POST() {
@@ -30,7 +27,7 @@ export async function POST() {
       scope: SCOPES,
       state: userId,
       // Enable incremental authorization
-      include_granted_scopes: true,
+      //include_granted_scopes: false,
       // Force consent to ensure we get all permissions
       prompt: 'consent'
     });

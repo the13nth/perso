@@ -48,12 +48,7 @@ export async function POST(req: NextRequest) {
 
     // Character limit check for combined text
     const combinedText = `Query: ${query}\n\nResponse: ${response}`;
-    if (combinedText.length > 20000) {
-      return NextResponse.json({ 
-        message: "Combined query and response too long (max 20,000 characters)" 
-      }, { status: 400 });
-    }
-
+    
     // Initialize Pinecone
     const pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY!,

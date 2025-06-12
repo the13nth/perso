@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { agentRunner } from '@/lib/services/agent-runner';
 
@@ -9,7 +10,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
     const session = await auth();
@@ -17,7 +18,7 @@ export async function POST(
       return new Response('Unauthorized', { status: 401 });
     }
 
-    const { agentId } = params;
+    const { agentId } = await params;
     const body = await req.json();
 
     // Get auth token
@@ -42,15 +43,12 @@ export async function POST(
     }
 
     const result = await response.json();
-    return Response.json(result);
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('Error executing agent:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Failed to execute agent',
-        details: error instanceof Error ? error.message : String(error)
-      }),
+    return NextResponse.json(
+      { error: 'Failed to execute agent' },
       { status: 500 }
     );
   }

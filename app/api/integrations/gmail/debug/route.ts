@@ -13,10 +13,10 @@ const oauth2Client = new google.auth.OAuth2(
 
 // Required Gmail scopes - update your OAuth setup to include these
 const REQUIRED_SCOPES = [
-  'https://mail.google.com/',           // Full Gmail access
+  // 'https://mail.google.com/',           // Full Gmail access
   'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile'
+  // 'https://www.googleapis.com/auth/gmail.metadata',
+  // 'https://www.googleapis.com/auth/gmail.labels'
 ];
 
 interface TokenResponse {
@@ -74,18 +74,25 @@ function extractTextContent(part: any): string {
 // Helper function to extract email body with improved error handling
 async function getEmailBody(gmail: any, messageId: string) {
   try {
-    // Get the full message content
+    // Get the message with minimal format first
     const message = await gmail.users.messages.get({
       userId: 'me',
       id: messageId,
-      format: 'full'  // This now works with gmail.readonly scope
+      format: 'minimal'
     });
 
     if (!message.data) {
       throw new Error('No message data received');
     }
 
-    const payload = message.data.payload;
+    // Then get the message with full format using gmail.readonly scope
+    const fullMessage = await gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'full'
+    });
+
+    const payload = fullMessage.data.payload;
     let body = '';
 
     // Extract body content
@@ -98,20 +105,17 @@ async function getEmailBody(gmail: any, messageId: string) {
       body = message.data.snippet || 'No content available';
     }
 
-    // Get headers as a simple object
-    const headers = payload?.headers?.reduce((acc: any, header: any) => {
-      if (header.name && header.value) {
-        acc[header.name.toLowerCase()] = header.value;
-      }
-      return acc;
-    }, {}) || {};
-
     return {
-      body: body.trim(),
+      body: body.trim() || 'No content available',
       snippet: message.data.snippet || '',
       threadId: message.data.threadId,
       labelIds: message.data.labelIds || [],
-      headers,
+      headers: payload?.headers?.reduce((acc: any, header: any) => {
+        if (header.name && header.value) {
+          acc[header.name.toLowerCase()] = header.value;
+        }
+        return acc;
+      }, {}) || {},
       mimeType: payload?.mimeType,
       hasAttachments: payload?.parts?.some((part: any) => 
         part.filename && part.filename.length > 0

@@ -361,27 +361,56 @@ export async function getAgentContext(agentId: string, query?: string): Promise<
     queryVector = createPlaceholderVector();
   }
 
-  // Get all context documents for the agent
-  const response = await contextIndex.query({
-    vector: queryVector,
-    filter: {
+  // Enhanced filter for better multi-category handling
+  const filter = {
       $or: [
         // Include documents directly linked to the agent
         { agentId },
         // Include documents from selected context categories
-        { id: { $in: agentConfig.selectedContextIds || [] } }
-      ]
-    },
-    topK: 10, // Limit to top 10 most relevant results
+      { 
+        $and: [
+          { 
+            $or: [
+              { categories: { $in: agentConfig.selectedContextIds || [] } },
+              { category: { $in: agentConfig.selectedContextIds || [] } },
+              { primaryCategory: { $in: agentConfig.selectedContextIds || [] } },
+              { type: { $in: agentConfig.selectedContextIds || [] } }
+            ]
+          },
+          // Include relevant document types
+          {
+            $or: [
+              { type: { $in: ["comprehensive_activity", "activity", "document", "transaction", "financial_record", "context"] } },
+              { documentType: { $in: ["bank_statement", "transaction_history", "tax_document"] } }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  console.log('DEBUG: Querying with filter:', JSON.stringify(filter, null, 2));
+
+  // Get all context documents for the agent with increased topK for better coverage
+  const response = await contextIndex.query({
+    vector: queryVector,
+    filter: filter,
+    topK: 25, // Increased from 10 to get more comprehensive context
     includeMetadata: true
   });
 
+  console.log('DEBUG: High relevance matches:', response.matches.filter(m => (m.score ?? 0) > 0.7).length);
+  console.log('DEBUG: Additional matches:', response.matches.filter(m => (m.score ?? 0) <= 0.7).length);
+  console.log('DEBUG: Returning documents:', response.matches.length);
+
   return response.matches.map(match => new Document({
-    pageContent: String(match.metadata?.content || ''),
+    pageContent: String(match.metadata?.content || match.metadata?.text || ''),
     metadata: {
       source: match.metadata?.source,
       title: match.metadata?.title,
-      score: match.score // Include the relevance score
+      score: match.score,
+      category: match.metadata?.category || match.metadata?.primaryCategory,
+      type: match.metadata?.type
     }
   }));
 }

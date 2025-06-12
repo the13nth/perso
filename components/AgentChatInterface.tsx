@@ -18,9 +18,15 @@ import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { format } from "date-fns";
 import { LangGraphUI, ProcessStep } from './LangGraphUI';
+import { CategoryBubble } from '@/app/components/chat/CategoryBubble';
 
 interface ExtendedMessage extends Message {
   tool_calls?: ToolCall[];
+  categoryContexts?: Array<{
+    category: string;
+    count: number;
+    relevantCount: number;
+  }>;
 }
 
 interface Source {
@@ -36,7 +42,7 @@ interface Source {
 }
 
 interface ChatCardProps {
-  message: Message;
+  message: ExtendedMessage;
   aiEmoji?: string;
   sources?: Source[];
   sessionId?: string;
@@ -241,6 +247,24 @@ const ChatCard = React.memo(({ message, aiEmoji, sources, sessionId, onSaveRespo
               </div>
             </motion.div>
           )}
+
+          {isAssistant && message.categoryContexts && message.categoryContexts.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 flex flex-wrap gap-2 border-t pt-3"
+            >
+              <span className="text-xs text-muted-foreground font-medium">Context used:</span>
+              {message.categoryContexts.map((ctx) => (
+                <CategoryBubble
+                  key={ctx.category}
+                  category={ctx.category}
+                  count={ctx.count}
+                  relevantCount={ctx.relevantCount}
+                />
+              ))}
+            </motion.div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -313,7 +337,7 @@ function ChatMessages({
   savedResponses,
   processingSteps
 }: {
-  messages: Message[];
+  messages: ExtendedMessage[];
   aiEmoji?: string;
   sourcesForMessages: Record<string, Source[]>;
   sessionId: string;
@@ -407,12 +431,23 @@ export function AgentChatInterface(props: {
           [messageIndexHeader]: sources,
         });
       }
+
+      // Parse category contexts from response headers if available
+      const categoryContextsHeader = response.headers.get("x-category-contexts");
+      if (categoryContextsHeader) {
+        const categoryContexts = JSON.parse(Buffer.from(categoryContextsHeader, "base64").toString("utf8"));
+        const messages = chat.messages as ExtendedMessage[];
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage) {
+          lastMessage.categoryContexts = categoryContexts;
+        }
+      }
     },
     onError: (e) =>
       toast.error(`Error while processing your request`, {
         description: e.message,
       }),
-  });
+  }) as { messages: ExtendedMessage[] } & Omit<ReturnType<typeof useChat>, 'messages'>;
 
   const sendMessage = useCallback(async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();

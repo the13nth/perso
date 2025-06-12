@@ -39,12 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Character limit check
-    if (text.length > 10000) {
-      return NextResponse.json({ 
-        message: "Activity details too long (max 10,000 characters)" 
-      }, { status: 400 });
-    }
+    // Character limit check removed - effectively unlimited
 
     // Validate activity category
     const validCategories = ["physical", "work", "study", "routine"];
