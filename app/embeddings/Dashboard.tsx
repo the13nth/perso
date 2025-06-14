@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import StorageDocuments from "./StorageDocuments";
 
 type Point = PlotPoint & {
   id: string;
@@ -473,10 +474,11 @@ export default function Dashboard({ embeddings }: DashboardProps) {
 
         {/* Tabs for different views */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-4 sm:mt-6">
-          <TabsList className="grid w-full grid-cols-3 sticky top-0 z-50 bg-background h-11 sm:h-12">
+          <TabsList className="grid w-full grid-cols-4 sticky top-0 z-50 bg-background h-11 sm:h-12">
             <TabsTrigger value="summary" className="text-sm sm:text-base">Summary</TabsTrigger>
             <TabsTrigger value="table" className="text-sm sm:text-base">Table View</TabsTrigger>
             <TabsTrigger value="analysis" className="text-sm sm:text-base">Analysis</TabsTrigger>
+            <TabsTrigger value="storage" className="text-sm sm:text-base">Storage</TabsTrigger>
           </TabsList>
           
           <div className="mt-4 sm:mt-6">
@@ -689,6 +691,10 @@ export default function Dashboard({ embeddings }: DashboardProps) {
             
             <TabsContent value="analysis" className="space-y-4 sm:space-y-6">
               <EmbeddingAnalytics embeddings={filtered} />
+            </TabsContent>
+
+            <TabsContent value="storage" className="space-y-4 sm:space-y-6">
+              <StorageDocuments />
             </TabsContent>
           </div>
         </Tabs>

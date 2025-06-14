@@ -1,5 +1,7 @@
 import { ContentType } from '../content/types';
 
+export type DocumentStatus = 'pending' | 'processing' | 'completed' | 'error';
+
 export interface DocumentInput {
   id: string;
   content: string;
@@ -18,4 +20,16 @@ export interface DocumentInput {
   };
   type: ContentType;
   userId: string;
+}
+
+export interface FirestoreDocument {
+  id: string;
+  userId: string;
+  content: string;
+  metadata: DocumentInput['metadata'];
+  type: ContentType;
+  status: DocumentStatus;
+  createdAt: string;
+  updatedAt: string;
+  error?: string;
 } 

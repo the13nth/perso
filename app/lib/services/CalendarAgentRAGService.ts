@@ -219,8 +219,11 @@ ${event.location ? `Location: ${event.location}\n` : ''}${attendeeCount > 0 ? `A
         contextUsed: events.length,
         relevanceScores: events.map(event => ({
           source: event.summary,
-          score: 1.0
-        }))
+          score: 1.0,
+          category: 'calendar'
+        })),
+        results: [],
+  categoryContexts: []
       };
     } catch (_error) {
       console.error('Error generating response:', _error);
@@ -229,7 +232,9 @@ ${event.location ? `Location: ${event.location}\n` : ''}${attendeeCount > 0 ? `A
         response: "Failed to generate response",
         agentId,
         contextUsed: 0,
-        relevanceScores: []
+        relevanceScores: [],
+        results: [],
+        categoryContexts: []
       };
     }
   }

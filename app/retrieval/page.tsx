@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { UploadDocumentsForm } from "@/components/UploadDocumentsForm";
-import { UploadNoteForm } from "@/components/UploadNoteForm";
+import { UploadNotesForm } from "@/components/UploadNotesForm";
 import { UploadComprehensiveActivityForm } from "../components/UploadComprehensiveActivityForm";
 import { ArrowLeft, Upload, Search, FileText, Database, Bot, StickyNote, Plus, X, Activity, Briefcase, BookOpen, Clock, Loader2 } from "lucide-react";
 import { AgentChatInterface } from "@/components/AgentChatInterface";
@@ -188,7 +188,7 @@ function NoteUploadForm({ onBack, title }: FormProps) {
             </div>
             
             <div className="col-span-1 lg:col-span-2 p-4 sm:p-6 order-1 lg:order-2">
-              <UploadNoteForm 
+              <UploadNotesForm 
                 onSuccess={onBack}
                 onCancel={onBack}
               />

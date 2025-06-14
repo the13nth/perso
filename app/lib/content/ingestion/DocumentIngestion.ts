@@ -205,7 +205,11 @@ export class DocumentIngestion implements ContentIngestion {
   }
 
   async store(chunks: EmbeddedChunk[]): Promise<StorageResult> {
-    const index = this.pinecone.index("content-index");
+    if (!process.env.PINECONE_INDEX) {
+      throw new Error('Missing PINECONE_INDEX environment variable');
+    }
+    
+    const index = this.pinecone.index(process.env.PINECONE_INDEX);
     
     const vectors = chunks.map(chunk => ({
       id: `${chunk.metadata.contentId}-${chunk.metadata.chunkIndex}`,
@@ -277,7 +281,11 @@ export class DocumentIngestion implements ContentIngestion {
   async linkRelatedContent(contentId: string, references: ContentReference[]): Promise<void> {
     if (!references.length) return;
 
-    const index = this.pinecone.index("content-index");
+    if (!process.env.PINECONE_INDEX) {
+      throw new Error('Missing PINECONE_INDEX environment variable');
+    }
+    
+    const index = this.pinecone.index(process.env.PINECONE_INDEX);
     
     // Get the current content's metadata
     const { matches } = await index.query({

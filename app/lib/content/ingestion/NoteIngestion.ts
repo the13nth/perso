@@ -7,6 +7,7 @@ import { sanitizeText } from '../utils/textUtils';
 import { detectLanguage, extractTopics } from '../utils/contentAnalysis';
 import { Pinecone } from "@pinecone-database/pinecone";
 import { auth } from "@clerk/nextjs/server";
+import { adminDb } from "@/lib/firebase/admin";
 
 export class NoteIngestion implements ContentIngestion {
   private embeddings: GoogleGenerativeAIEmbeddings;
@@ -34,7 +35,14 @@ export class NoteIngestion implements ContentIngestion {
       // Ensure input has the authenticated user's ID
       input.userId = userId;
 
-      // Process the content through our pipeline
+      // Generate a unique note ID
+      const noteId = `note-${userId}-${Date.now()}`;
+
+      // First, store in Firebase
+      await this.storeInFirebase(noteId, input);
+      console.log(`Note ${noteId} stored in Firebase`);
+
+      // Then process for vector search
       const processed = await this.preprocess(input);
       const validationResult = await this.validate(processed);
 
@@ -46,10 +54,38 @@ export class NoteIngestion implements ContentIngestion {
       const embeddedChunks = await this.embed(chunks);
       await this.store(embeddedChunks);
 
-      console.log(`Successfully processed document: ${input.id}`);
+      console.log(`Successfully processed note: ${noteId}`);
     } catch (_error) {
-      console.error('Error processing document content:', _error);
+      console.error('Error processing note content:', _error);
       throw _error;
+    }
+  }
+
+  private async storeInFirebase(noteId: string, input: DocumentInput): Promise<void> {
+    try {
+      const timestamp = new Date().toISOString();
+      
+      // Store note in Firestore
+      await adminDb.collection('notes').doc(noteId).set({
+        id: noteId,
+        userId: input.userId,
+        content: input.content,
+        title: input.metadata?.title || '',
+        categories: input.metadata?.categories || [],
+        access: input.metadata?.access || 'personal',
+        format: input.metadata?.format || 'text',
+        isPinned: input.metadata?.isPinned || false,
+        isStarred: input.metadata?.isStarred || false,
+        color: input.metadata?.color,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        status: 'active'
+      });
+
+      console.log(`Note ${noteId} stored in Firebase successfully`);
+    } catch (error) {
+      console.error('Error storing note in Firebase:', error);
+      throw error;
     }
   }
 
@@ -193,7 +229,11 @@ export class NoteIngestion implements ContentIngestion {
   }
 
   async store(chunks: EmbeddedChunk[]): Promise<StorageResult> {
-    const index = this.pinecone.index("content-index");
+    if (!process.env.PINECONE_INDEX) {
+      throw new Error('Missing PINECONE_INDEX environment variable');
+    }
+    
+    const index = this.pinecone.index(process.env.PINECONE_INDEX);
     
     const vectors = chunks.map(chunk => ({
       id: `${chunk.metadata.contentId}-${chunk.metadata.chunkIndex}`,
@@ -265,7 +305,11 @@ export class NoteIngestion implements ContentIngestion {
   async linkRelatedContent(contentId: string, references: ContentReference[]): Promise<void> {
     if (!references.length) return;
 
-    const index = this.pinecone.index("content-index");
+    if (!process.env.PINECONE_INDEX) {
+      throw new Error('Missing PINECONE_INDEX environment variable');
+    }
+    
+    const index = this.pinecone.index(process.env.PINECONE_INDEX);
     
     // Get the current content's metadata
     const { matches } = await index.query({

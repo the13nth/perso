@@ -1,8 +1,15 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import { auth } from "@clerk/nextjs/server";
 import { Pinecone } from "@pinecone-database/pinecone";
+import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
+import * as admin from 'firebase-admin';
+import { adminDb } from "@/lib/firebase/admin";
+import { DocumentStatus } from '@/types/document';
+import { RecordMetadata } from "@pinecone-database/pinecone";
+
+// Use Node.js runtime
+export const runtime = 'nodejs';
 
 if (!process.env.PINECONE_API_KEY) {
   throw new Error("Missing PINECONE_API_KEY environment variable");
@@ -12,163 +19,202 @@ if (!process.env.PINECONE_INDEX) {
   throw new Error("Missing PINECONE_INDEX environment variable");
 }
 
-if (!process.env.PINECONE_ENVIRONMENT) {
-  throw new Error("Missing PINECONE_ENVIRONMENT environment variable");
+if (!process.env.GOOGLE_API_KEY) {
+  throw new Error("Missing GOOGLE_API_KEY environment variable");
 }
 
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY,
+// Initialize services once
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: process.env.GOOGLE_API_KEY || "",
+  modelName: "embedding-001"
 });
 
-/**
- * Sanitizes text to ensure it's valid UTF-8 and removes problematic characters
- */
-function sanitizeText(text: string): string {
-  // Replace null characters and other control characters
-   
-  let sanitized = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-  
-  // Replace non-printable characters outside standard ASCII
-  sanitized = sanitized.replace(/[\x80-\x9F]/g, '');
-  
-  // Remove any remaining binary garbage by enforcing valid UTF-8
-  sanitized = sanitized
-    .split('')
-    .filter(char => {
-      const code = char.charCodeAt(0);
-      return code >= 32 || [9, 10, 13].includes(code); // Allow tab, newline, carriage return
-    })
-    .join('');
-  
-  // Normalize whitespace (multiple spaces/newlines to single)
-  sanitized = sanitized.replace(/\s+/g, ' ');
-  
-  // Trim excess whitespace
-  sanitized = sanitized.trim();
-  
-  return sanitized;
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY || "",
+});
+
+// Constants
+const BATCH_SIZE = 100;
+const CHUNK_SIZE = 1000;
+const CHUNK_OVERLAP = 200;
+
+interface NoteMetadata extends RecordMetadata {
+  text: string;
+  noteId: string;
+  userId: string;
+  chunkIndex: number;
+  totalChunks: number;
+  title: string;
+  categories: string[];
+  access: 'personal' | 'public';
+  format: 'text' | 'markdown' | 'rich-text';
+  type: 'note';
+  source: 'user';
 }
 
-/**
- * This handler takes a note text, embeds it, and stores it in Pinecone for retrieval.
- * Notes are stored as single units (no chunking) with type="note" in metadata.
- */
 export async function POST(req: NextRequest) {
+  let noteId: string | null = null;
+  
   try {
-    console.log("Starting note ingestion process...");
+    console.log("[POST] Starting note ingestion...");
 
-    // Check authentication first
-    console.log("Checking authentication...");
+    // Check authentication
+    console.log("[POST] Checking authentication...");
     const { userId } = await auth();
     if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      console.log("[POST] Authentication failed: No userId");
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    console.log("[POST] Authentication successful. userId:", userId);
+
+    // Parse and validate request body
+    console.log("[POST] Parsing request body...");
+    const { content, title, categories, access, format, isPinned, isStarred, color } = await req.json();
+    console.log("[POST] Request body:", { content: content?.length, title, categories });
+
+    if (!content?.trim()) {
+      console.log("[POST] Validation failed: Missing content");
+      return NextResponse.json(
+        { error: "Content is required" },
+        { status: 400 }
+      );
     }
 
-    // Get the input data from the request
-    const { text, category } = await req.json();
-    if (!text) {
-      return new NextResponse("Missing text in request body", { status: 400 });
-    }
+    // Generate a unique note ID
+    noteId = `note-${userId}-${Date.now()}`;
+    console.log("[POST] Note ID generated:", noteId);
 
-    // Sanitize the input text
-    const sanitizedText = sanitizeText(text);
-    
-    if (sanitizedText.length === 0) {
-      return new NextResponse("Empty note content after sanitization", { status: 400 });
-    }
-
-    if (sanitizedText.length > 10000) {
-      return new NextResponse("Note is too long. Please keep notes under 10,000 characters.", { status: 400 });
-    }
-    
-    console.log(`Received note with ${sanitizedText.length} characters`);
-    
-    // Set category (default to "notes" if not specified)
-    const noteCategory = category || "notes";
-    
-    // Create a unique note ID
-    const noteId = `note-${userId}-${Date.now()}`;
-    const createdAt = new Date().toISOString();
-
-    // Initialize embeddings model
-    console.log("Initializing embeddings model...");
-    const embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: process.env.GOOGLE_API_KEY || "",
-      modelName: "embedding-001"
-    });
-
-    // Generate embedding for the note
-    console.log("Generating embedding for note...");
-    const embedding = await embeddings.embedQuery(sanitizedText);
-
-    // Get the Pinecone index
-    const index = pinecone.index(process.env.PINECONE_INDEX || "");
-
-    // Create the note title from first line or sentence
-    const noteTitle = extractNoteTitle(sanitizedText);
-
-    // Create vector with metadata
-    const vector = {
+    // Create initial note in Firestore
+    console.log("[POST] Creating note in Firestore...");
+    const docRef = adminDb.collection('notes').doc(noteId);
+    await docRef.set({
       id: noteId,
-      values: embedding,
-      metadata: {
-        text: sanitizedText,
-        userId,
-        categories: [noteCategory],
-        access: "personal", // Notes are always personal
-        type: "note", // Distinguish from documents
-        noteId,
-        createdAt,
-        title: noteTitle,
-        contentType: "note"
-      },
-    };
+      userId,
+      content,
+      title: title || '',
+      categories: categories || [],
+      access: access || 'personal',
+      format: format || 'text',
+      isPinned: isPinned || false,
+      isStarred: isStarred || false,
+      color: color || null,
+      status: DocumentStatus.PROCESSING,
+      processingProgress: 0,
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    console.log("[POST] Note created successfully");
 
-    // Upsert the vector to Pinecone
-    console.log("Storing note in Pinecone...");
-    await index.upsert([vector]);
+    // Split text into chunks
+    console.log("[POST] Splitting text into chunks...");
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: CHUNK_SIZE,
+      chunkOverlap: CHUNK_OVERLAP
+    });
+    const chunks = await splitter.splitText(content);
+    const totalChunks = chunks.length;
+    console.log("[POST] Text split into chunks:", totalChunks);
 
-    console.log(`Successfully ingested note: ${noteId}`);
+    // Update progress
+    await docRef.update({
+      processingProgress: 10,
+      totalChunks
+    });
+
+    // Process chunks in batches
+    const vectors = [];
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batchChunks = chunks.slice(i, i + BATCH_SIZE);
+      
+      // Generate embeddings for batch
+      console.log(`[POST] Generating embeddings for batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(chunks.length/BATCH_SIZE)}`);
+      const batchEmbeddings = await Promise.all(
+        batchChunks.map(async (chunk, index) => {
+          const embedding = await embeddings.embedQuery(chunk);
+          const metadata: NoteMetadata = {
+            text: chunk,
+            noteId: noteId!,
+            userId,
+            chunkIndex: i + index,
+            totalChunks,
+            title: title || '',
+            categories: categories || [],
+            access: access || 'personal',
+            format: format || 'text',
+            type: 'note',
+            source: 'user'
+          };
+          return {
+            id: `${noteId}-${i + index}`,
+            values: embedding,
+            metadata
+          };
+        })
+      );
+      
+      vectors.push(...batchEmbeddings);
+
+      // Update progress
+      const progress = Math.min(10 + Math.round(((i + BATCH_SIZE) / chunks.length) * 80), 90);
+      await docRef.update({ processingProgress: progress });
+    }
+
+    // Store vectors in Pinecone
+    console.log("[POST] Storing vectors in Pinecone...");
+    const index = pinecone.index(process.env.PINECONE_INDEX || "");
     
-    return new NextResponse(JSON.stringify({ 
+    // Upload vectors in batches
+    for (let i = 0; i < vectors.length; i += BATCH_SIZE) {
+      const batch = vectors.slice(i, i + BATCH_SIZE);
+      console.log(`[POST] Uploading batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(vectors.length/BATCH_SIZE)}`);
+      await index.upsert(batch);
+      
+      // Update progress for vector storage
+      const progress = Math.min(90 + Math.round((i / vectors.length) * 10), 100);
+      await docRef.update({ processingProgress: progress });
+    }
+
+    // Mark note as completed
+    console.log("[POST] Updating note status to COMPLETED...");
+    await docRef.update({
+      status: DocumentStatus.COMPLETED,
+      processingProgress: 100,
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    console.log("[POST] Note processing completed successfully");
+
+    return NextResponse.json({
       success: true,
-      message: "Note saved successfully!",
       noteId,
-      title: noteTitle
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
+      chunksProcessed: vectors.length,
+      message: "Note processed and embedded successfully"
     });
 
-  } catch (_error) {
-    console.error("Error in note ingestion:", _error);
-    return new NextResponse(JSON.stringify({ 
-      error: "Internal server error",
-      message: _error instanceof Error ? _error.message : "Unknown error occurred"
-    }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-}
+  } catch (error) {
+    console.error('Error processing note:', error);
+    console.error("[POST] Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    
+    // Update note status if we have a noteId
+    if (noteId) {
+      console.log("[POST] Attempting to update note status to ERROR...");
+      try {
+        await adminDb.collection('notes').doc(noteId).create({
+          status: DocumentStatus.ERROR,
+          processingProgress: 0,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          updatedAt: admin.firestore.Timestamp.now()
+        });
+      } catch (updateError) {
+        console.error("[POST] Failed to update note status:", updateError);
+      }
+    }
 
-/**
- * Extracts a title from the beginning of the note
- */
-function extractNoteTitle(text: string): string {
-  // Try to find a title from the first line
-  const firstLine = text.split('\n')[0].trim();
-  
-  if (firstLine.length > 0 && firstLine.length <= 80) {
-    return firstLine;
+    return NextResponse.json(
+      { error: 'Failed to process note', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
   }
-  
-  // Try the first sentence
-  const firstSentence = text.split(/[.!?]/)[0].trim();
-  if (firstSentence.length > 0 && firstSentence.length <= 80) {
-    return firstSentence;
-  }
-  
-  // If no good title found, use the first 50 characters
-  return text.substring(0, 50) + (text.length > 50 ? '...' : '');
 } 

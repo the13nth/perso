@@ -60,8 +60,8 @@ port = 54324
 
 [storage]
 enabled = true
-# The maximum file size allowed - set to effectively unlimited
-file_size_limit = "100GiB"
+# The maximum file size allowed (e.g. "5MB", "500KB").
+file_size_limit = "50MiB"
 
 [auth]
 enabled = true

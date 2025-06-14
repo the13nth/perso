@@ -124,6 +124,8 @@ export class ActivityIngestion implements ContentIngestion {
     
     if (!text) {
       errors.push('Activity description is empty');
+    } else if (text.length > 5000) {
+      errors.push('Activity description exceeds maximum length of 5,000 characters');
     }
     
     return {

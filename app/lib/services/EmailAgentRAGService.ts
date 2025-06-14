@@ -208,8 +208,11 @@ ${email.hasFullContent ? email.content : email.snippet}
         contextUsed: emails.length,
         relevanceScores: emails.map(email => ({
           source: email.subject,
-          score: email.hasFullContent ? 1.0 : 0.5 // Full content emails are more relevant
-        }))
+          score: email.hasFullContent ? 1.0 : 0.5,
+          category: 'email'
+        })),
+        results: [],
+        categoryContexts: []
       };
     } catch (_error) {
       console.error('Error generating response:', _error);
@@ -218,7 +221,9 @@ ${email.hasFullContent ? email.content : email.snippet}
         response: "Failed to generate response",
         agentId,
         contextUsed: 0,
-        relevanceScores: []
+        relevanceScores: [],
+        results: [],
+        categoryContexts: []
       };
     }
   }

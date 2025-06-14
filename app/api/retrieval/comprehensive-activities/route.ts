@@ -1,193 +1,230 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Pinecone, RecordMetadataValue } from "@pinecone-database/pinecone";
 import { auth } from "@clerk/nextjs/server";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { Pinecone } from "@pinecone-database/pinecone";
+import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
+import * as admin from 'firebase-admin';
+import { adminDb } from "@/lib/firebase/admin";
+import { DocumentStatus } from '@/types/document';
+import { RecordMetadata } from "@pinecone-database/pinecone";
+
+// Use Node.js runtime
+export const runtime = 'nodejs';
+
+if (!process.env.PINECONE_API_KEY) {
+  throw new Error("Missing PINECONE_API_KEY environment variable");
+}
+
+if (!process.env.PINECONE_INDEX) {
+  throw new Error("Missing PINECONE_INDEX environment variable");
+}
+
+if (!process.env.GOOGLE_API_KEY) {
+  throw new Error("Missing GOOGLE_API_KEY environment variable");
+}
+
+// Initialize services once
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: process.env.GOOGLE_API_KEY || "",
+  modelName: "embedding-001"
+});
+
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY || "",
+});
+
+// Constants
+const BATCH_SIZE = 100;
+const CHUNK_SIZE = 1000;
+const CHUNK_OVERLAP = 200;
+
+interface ActivityMetadata extends RecordMetadata {
+  text: string;
+  activityId: string;
+  userId: string;
+  chunkIndex: number;
+  totalChunks: number;
+  title: string;
+  activity: string;
+  category: string;
+  categories: string[];
+  type: 'activity';
+  source: 'user';
+  activityDate: string;
+  duration: string;
+  location: string;
+}
 
 export async function POST(req: NextRequest) {
+  let activityId: string | null = null;
+  
   try {
+    console.log("[POST] Starting activity ingestion...");
+
+    // Check authentication
+    console.log("[POST] Checking authentication...");
     const { userId } = await auth();
-    
     if (!userId) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      console.log("[POST] Authentication failed: No userId");
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
+    console.log("[POST] Authentication successful. userId:", userId);
 
-    // Check for required environment variables
-    if (!process.env.PINECONE_API_KEY) {
-      return NextResponse.json({ message: "Missing PINECONE_API_KEY environment variable" }, { status: 500 });
-    }
-    
-    if (!process.env.PINECONE_INDEX) {
-      return NextResponse.json({ message: "Missing PINECONE_INDEX environment variable" }, { status: 500 });
-    }
-    
-    if (!process.env.GOOGLE_API_KEY) {
-      return NextResponse.json({ message: "Missing GOOGLE_API_KEY environment variable" }, { status: 500 });
-    }
-
-    const body = await req.json();
-    const { text, structuredData, activity, category, userId: bodyUserId } = body;
+    // Parse and validate request body
+    console.log("[POST] Parsing request body...");
+    const { text, activity, category, structuredData } = await req.json();
+    console.log("[POST] Request body:", { text: text?.length, activity, category });
 
     // Validate required fields
-    if (!text || !activity || !category || !structuredData) {
+    if (!text?.trim() || !activity || !category || !structuredData) {
+      console.log("[POST] Validation failed: Missing required fields");
       return NextResponse.json({ 
-        message: "Activity details, activity type, category, and structured data are required" 
+        error: "Activity details, activity type, category, and structured data are required" 
       }, { status: 400 });
     }
 
-    // Validate user ID matches
-    if (bodyUserId !== userId) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    // Generate unique activity ID
+    activityId = `activity-${userId}-${Date.now()}`;
+    console.log("[POST] Activity ID generated:", activityId);
 
-    // Character limit check removed - effectively unlimited
-
-    // Validate activity category
-    const validCategories = ["physical", "work", "study", "routine"];
-    if (!validCategories.includes(category)) {
-      return NextResponse.json({ 
-        message: "Invalid activity category" 
-      }, { status: 400 });
-    }
-
-    // Validate activity date
-    if (structuredData.activityDate) {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(structuredData.activityDate)) {
-        return NextResponse.json({ 
-          message: "Invalid activity date format. Expected YYYY-MM-DD" 
-        }, { status: 400 });
-      }
-    }
-
-    // Initialize Pinecone
-    const pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY!,
-    });
-
-    const index = pinecone.Index(process.env.PINECONE_INDEX!);
-
-    // Initialize Google Generative AI for embeddings
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-
-    // Generate embeddings for the activity
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-    const result = await model.embedContent(text);
-    const embedding = result.embedding;
-
-    if (!embedding.values) {
-      throw new Error("Failed to generate embedding");
-    }
-
-    // Create a title from the activity and duration
+    // Create activity title
     const activityName = activity.charAt(0).toUpperCase() + activity.slice(1).replace(/_/g, ' ');
     const activityDateFormatted = structuredData.activityDate ? new Date(structuredData.activityDate).toLocaleDateString() : '';
     const title = `${activityName}${structuredData.duration ? ` - ${structuredData.duration}` : ''}${activityDateFormatted ? ` (${activityDateFormatted})` : ''}`;
 
-    // Generate unique ID for the activity
-    const activityId = `comprehensive_activity_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Build comprehensive metadata based on category
-    let metadata: Record<string, RecordMetadataValue> = {
-      text: text,
-      type: "comprehensive_activity",
-      activity: activity,
-      category: category,
-      categories: [category, activity],
-      userId: userId,
-      timestamp: new Date().toISOString(),
-      title: title,
-      // Common fields
-      activityDate: structuredData.activityDate || "",
-      duration: structuredData.duration || "",
-      feeling: structuredData.feeling || "",
-      productivity: structuredData.productivity || "",
-      goalSet: structuredData.goalSet || "",
-      goalAchieved: structuredData.goalAchieved || "",
-      additionalNotes: structuredData.additionalNotes || "",
-      location: structuredData.location || "",
-      // Searchable fields
-      activityType: activity,
-      activityCategory: category,
-      hasGoal: structuredData.goalSet ? "yes" : "no",
-      hasLocation: structuredData.location ? "yes" : "no",
-      hasDate: structuredData.activityDate ? "yes" : "no",
-    };
-
-    // Add category-specific metadata
-    switch (category) {
-      case "physical":
-        metadata = {
-          ...metadata,
-          distance: structuredData.distance || "",
-          intensity: structuredData.intensity || "",
-          hasDistance: structuredData.distance ? "yes" : "no",
-        };
-        break;
-
-      case "work":
-        metadata = {
-          ...metadata,
-          projectName: structuredData.projectName || "",
-          collaborators: structuredData.collaborators || "",
-          workTools: structuredData.workTools || "",
-          tasksCompleted: structuredData.tasksCompleted || "",
-          focusLevel: structuredData.focusLevel || "",
-          hasProject: structuredData.projectName ? "yes" : "no",
-          hasCollaborators: structuredData.collaborators ? "yes" : "no",
-          hasTools: structuredData.workTools ? "yes" : "no",
-        };
-        break;
-
-      case "study":
-        metadata = {
-          ...metadata,
-          subject: structuredData.subject || "",
-          studyMaterial: structuredData.studyMaterial || "",
-          comprehensionLevel: structuredData.comprehensionLevel || "",
-          notesCreated: structuredData.notesCreated || "",
-          hasSubject: structuredData.subject ? "yes" : "no",
-          hasStudyMaterial: structuredData.studyMaterial ? "yes" : "no",
-          hasNotes: structuredData.notesCreated ? "yes" : "no",
-        };
-        break;
-
-      case "routine":
-        metadata = {
-          ...metadata,
-          routineSteps: structuredData.routineSteps || "",
-          consistency: structuredData.consistency || "",
-          moodBefore: structuredData.moodBefore || "",
-          moodAfter: structuredData.moodAfter || "",
-          hasRoutineSteps: structuredData.routineSteps ? "yes" : "no",
-          hasMoodChange: structuredData.moodBefore !== structuredData.moodAfter ? "yes" : "no",
-        };
-        break;
-    }
-
-    // Store in Pinecone as a single unit (no chunking) with comprehensive metadata
-    await index.upsert([
-      {
-        id: activityId,
-        values: embedding.values,
-        metadata: metadata,
-      },
-    ]);
-
-    return NextResponse.json({
-      message: "Activity saved successfully",
-      title: title,
-      activity: activity,
-      category: category,
+    // Create initial activity in Firestore
+    console.log("[POST] Creating activity in Firestore...");
+    const docRef = adminDb.collection('activities').doc(activityId);
+    await docRef.set({
       id: activityId,
-      structuredData: structuredData,
+      userId,
+      text,
+      title,
+      activity,
+      category,
+      categories: [category, activity],
+      structuredData,
+      status: DocumentStatus.PROCESSING,
+      processingProgress: 0,
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    console.log("[POST] Activity created successfully");
+
+    // Split text into chunks
+    console.log("[POST] Splitting text into chunks...");
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: CHUNK_SIZE,
+      chunkOverlap: CHUNK_OVERLAP
+    });
+    const chunks = await splitter.splitText(text);
+    const totalChunks = chunks.length;
+    console.log("[POST] Text split into chunks:", totalChunks);
+
+    // Update progress
+    await docRef.update({
+      processingProgress: 10,
+      totalChunks
     });
 
-  } catch (_error) {
-    console.error("Error saving comprehensive activity:", _error);
+    // Process chunks in batches
+    const vectors = [];
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batchChunks = chunks.slice(i, i + BATCH_SIZE);
+      
+      // Generate embeddings for batch
+      console.log(`[POST] Generating embeddings for batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(chunks.length/BATCH_SIZE)}`);
+      const batchEmbeddings = await Promise.all(
+        batchChunks.map(async (chunk, index) => {
+          const embedding = await embeddings.embedQuery(chunk);
+          const metadata: ActivityMetadata = {
+            text: chunk,
+            activityId: activityId!,
+            userId,
+            chunkIndex: i + index,
+            totalChunks,
+            title,
+            activity,
+            category,
+            categories: [category, activity],
+            type: 'activity',
+            source: 'user',
+            activityDate: structuredData.activityDate || '',
+            duration: structuredData.duration || '',
+            location: structuredData.location || '',
+          };
+          return {
+            id: `${activityId}-${i + index}`,
+            values: embedding,
+            metadata
+          };
+        })
+      );
+      
+      vectors.push(...batchEmbeddings);
+
+      // Update progress
+      const progress = Math.min(10 + Math.round(((i + BATCH_SIZE) / chunks.length) * 80), 90);
+      await docRef.update({ processingProgress: progress });
+    }
+
+    // Store vectors in Pinecone
+    console.log("[POST] Storing vectors in Pinecone...");
+    const index = pinecone.index(process.env.PINECONE_INDEX || "");
+    
+    // Upload vectors in batches
+    for (let i = 0; i < vectors.length; i += BATCH_SIZE) {
+      const batch = vectors.slice(i, i + BATCH_SIZE);
+      console.log(`[POST] Uploading batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(vectors.length/BATCH_SIZE)}`);
+      await index.upsert(batch);
+      
+      // Update progress for vector storage
+      const progress = Math.min(90 + Math.round((i / vectors.length) * 10), 100);
+      await docRef.update({ processingProgress: progress });
+    }
+
+    // Mark activity as completed
+    console.log("[POST] Updating activity status to COMPLETED...");
+    await docRef.update({
+      status: DocumentStatus.COMPLETED,
+      processingProgress: 100,
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    console.log("[POST] Activity processing completed successfully");
+
+    return NextResponse.json({
+      success: true,
+      activityId,
+      chunksProcessed: vectors.length,
+      message: "Activity processed and embedded successfully"
+    });
+
+  } catch (error) {
+    console.error('Error processing activity:', error);
+    console.error("[POST] Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    
+    // Update activity status if we have an activityId
+    if (activityId) {
+      console.log("[POST] Attempting to update activity status to ERROR...");
+      try {
+        await adminDb.collection('activities').doc(activityId).update({
+          status: DocumentStatus.ERROR,
+          processingProgress: 0,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          updatedAt: admin.firestore.Timestamp.now()
+        });
+      } catch (updateError) {
+        console.error("[POST] Failed to update activity status:", updateError);
+      }
+    }
+
     return NextResponse.json(
       { 
-        message: "Failed to save activity", 
-        error: _error instanceof Error ? _error.message : "Unknown error" 
+        error: "Failed to process activity",
+        details: error instanceof Error ? error.message : "Unknown error"
       },
       { status: 500 }
     );

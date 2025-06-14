@@ -28,6 +28,7 @@
     "@langchain/langgraph-sdk": "^0.0.60",
     "@langchain/openai": "^0.5.11",
     "@langchain/pinecone": "^0.2.0",
+    "@netlify/functions": "^4.1.5",
     "@pinecone-database/pinecone": "3.0.2",
     "@prisma/client": "^6.9.0",
     "@radix-ui/primitive": "latest",
@@ -134,6 +135,7 @@
     "@typescript-eslint/parser": "^8.33.1",
     "autoprefixer": "10.4.14",
     "babel-jest": "^30.0.0-beta.3",
+    "babel-loader": "^10.0.0",
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.3",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -142,7 +144,8 @@
     "prettier": "^3.4.2",
     "tailwindcss": "3.3.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "webpack": "^5.99.9"
   },
   "eslintConfig": {
     "extends": [
