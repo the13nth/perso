@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getStorage } from "firebase-admin/storage";
+import { adminDb } from "@/lib/firebase/admin";
 
 export async function GET(
   req: NextRequest,
@@ -25,7 +26,7 @@ export async function GET(
     }
 
     // Get Firebase Storage instance
-    const storage = getStorage();
+    const storage = getStorage(adminDb.app);
     const bucket = storage.bucket();
     const file = bucket.file(documentId);
 
@@ -38,13 +39,14 @@ export async function GET(
       );
     }
 
-    // Generate signed URL for download
-    const [signedUrl] = await file.getSignedUrl({
+    // Generate signed URL for download (expires in 15 minutes)
+    const [url] = await file.getSignedUrl({
       action: 'read',
-      expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
+      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
     });
 
-    return NextResponse.json({ downloadUrl: signedUrl });
+    return NextResponse.json({ downloadUrl: url });
+
   } catch (error) {
     console.error('Error generating download URL:', error);
     return NextResponse.json(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { adminDb } from "@/lib/firebase/admin";
 import { getStorage } from "firebase-admin/storage";
+import { adminDb } from "@/lib/firebase/admin";
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get Firebase Storage instance
-    const storage = getStorage();
+    const storage = getStorage(adminDb.app);
     const bucket = storage.bucket();
 
     // List files in the user's directory
