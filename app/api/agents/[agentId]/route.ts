@@ -1,37 +1,36 @@
-import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getAgentConfig, updateAgentConfig } from '@/lib/pinecone';
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ agentId: string }> }
-) {
+  { params }: { params: Promise<{ agentId: string }> }
+): Promise<Response> {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const { agentId } = await context.params;
+    const { agentId } = await params;
     // Get agent configuration
     const agent = await getAgentConfig(agentId);
 
     // Check if user has access to this agent
     if (!agent.isPublic && agent.ownerId !== userId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Not authorized to access this agent" },
         { status: 403 }
       );
     }
 
-    return NextResponse.json(agent);
-  } catch (_error) {
-    console.error('Error fetching agent:', _error);
-    return NextResponse.json(
-      { error: _error instanceof Error ? _error.message : "Failed to fetch agent" },
+    return Response.json(agent);
+  } catch (error) {
+    console.error('Error fetching agent:', error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch agent" },
       { status: 500 }
     );
   }
@@ -39,24 +38,24 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  context: { params: Promise<{ agentId: string }> }
-) {
+  { params }: { params: Promise<{ agentId: string }> }
+): Promise<Response> {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const { agentId } = await context.params;
+    const { agentId } = await params;
     const body = await request.json();
 
     // Get current agent configuration to verify ownership
     const currentAgent = await getAgentConfig(agentId);
     if (currentAgent.ownerId !== userId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Not authorized to update this agent" },
         { status: 403 }
       );
@@ -76,11 +75,11 @@ export async function PUT(
       updatedAt: Date.now()
     });
 
-    return NextResponse.json(updatedAgent);
-  } catch (_error) {
-    console.error('Error updating agent:', _error);
-    return NextResponse.json(
-      { error: _error instanceof Error ? _error.message : "Failed to update agent" },
+    return Response.json(updatedAgent);
+  } catch (error) {
+    console.error('Error updating agent:', error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to update agent" },
       { status: 500 }
     );
   }

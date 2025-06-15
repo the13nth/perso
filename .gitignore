@@ -48,4 +48,4 @@ service-account.json
 # Secure configs
 config/secure/
 config/secure/*.json
-config/secure/*.js
+config/secure/*.js.env.local
