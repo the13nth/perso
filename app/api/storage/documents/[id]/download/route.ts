@@ -1,16 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getStorage } from "firebase-admin/storage";
 
 export async function GET(
-  req: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<Response> {
   try {
     // Check authentication
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
@@ -20,7 +20,7 @@ export async function GET(
     const { id: documentId } = await params;
     
     if (!documentId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Document ID is required" },
         { status: 400 }
       );
@@ -34,7 +34,7 @@ export async function GET(
     // Check if file exists
     const [exists] = await file.exists();
     if (!exists) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Document not found" },
         { status: 404 }
       );
@@ -46,10 +46,10 @@ export async function GET(
       expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
     });
 
-    return NextResponse.json({ downloadUrl: signedUrl });
+    return Response.json({ downloadUrl: signedUrl });
   } catch (error) {
     console.error('Error generating download URL:', error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Failed to generate download URL" },
       { status: 500 }
     );
