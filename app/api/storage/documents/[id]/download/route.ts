@@ -1,55 +1,55 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getStorage } from "firebase-admin/storage";
-import { adminDb } from "@/lib/firebase/admin";
 
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Response> {
   try {
     // Check authentication
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const documentId = params.id;
+    // Await params to get the document ID
+    const { id: documentId } = await params;
+    
     if (!documentId) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Document ID is required" },
         { status: 400 }
       );
     }
 
     // Get Firebase Storage instance
-    const storage = getStorage(adminDb.app);
+    const storage = getStorage();
     const bucket = storage.bucket();
     const file = bucket.file(documentId);
 
     // Check if file exists
     const [exists] = await file.exists();
     if (!exists) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Document not found" },
         { status: 404 }
       );
     }
 
-    // Generate signed URL for download (expires in 15 minutes)
-    const [url] = await file.getSignedUrl({
+    // Generate signed URL for download
+    const [signedUrl] = await file.getSignedUrl({
       action: 'read',
-      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+      expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
     });
 
-    return NextResponse.json({ downloadUrl: url });
-
+    return Response.json({ downloadUrl: signedUrl });
   } catch (error) {
     console.error('Error generating download URL:', error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Failed to generate download URL" },
       { status: 500 }
     );
