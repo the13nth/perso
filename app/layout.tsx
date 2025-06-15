@@ -44,6 +44,7 @@ export default function RootLayout({
           />
           <meta name="twitter:image" content="/images/og-image.png" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <script src="https://cdn.plot.ly/plotly-2.27.1.min.js"></script>
         </head>
         <body className={`${inter.className} h-full antialiased`}>
           <div className="grid min-h-screen grid-rows-[auto_1fr]">

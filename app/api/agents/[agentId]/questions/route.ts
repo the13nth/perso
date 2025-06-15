@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getAgentConfig } from "@/lib/pinecone";
@@ -7,10 +6,6 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-
-// Adjust timeout for Netlify - more realistic deployment constraints
-
-// Optimized timeout wrapper for async operations
 
 // Type for agent configuration
 interface AgentConfig {
@@ -145,7 +140,7 @@ This email was received from ${email.from.split('<')[0].trim()} with subject "${
 }
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ agentId: string }> }
 ): Promise<Response> {
   console.log('Starting question generation...');
@@ -155,18 +150,18 @@ export async function GET(
   
   if (!userId) {
     console.log('Unauthorized: No user ID found');
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Await the params promise
+    // Await params in Next.js 15
     const { agentId } = await params;
     console.log('Getting agent config for:', agentId);
     console.log('Request URL:', request.url);
 
     if (!agentId) {
       console.error('Missing agentId in request params');
-      return NextResponse.json({
+      return Response.json({
         success: false,
         error: "Missing agentId parameter"
       }, { status: 400 });
@@ -178,7 +173,7 @@ export async function GET(
     
     if (!agentConfig) {
       console.error('Agent config not found for ID:', agentId);
-      return NextResponse.json({
+      return Response.json({
         success: false,
         error: "Agent configuration not found"
       }, { status: 404 });
@@ -208,57 +203,24 @@ export async function GET(
 
     // Generate questions
     console.log('Generating questions...');
-    const response = await chain.invoke({
-      agentName: agentConfig.name || "AI Agent",
-      agentDescription: agentConfig.description || "",
-      contexts: contextIds.join(", "),
-      dataSamples: samples.join("\n\n")
+    const result = await chain.invoke({
+      agentName: agentConfig.name,
+      agentDescription: agentConfig.description,
+      contexts: JSON.stringify(contextIds),
+      dataSamples: JSON.stringify(samples)
     });
 
-    // Parse the numbered list response
-    const questions = response
-      .split("\n")
-      .filter(line => line.trim().match(/^\d+\./))
-      .map(line => line.replace(/^\d+\.\s*/, "").trim());
-
-    console.log('Generated questions:', questions);
-
-    // If no questions generated, use defaults based on agent type
-    if (questions.length === 0) {
-      console.log('No questions generated, using defaults');
-      const context = contextIds[0] || agentConfig.name?.toLowerCase() || 'data';
-      const defaultQuestions = [
-        `What insights can you provide about my ${context} activities?`,
-        `How can you help me improve my ${context} performance?`,
-        `What patterns do you notice in my ${context} data?`
-      ];
-
-      return NextResponse.json({
-        success: true,
-        questions: defaultQuestions,
-        fallback: true
-      });
-    }
-
-    return NextResponse.json({
+    console.log('Questions generated successfully');
+    return Response.json({
       success: true,
-      questions,
-      fallback: false,
-      dataInfo: {
-        samplesFound: samples.length,
-        contexts: contextIds
-      }
+      questions: result
     });
 
-  } catch (_error) {
-    console.error("Error generating questions:", _error);
-    const errorMessage = _error instanceof Error ? _error.message : "Unknown error";
-    console.error("Error details:", errorMessage);
-    
-    return NextResponse.json({
+  } catch (error) {
+    console.error('Error generating questions:', error);
+    return Response.json({
       success: false,
-      error: "Failed to generate questions",
-      message: errorMessage
+      error: error instanceof Error ? error.message : "Failed to generate questions"
     }, { status: 500 });
   }
 }

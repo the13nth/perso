@@ -1,4 +1,6 @@
-export const dynamic = 'force-dynamic';
+// app/api/embeddings/route.ts
+
+//export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';

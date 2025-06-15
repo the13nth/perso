@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getAgentConfig, updateAgentConfig } from '@/lib/pinecone';
 
+type RouteContext = {
+  params: Promise<{ agentId: string }>;
+};
+
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ agentId: string }> }
+  context: RouteContext
 ) {
   try {
     const { userId } = await auth();
@@ -16,6 +20,7 @@ export async function GET(
     }
 
     const { agentId } = await context.params;
+
     // Get agent configuration
     const agent = await getAgentConfig(agentId);
 
@@ -39,7 +44,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  context: { params: Promise<{ agentId: string }> }
+  context: RouteContext
 ) {
   try {
     const { userId } = await auth();
@@ -68,8 +73,8 @@ export async function PUT(
       description: body.description,
       category: body.category,
       useCases: body.useCases,
-      triggers: Array.isArray(body.triggers) 
-        ? body.triggers 
+      triggers: Array.isArray(body.triggers)
+        ? body.triggers
         : body.triggers?.split(',').map((t: string) => t.trim()).filter(Boolean) || [],
       isPublic: body.isPublic,
       selectedContextIds: body.selectedContextIds || currentAgent.selectedContextIds,
@@ -84,4 +89,4 @@ export async function PUT(
       { status: 500 }
     );
   }
-} 
+}

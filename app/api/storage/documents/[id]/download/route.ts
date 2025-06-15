@@ -4,7 +4,7 @@ import { getStorage } from "firebase-admin/storage";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check authentication
@@ -16,7 +16,9 @@ export async function GET(
       );
     }
 
-    const documentId = params.id;
+    // Await params to get the document ID
+    const { id: documentId } = await params;
+    
     if (!documentId) {
       return NextResponse.json(
         { error: "Document ID is required" },
@@ -52,4 +54,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}

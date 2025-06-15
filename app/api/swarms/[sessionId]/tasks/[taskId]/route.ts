@@ -12,7 +12,6 @@ export async function PUT(
 ) {
   try {
     const { userId } = await auth();
-    
     if (!userId) {
       return Response.json(
         { success: false, error: 'Unauthorized' },
@@ -25,7 +24,6 @@ export async function PUT(
 
     // Get the session
     const session = await swarmOrchestrator.getSession(sessionId);
-    
     if (!session) {
       return Response.json(
         { success: false, error: 'Session not found' },
@@ -55,21 +53,21 @@ export async function PUT(
       }
 
       const task = session.task.decomposition.subTasks[taskIndex];
-      
+
       // Update task properties
       if (updateData.status) {
         task.status = updateData.status;
       }
-      
+
       if (updateData.result) {
         task.result = updateData.result;
       }
-      
+
       if (updateData.error) {
         // Store error info (you might want to add error field to SubTask type)
         task.result = { error: updateData.error };
       }
-      
+
       if (updateData.completedAt) {
         task.completedAt = updateData.completedAt;
       }
@@ -89,13 +87,11 @@ export async function PUT(
       success: true,
       message: 'Task updated successfully'
     });
-
   } catch (_error) {
     console.error('Error updating task:', _error);
-    
     return Response.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
-} 
+}
