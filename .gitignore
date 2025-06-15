@@ -24,7 +24,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-
+# local env files
+.env*.local
+.env
+.env.development
+.env.test
+.env.production
 
 # vercel
 .vercel
@@ -39,7 +44,6 @@ next-env.d.ts
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-.env
 
 # Firebase credentials
 lib/firebase/credentials/service-account.json
