@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   try {
-    // Check authentication
+    // Check authenticationes
     const { userId } = await auth();
     if (!userId) {
       return Response.json(
