@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { adminDb } from "@/lib/firebase/admin";
 
-if (!process.env.PINECONE_API_KEY) {
-  throw new Error("Missing PINECONE_API_KEY environment variable");
-}
-
-if (!process.env.PINECONE_INDEX) {
-  throw new Error("Missing PINECONE_INDEX environment variable");
-}
-
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY || "",
-});
-
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth();
@@ -25,52 +13,33 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get document ID from query params
-    const url = new URL(req.url);
-    const fileName = url.searchParams.get('fileName');
-    
+    // Get filename from query
+    const fileName = request.nextUrl.searchParams.get("fileName");
     if (!fileName) {
       return NextResponse.json(
-        { error: "fileName is required" },
+        { error: "fileName parameter is required" },
         { status: 400 }
       );
     }
 
-    // Query Pinecone for document metadata
-    const index = pinecone.index(process.env.PINECONE_INDEX || "");
-    const queryResponse = await index.query({
-      vector: new Array(768).fill(0), // Required for querying, using zero vector since we only need metadata
-      filter: {
-        userId,
-        fileName
-      },
-      topK: 1000, // Increased to get all chunks for the file
-      includeMetadata: true
-    });
+    // Get document metadata from Firestore
+    const docRef = adminDb.collection("documentMetadata")
+      .where("userId", "==", userId)
+      .where("fileName", "==", fileName)
+      .limit(1);
 
-    if (!queryResponse.matches?.length) {
-      return NextResponse.json({
-        metadata: null
-      });
+    const snapshot = await docRef.get();
+    
+    if (snapshot.empty) {
+      return NextResponse.json(
+        { metadata: null },
+        { status: 200 }
+      );
     }
 
-    // Count unique chunks and get the most recent timestamp
-    const totalChunks = queryResponse.matches.length;
-    const lastUpdated = queryResponse.matches.reduce<string | null>((latest, match) => {
-      const matchTimestamp = match.metadata?.updatedAt as string | undefined;
-      if (!latest || (matchTimestamp && matchTimestamp > latest)) {
-        return matchTimestamp || null;
-      }
-      return latest;
-    }, null);
-
-    const metadata = {
-      totalChunks,
-      embeddingDimensions: 768, // Standard for our embeddings
-      lastUpdated
-    };
-
+    const metadata = snapshot.docs[0].data();
     return NextResponse.json({ metadata });
+
   } catch (error) {
     console.error("Error fetching document metadata:", error);
     return NextResponse.json(
@@ -80,7 +49,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth();
@@ -91,9 +60,10 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Get fileName from request body
-    const { fileName } = await req.json();
-    
+    // Get filename from request body
+    const body = await request.json();
+    const { fileName } = body;
+
     if (!fileName) {
       return NextResponse.json(
         { error: "fileName is required" },
@@ -101,23 +71,30 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Delete vectors from Pinecone
-    const index = pinecone.index(process.env.PINECONE_INDEX || "");
-    await index.deleteMany({
-      filter: {
-        userId,
-        fileName
-      }
-    });
+    // Find and delete document metadata
+    const docRef = adminDb.collection("documentMetadata")
+      .where("userId", "==", userId)
+      .where("fileName", "==", fileName)
+      .limit(1);
 
-    return NextResponse.json({
-      success: true,
-      message: "Embeddings deleted successfully"
-    });
+    const snapshot = await docRef.get();
+    
+    if (snapshot.empty) {
+      return NextResponse.json(
+        { error: "Document metadata not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete the document
+    await snapshot.docs[0].ref.delete();
+
+    return NextResponse.json({ success: true });
+
   } catch (error) {
-    console.error("Error deleting embeddings:", error);
+    console.error("Error deleting document metadata:", error);
     return NextResponse.json(
-      { error: "Failed to delete embeddings" },
+      { error: "Failed to delete document metadata" },
       { status: 500 }
     );
   }

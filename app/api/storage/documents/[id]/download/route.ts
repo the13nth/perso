@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { getStorage } from "firebase-admin/storage";
+import { adminStorage } from "@/lib/firebase/admin";
 
 export async function GET(
   request: NextRequest,
@@ -26,9 +26,7 @@ export async function GET(
     }
 
     // Get Firebase Storage instance
-    const storage = getStorage();
-    const bucket = storage.bucket();
-    const file = bucket.file(documentId);
+    const file = adminStorage.file(documentId);
 
     // Check if file exists
     const [exists] = await file.exists();

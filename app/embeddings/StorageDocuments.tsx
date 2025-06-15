@@ -52,9 +52,16 @@ export default function StorageDocuments({ onDocumentsChange }: StorageDocuments
     try {
       const response = await fetch("/api/storage/documents");
       if (!response.ok) {
-        throw new Error("Failed to fetch documents");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to fetch documents");
       }
       const data = await response.json();
+      
+      // Handle no documents case
+      if (!data.documents || data.documents.length === 0) {
+        setDocuments([]);
+        return;
+      }
       
       // Fetch embedding metadata for each document
       const documentsWithEmbeddings = await Promise.all(
@@ -62,12 +69,14 @@ export default function StorageDocuments({ onDocumentsChange }: StorageDocuments
           try {
             const metadataResponse = await fetch(`/api/embeddings/document-metadata?fileName=${encodeURIComponent(doc.name)}`);
             if (!metadataResponse.ok) {
-              throw new Error("Failed to fetch embedding metadata");
+              // Don't throw error, just return document without embeddings
+              console.warn(`Failed to fetch metadata for ${doc.name}:`, await metadataResponse.text());
+              return { ...doc, embeddings: null };
             }
             const { metadata } = await metadataResponse.json();
             return { ...doc, embeddings: metadata };
           } catch (error) {
-            console.error(`Error fetching metadata for document ${doc.name}:`, error);
+            console.warn(`Error fetching metadata for document ${doc.name}:`, error);
             return { ...doc, embeddings: null };
           }
         })
@@ -75,8 +84,9 @@ export default function StorageDocuments({ onDocumentsChange }: StorageDocuments
 
       setDocuments(documentsWithEmbeddings);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load documents");
-      toast.error("Failed to load documents");
+      const message = err instanceof Error ? err.message : "Failed to load documents";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

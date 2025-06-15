@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { ContentType } from '@/app/lib/content/types';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import {
   Dialog,
   DialogContent,
@@ -26,19 +26,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
-};
-
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const storage = getStorage(app);
+console.log('Storage Bucket:', process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+
+const app = !getApps().length 
+  ? initializeApp({
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+    })
+  : getApp();
+
+// Initialize storage with explicit bucket
+const storage = getStorage(app, process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
 
 export interface UploadDocumentsFormProps {
   fileTypes?: string;
@@ -76,9 +79,19 @@ export function UploadDocumentsForm({
   onSuccess 
 }: UploadDocumentsFormProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [uploadState, setUploadState] = useState<UploadState>(initialUploadState);
+  const [uploadState, setUploadState] = useState<UploadState>({
+    isLoading: false,
+    uploadProgress: 0,
+    ingestionProgress: 0,
+    isIngesting: false,
+    showSuccessModal: false,
+    uploadedFileUrl: null,
+    documentId: null,
+    error: null,
+    activeTab: "document"
+  });
   const [selectedCategories, setSelectedCategories] = useState<string[]>(["general"]);
-  const [accessLevel, setAccessLevel] = useState<"public" | "personal">("personal");
+  const [accessLevel, setAccessLevel] = useState<"private" | "public">("private");
   const { user } = useUser();
 
   // Reset state when file changes
@@ -97,89 +110,81 @@ export function UploadDocumentsForm({
 
   const startEmbedding = async () => {
     try {
-      setUploadState(prev => ({ ...prev, isIngesting: true, ingestionProgress: 0, error: null }));
+      console.log('Starting embedding with state:', uploadState);
       
+      if (!uploadState.documentId || !uploadState.uploadedFileUrl) {
+        console.error('Missing document info:', { 
+          documentId: uploadState.documentId, 
+          uploadedFileUrl: uploadState.uploadedFileUrl 
+        });
+        throw new Error("Missing document information");
+      }
+
+      console.log('Document info validated, starting ingestion...');
+      setUploadState(prev => ({ 
+        ...prev, 
+        isIngesting: true, 
+        ingestionProgress: 0, 
+        error: null 
+      }));
+      
+      const requestBody = {
+        documentId: uploadState.documentId,
+        metadata: {
+          userId: user?.id,
+          fileName: file?.name,
+          fileUrl: uploadState.uploadedFileUrl,
+          fileType: file?.type,
+          fileSize: file?.size,
+          categories: selectedCategories,
+          access: accessLevel,
+          contentType: "document",
+          originalFileName: file?.name,
+          uploadedAt: new Date().toISOString(),
+          status: "pending",
+          processingStartedAt: new Date().toISOString(),
+          source: "user-upload"
+        }
+      };
+      
+      console.log('Sending ingest request:', requestBody);
       const response = await fetch("/api/retrieval/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          documentId: uploadState.documentId,
-          metadata: {
-            userId: user?.id,
-            fileName: file?.name,
-            categories: selectedCategories,
-            access: accessLevel,
-            contentType: "document",
-            originalFileName: file?.name,
-            fileType: file?.type,
-            fileSize: file?.size,
-            uploadedAt: new Date().toISOString(),
-            status: "pending",
-            fileUrl: uploadState.uploadedFileUrl
-          }
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start embedding");
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Ingest API error:', errorData);
+        throw new Error(errorData.error || "Failed to start document processing");
       }
 
       const data = await response.json();
-      setUploadState(prev => ({ ...prev, documentId: data.documentId }));
+      console.log('Ingest API response:', data);
+      
+      setUploadState(prev => ({ 
+        ...prev, 
+        documentId: data.documentId,
+        isIngesting: false,
+        ingestionProgress: 100,
+        showSuccessModal: true
+      }));
 
-      // Start polling for ingestion status
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusResponse = await fetch(`/api/retrieval/status?documentId=${data.documentId}`);
-          const statusData = await statusResponse.json();
-          
-          if (statusData.status === "complete") {
-            clearInterval(pollInterval);
-            setUploadState(prev => ({
-              ...prev,
-              isIngesting: false,
-              ingestionProgress: 100,
-              isLoading: false
-            }));
-            toast.success("Document added to knowledge base!");
-            
-            if (onSuccess) {
-              setTimeout(() => onSuccess(), 2000);
-            }
-          } else if (statusData.status === "processing") {
-            setUploadState(prev => ({
-              ...prev,
-              ingestionProgress: statusData.progress || prev.ingestionProgress
-            }));
-          } else if (statusData.status === "error") {
-            clearInterval(pollInterval);
-            setUploadState(prev => ({
-              ...prev,
-              isIngesting: false,
-              isLoading: false,
-              error: statusData.error || "Failed to process document"
-            }));
-            toast.error(statusData.error || "Failed to process document");
-          }
-        } catch (error) {
-          clearInterval(pollInterval);
-          setUploadState(prev => ({
-            ...prev,
-            isIngesting: false,
-            isLoading: false,
-            error: "Failed to check ingestion status"
-          }));
-          toast.error("Failed to check ingestion status");
-        }
-      }, 2000);
+      toast.success("Document uploaded and processing started");
+
     } catch (error) {
+      console.error('Embedding error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to process document";
+      
       setUploadState(prev => ({
         ...prev,
         isIngesting: false,
-        isLoading: false,
-        error: "Failed to start embedding process"
+        ingestionProgress: 0,
+        error: errorMessage
       }));
-      toast.error("Failed to start embedding process");
+      
+      toast.error(errorMessage);
     }
   };
 
@@ -195,6 +200,24 @@ export function UploadDocumentsForm({
         throw new Error("Please select a file to upload");
       }
 
+      // Validate file size (5MB limit)
+      const MAX_FILE_SIZE = 5 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File size (${Math.round(file.size/1024)}KB) exceeds the ${Math.round(MAX_FILE_SIZE/1024)}KB limit`);
+      }
+
+      // Validate file type
+      const allowedTypes = new Set([
+        'application/pdf',
+        'text/plain',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel'
+      ]);
+      
+      if (!allowedTypes.has(file.type)) {
+        throw new Error(`Unsupported file type: ${file.type}. Please upload PDF, TXT, or Excel files.`);
+      }
+
       setUploadState(prev => ({
         ...prev,
         isLoading: true,
@@ -202,14 +225,20 @@ export function UploadDocumentsForm({
         error: null
       }));
 
+      // Generate a unique path while preserving original filename
+      const timestamp = Date.now();
+      const filePath = `users/${user.id}/documents/${timestamp}/${file.name}`;
+
       // Create storage reference
-      const storageRef = ref(storage, `users/${user.id}/documents/${file.name}`);
+      const storageRef = ref(storage, filePath);
       const metadata = {
         contentType: file.type,
         customMetadata: {
           userId: user.id,
           uploadedAt: new Date().toISOString(),
-          originalFileName: file.name
+          originalFileName: file.name,
+          fileSize: file.size.toString(),
+          fileType: file.type
         }
       };
 
@@ -223,40 +252,109 @@ export function UploadDocumentsForm({
           setUploadState(prev => ({ ...prev, uploadProgress: progress }));
         },
         (error) => {
+          console.error('Upload error:', error);
+          let errorMessage = "Failed to upload file";
+          
+          // Handle specific Firebase storage errors
+          switch (error.code) {
+            case 'storage/unauthorized':
+              errorMessage = "You don't have permission to upload files";
+              break;
+            case 'storage/canceled':
+              errorMessage = "Upload was cancelled";
+              break;
+            case 'storage/unknown':
+              errorMessage = "An unknown error occurred during upload";
+              break;
+          }
+          
           setUploadState(prev => ({
             ...prev,
             isLoading: false,
-            error: "Failed to upload file"
+            error: errorMessage
           }));
-          toast.error("Failed to upload file");
+          toast.error(errorMessage);
         },
         async () => {
           try {
+            console.log('Upload completed, getting download URL...');
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            const documentId = `${user.id}-${timestamp}`;
+            
+            console.log('Setting initial state with document info:', { downloadURL, documentId });
+            // Update state first
             setUploadState(prev => ({
               ...prev,
               uploadedFileUrl: downloadURL,
-              showSuccessModal: true,
-              documentId: `${user.id}-${Date.now()}`,
+              documentId: documentId,
               isLoading: false
             }));
+
+            // Now start embedding with the updated state
+            const requestBody = {
+              documentId,
+              metadata: {
+                userId: user?.id,
+                fileName: file?.name,
+                fileUrl: downloadURL,
+                fileType: file?.type,
+                fileSize: file?.size,
+                categories: selectedCategories,
+                access: accessLevel,
+                contentType: "document",
+                originalFileName: file?.name,
+                uploadedAt: new Date().toISOString(),
+                status: "pending",
+                processingStartedAt: new Date().toISOString(),
+                source: "user-upload"
+              }
+            };
+            
+            console.log('Starting embedding with request:', requestBody);
+            const response = await fetch("/api/retrieval/ingest", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              console.error('Ingest API error:', errorData);
+              throw new Error(errorData.error || "Failed to start document processing");
+            }
+
+            const data = await response.json();
+            console.log('Ingest API response:', data);
+            
+            // Only show success modal after embedding is complete
+            setUploadState(prev => ({
+              ...prev,
+              showSuccessModal: true
+            }));
+
+            if (onSuccess) {
+              onSuccess();
+            }
           } catch (error) {
+            console.error('Process error:', error);
             setUploadState(prev => ({
               ...prev,
               isLoading: false,
-              error: "Failed to get download URL"
+              error: "Failed to process uploaded file"
             }));
-            toast.error("Failed to get download URL");
+            toast.error("Failed to process uploaded file");
           }
         }
       );
     } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload file";
       setUploadState(prev => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : "Failed to upload document"
+        error: errorMessage
       }));
-      toast.error(error instanceof Error ? error.message : "Failed to upload document");
+      toast.error(errorMessage);
     }
   };
 
@@ -495,12 +593,12 @@ export function UploadDocumentsForm({
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div 
-                  className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "personal" ? "bg-primary/10 border-primary" : "bg-background hover:bg-muted"}`}
-                  onClick={() => setAccessLevel("personal")}
+                  className={`border rounded-lg p-4 cursor-pointer ${accessLevel === "private" ? "bg-primary/10 border-primary" : "bg-background hover:bg-muted"}`}
+                  onClick={() => setAccessLevel("private")}
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <Lock className="h-5 w-5 text-primary" />
-                    <h4 className="font-medium">Personal</h4>
+                    <h4 className="font-medium">Private</h4>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Only you can access this document
