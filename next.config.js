@@ -13,6 +13,14 @@ const nextConfig = {
   },
   eslint: {
     ignoreDuringBuilds: true
+  },
+  api: {
+    responseLimit: '8mb',
+    bodyParser: {
+      sizeLimit: '8mb',
+    },
+    externalResolver: true,
+    timeout: 60000,
   }
 };
 

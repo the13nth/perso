@@ -100,16 +100,21 @@ export async function POST(req: NextRequest) {
     const docRef = adminDb.collection('activities').doc(activityId);
     await docRef.set({
       id: activityId,
-      userId,
-      text,
-      title,
       activity,
-      category,
       categories: [category, activity],
-      structuredData,
-      status: DocumentStatus.PROCESSING,
-      processingProgress: 0,
+      category,
       createdAt: admin.firestore.Timestamp.now(),
+      processingProgress: 0,
+      status: DocumentStatus.PROCESSING,
+      structuredData: {
+        access: "personal",
+        activity: {
+          activityType: category,
+          duration: structuredData.duration,
+          endTime: structuredData.activityDate,
+          energy: structuredData.energy || 0
+        }
+      },
       updatedAt: admin.firestore.Timestamp.now()
     });
     console.log("[POST] Activity created successfully");
@@ -146,7 +151,7 @@ export async function POST(req: NextRequest) {
             userId,
             chunkIndex: i + index,
             totalChunks,
-            title,
+            title: activity,
             activity,
             category,
             categories: [category, activity],
@@ -154,7 +159,7 @@ export async function POST(req: NextRequest) {
             source: 'user',
             activityDate: structuredData.activityDate || '',
             duration: structuredData.duration || '',
-            location: structuredData.location || '',
+            location: structuredData.location || ''
           };
           return {
             id: `${activityId}-${i + index}`,

@@ -1,10 +1,8 @@
-import { NextResponse } from 'next/server';
 import { AgentSupervisor } from '@/lib/agents/langchain/supervisor';
 import { getAgentConfig } from '@/lib/pinecone';
 import { EmailAgentRAGService } from '@/app/lib/services/EmailAgentRAGService';
 import { convertPineconeAgentToConfig } from '@/app/lib/agents/langchain/config';
 import { AgentMetadata } from '@/app/lib/agents/langchain/types';
-import type { NextRequest } from 'next/server';
 
 // Keep track of active supervisors
 const supervisors = new Map<string, AgentSupervisor>();
@@ -13,14 +11,14 @@ const supervisors = new Map<string, AgentSupervisor>();
 const emailAgentService = new EmailAgentRAGService();
 
 export async function POST(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ agentId: string }> }
-) {
+): Promise<Response> {
   try {
     const { agentId } = await params;
     
     if (!agentId || typeof agentId !== 'string') {
-      return NextResponse.json(
+      return Response.json(
         { error: "Agent ID is required and must be a string" },
         { status: 400 }
       );
@@ -32,7 +30,7 @@ export async function POST(
     // Get agent configuration from Pinecone
     const pineconeAgent = await getAgentConfig(agentId);
     if (!pineconeAgent) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Agent not found' },
         { status: 404 }
       );
@@ -42,7 +40,7 @@ export async function POST(
     if (pineconeAgent.type === 'email') {
       console.log(`[CHAT] Using EmailAgentRAGService for agent ${agentId}`);
       const response = await emailAgentService.generateResponse(agentId, messages);
-      return NextResponse.json(response);
+      return Response.json(response);
     }
 
     // Convert ISO string dates to timestamps
@@ -95,10 +93,10 @@ export async function POST(
     
     const response = await supervisor.processMessage(currentMessage.content, show_intermediate_steps);
 
-    return NextResponse.json(response);
-  } catch (_error) {
-    console.error('Error processing message:', _error);
-    return NextResponse.json(
+    return Response.json(response);
+  } catch (error) {
+    console.error('Error processing message:', error);
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     );

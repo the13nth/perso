@@ -6,6 +6,7 @@ import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import * as admin from 'firebase-admin';
 import { adminDb } from "@/lib/firebase/admin";
 import { DocumentStatus } from '@/types/document';
+import pdf from 'pdf-parse';
 
 // Use Node.js runtime
 export const runtime = 'nodejs';
@@ -41,17 +42,64 @@ interface DocumentMetadata extends RecordMetadata {
   text: string;
   documentId: string;
   userId: string;
-  fileName: string;
-  fileType: string;
-  categories: string[];
-  access: string;
   chunkIndex: number;
   totalChunks: number;
-  createdAt: string;
+  title: string;
+  categories: string[];
+  type: 'document';
+  source: 'user';
+  access: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  uploadedAt: string;
+}
+
+async function extractTextFromPDF(fileUrl: string): Promise<string> {
+  try {
+    console.log("[extractTextFromPDF] Fetching PDF from:", fileUrl);
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log("[extractTextFromPDF] PDF fetched, size:", buffer.length);
+    
+    const data = await pdf(buffer);
+    console.log("[extractTextFromPDF] Text extracted, length:", data.text.length);
+    
+    return data.text;
+  } catch (error) {
+    console.error("[extractTextFromPDF] Error:", error);
+    throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+async function extractTextFromDocument(fileUrl: string, fileType: string): Promise<string> {
+  console.log("[extractTextFromDocument] Processing file type:", fileType);
+  
+  switch (fileType) {
+    case 'application/pdf':
+      return extractTextFromPDF(fileUrl);
+      
+    case 'text/plain':
+    case 'text/markdown':
+    case 'text/csv':
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch text file: ${response.statusText}`);
+      }
+      return response.text();
+      
+    default:
+      throw new Error(`Unsupported file type: ${fileType}`);
+  }
 }
 
 export async function POST(req: NextRequest) {
-  let documentId: string | null = null;
+  let documentId = '';
   
   try {
     console.log("[POST] Starting document ingestion...");
@@ -73,41 +121,42 @@ export async function POST(req: NextRequest) {
     const { documentId: reqDocumentId, metadata } = await req.json();
     console.log("[POST] Request body:", { documentId: reqDocumentId, metadata });
 
+    // Validate required fields
     if (!reqDocumentId || !metadata?.fileUrl) {
       console.log("[POST] Validation failed: Missing required fields");
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: "Document ID and file URL are required" 
+      }, { status: 400 });
     }
 
-    documentId = reqDocumentId as string; // Cast to string since we've validated it's not null
-    console.log("[POST] Document ID validated:", documentId);
+    documentId = reqDocumentId;
 
     // Create initial document in Firestore
     console.log("[POST] Creating document in Firestore...");
     const docRef = adminDb.collection('documents').doc(documentId);
     await docRef.set({
-      userId,
-      status: DocumentStatus.PROCESSING,
+      id: documentId,
+      ...metadata,
       processingProgress: 0,
-      metadata: {
-        ...metadata,
-        userId,
-        createdAt: admin.firestore.Timestamp.now(),
-        updatedAt: admin.firestore.Timestamp.now()
-      }
+      status: DocumentStatus.PROCESSING,
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
     });
     console.log("[POST] Document created successfully");
 
-    // Fetch content
-    console.log("[POST] Fetching content from URL:", metadata.fileUrl);
-    const response = await fetch(metadata.fileUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch document: ${response.statusText}`);
+    // Extract text from document
+    console.log("[POST] Extracting text from document...");
+    const text = await extractTextFromDocument(metadata.fileUrl, metadata.fileType);
+    if (!text?.trim()) {
+      throw new Error("No text content extracted from document");
     }
-    const content = await response.text();
-    console.log("[POST] Content fetched successfully, length:", content.length);
+    console.log("[POST] Text extracted successfully, length:", text.length);
+
+    // Update progress
+    await docRef.update({
+      processingProgress: 20,
+      textLength: text.length
+    });
 
     // Split text into chunks
     console.log("[POST] Splitting text into chunks...");
@@ -115,14 +164,14 @@ export async function POST(req: NextRequest) {
       chunkSize: CHUNK_SIZE,
       chunkOverlap: CHUNK_OVERLAP
     });
-    const chunks = await splitter.splitText(content);
+    const chunks = await splitter.splitText(text);
     const totalChunks = chunks.length;
     console.log("[POST] Text split into chunks:", totalChunks);
 
     // Update progress
     await docRef.update({
-      processingProgress: 10,
-      'metadata.totalChunks': totalChunks
+      processingProgress: 30,
+      totalChunks
     });
 
     // Process chunks in batches
@@ -135,17 +184,26 @@ export async function POST(req: NextRequest) {
       const batchEmbeddings = await Promise.all(
         batchChunks.map(async (chunk, index) => {
           const embedding = await embeddings.embedQuery(chunk);
+          const docMetadata: DocumentMetadata = {
+            text: chunk,
+            documentId,
+            userId,
+            chunkIndex: i + index,
+            totalChunks,
+            title: metadata.fileName || 'Untitled Document',
+            categories: metadata.categories || ['general'],
+            type: 'document',
+            source: 'user',
+            access: metadata.access || 'personal',
+            fileName: metadata.fileName,
+            fileType: metadata.fileType,
+            fileSize: metadata.fileSize,
+            uploadedAt: metadata.uploadedAt
+          };
           return {
             id: `${documentId}-${i + index}`,
             values: embedding,
-            metadata: {
-              text: chunk,
-              documentId,
-              userId,
-              chunkIndex: i + index,
-              totalChunks,
-              ...metadata
-            }
+            metadata: docMetadata
           };
         })
       );
@@ -153,7 +211,7 @@ export async function POST(req: NextRequest) {
       vectors.push(...batchEmbeddings);
 
       // Update progress
-      const progress = Math.min(10 + Math.round(((i + BATCH_SIZE) / chunks.length) * 80), 90);
+      const progress = Math.min(30 + Math.round(((i + BATCH_SIZE) / chunks.length) * 60), 90);
       await docRef.update({ processingProgress: progress });
     }
 
@@ -177,7 +235,7 @@ export async function POST(req: NextRequest) {
     await docRef.update({
       status: DocumentStatus.COMPLETED,
       processingProgress: 100,
-      'metadata.updatedAt': admin.firestore.Timestamp.now()
+      updatedAt: admin.firestore.Timestamp.now()
     });
     console.log("[POST] Document processing completed successfully");
 
@@ -198,17 +256,20 @@ export async function POST(req: NextRequest) {
       try {
         await adminDb.collection('documents').doc(documentId).update({
           status: DocumentStatus.ERROR,
+          processingProgress: 0,
           error: error instanceof Error ? error.message : 'Unknown error',
-          'metadata.updatedAt': admin.firestore.Timestamp.now()
+          updatedAt: admin.firestore.Timestamp.now()
         });
-        console.log("[POST] Document status updated to ERROR");
       } catch (updateError) {
         console.error("[POST] Failed to update document status:", updateError);
       }
     }
-    
+
     return NextResponse.json(
-      { error: 'Failed to process document' },
+      { 
+        error: "Failed to process document",
+        details: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }

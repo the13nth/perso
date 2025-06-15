@@ -4,6 +4,15 @@ import { auth } from '@clerk/nextjs/server';
 
 export async function GET() {
   try {
+    // Check for required environment variables
+    if (!process.env.PINECONE_API_KEY) {
+      console.error('Missing PINECONE_API_KEY environment variable');
+      return NextResponse.json(
+        { error: 'Server configuration error', agents: [] },
+        { status: 500 }
+      );
+    }
+
     // Get user authentication
     const { userId } = await auth();
     if (!userId) {
