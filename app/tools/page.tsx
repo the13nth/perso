@@ -150,52 +150,62 @@ export default function ToolsPage() {
   }
 
   return (
-    <div className="container py-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Tools</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">Tools</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Manage and create tools that your agents can use during conversations
           </p>
           {!isLoading && (
-            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-              <span>{statistics.builtInCount} built-in tools</span>
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-xs sm:text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Database className="w-3 h-3" />
+                <span>{statistics.builtInCount} built-in</span>
+              </div>
               <span>•</span>
-              <span>{statistics.customCount} custom tools</span>
+              <div className="flex items-center gap-1">
+                <Wrench className="w-3 h-3" />
+                <span>{statistics.customCount} custom</span>
+              </div>
               <span>•</span>
-              <span>{statistics.totalUsage} total agent assignments</span>
+              <div className="flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                <span>{statistics.totalUsage} uses</span>
+              </div>
             </div>
           )}
         </div>
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button size="sm" className="w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Create Tool
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Tool</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="name">Tool Name</Label>
+                  <Label htmlFor="name" className="text-sm font-medium">Tool Name</Label>
                   <Input
                     id="name"
                     value={newTool.name}
                     onChange={(e) => setNewTool(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g., weather_checker"
+                    className="mt-1.5"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category" className="text-sm font-medium">Category</Label>
                   <Select
                     value={newTool.category}
                     onValueChange={(value) => setNewTool(prev => ({ ...prev, category: value }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -209,45 +219,51 @@ export default function ToolsPage() {
                 </div>
               </div>
               <div>
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description" className="text-sm font-medium">Description</Label>
                 <Textarea
                   id="description"
                   value={newTool.description}
                   onChange={(e) => setNewTool(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Describe what this tool does..."
+                  className="mt-1.5"
                   rows={3}
                 />
               </div>
               <div>
-                <Label htmlFor="parameters">Parameters Schema (JSON)</Label>
+                <Label htmlFor="parameters" className="text-sm font-medium">Parameters Schema (JSON)</Label>
                 <Textarea
                   id="parameters"
                   value={newTool.parameters}
                   onChange={(e) => setNewTool(prev => ({ ...prev, parameters: e.target.value }))}
                   placeholder='{"location": {"type": "string", "description": "City name"}}'
+                  className="mt-1.5 font-mono text-sm"
                   rows={3}
                 />
               </div>
               <div>
-                <Label htmlFor="code">Tool Implementation (TypeScript)</Label>
+                <Label htmlFor="code" className="text-sm font-medium">Tool Implementation (TypeScript)</Label>
                 <Textarea
                   id="code"
                   value={newTool.code}
                   onChange={(e) => setNewTool(prev => ({ ...prev, code: e.target.value }))}
                   placeholder="async function execute(params) { /* implementation */ }"
+                  className="mt-1.5 font-mono text-sm"
                   rows={6}
-                  className="font-mono text-sm"
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button 
                 variant="outline" 
                 onClick={() => setIsCreateModalOpen(false)}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
-              <Button onClick={handleCreateTool}>
+              <Button 
+                onClick={handleCreateTool}
+                className="w-full sm:w-auto"
+              >
                 Create Tool
               </Button>
             </DialogFooter>
@@ -255,40 +271,40 @@ export default function ToolsPage() {
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {tools.map((tool, index) => (
-          <Card key={index} className="relative">
+          <Card key={index} className="flex flex-col">
             <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   {getToolIcon(tool.name)}
-                  <CardTitle className="text-lg">{tool.name}</CardTitle>
+                  <CardTitle className="text-base sm:text-lg truncate">
+                    {tool.name}
+                  </CardTitle>
                 </div>
-                <Badge className={getCategoryColor(tool.category)}>
+                <Badge className={`shrink-0 ${getCategoryColor(tool.category)}`}>
                   {tool.category}
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-3">
+            <CardContent className="flex flex-col flex-grow">
+              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                 {tool.description}
               </p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center justify-between mt-auto pt-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {tool.isCustom && (
                     <Badge variant="outline" className="text-xs">
                       Custom
                     </Badge>
                   )}
                   {tool.usageCount !== undefined && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {tool.usageCount} agent{tool.usageCount !== 1 ? 's' : ''}
-                      </span>
-                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {tool.usageCount} use{tool.usageCount !== 1 ? 's' : ''}
+                    </span>
                   )}
                 </div>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="shrink-0">
                   Configure
                 </Button>
               </div>
@@ -297,14 +313,14 @@ export default function ToolsPage() {
         ))}
       </div>
 
-      {tools.length === 0 && (
-        <div className="text-center py-12">
-          <Wrench className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">No tools found</h3>
-          <p className="text-muted-foreground mb-4">
+      {tools.length === 0 && !isLoading && (
+        <div className="text-center py-8 sm:py-12">
+          <Wrench className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-base sm:text-lg font-medium mb-2">No tools found</h3>
+          <p className="text-sm sm:text-base text-muted-foreground mb-4">
             Get started by creating your first tool
           </p>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Button onClick={() => setIsCreateModalOpen(true)} size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Create Tool
           </Button>

@@ -12,12 +12,15 @@ NODE_VERSION = "18"
 # Function configurations
 [functions]
   node_bundler = "esbuild"
+  max_body_size = "10mb"
 
 [functions."app/api/**"]
   timeout = 30
+  max_body_size = "10mb"
 
 [functions."app/api/agents/*/questions/*"]
   timeout = 30
+  max_body_size = "10mb"
 
 # Environment variables that must be set on Netlify
 [template.environment]

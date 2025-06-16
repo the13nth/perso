@@ -133,11 +133,6 @@ const aiToolsItems: DropdownItem[] = [
     icon: <Bot className="w-4 h-4" />,
   },
   {
-    href: "/swarms",
-    label: "Swarms",
-    icon: <Users className="w-4 h-4" />,
-  },
-  {
     href: "/tools",
     label: "Tools",
     icon: <Wrench className="w-4 h-4" />,
@@ -151,8 +146,8 @@ const dataItems: DropdownItem[] = [
     icon: <Sparkles className="w-4 h-4" />,
   },
   {
-    href: "/insights",
-    label: "Insights",
+    href: "#",
+    label: "Insights (Coming Soon)",
     icon: <Lightbulb className="w-4 h-4" />,
   },
 ];
@@ -285,7 +280,7 @@ export function Navbar() {
             
             <DropdownMenu
               id="data"
-              label="Data"
+              label="Knowledge Base"
               icon={<Database className="w-4 h-4" />}
               items={dataItems}
               activeDropdown={activeDropdown}
@@ -357,7 +352,7 @@ export function Navbar() {
           />
           
           <MobileDropdown
-            label="Data"
+            label="Knowledge Base"
             icon={<Database className="w-4 h-4" />}
             items={dataItems}
             isOpen={mobileDropdowns['data']}

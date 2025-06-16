@@ -10,7 +10,8 @@ const ragService: BaseRAGService = new AgentRAGService();
 const emailAgentService: BaseRAGService = new EmailAgentRAGService();
 const calendarAgentService: BaseRAGService = new CalendarAgentRAGService();
 
-export const runtime = "edge";
+// Remove edge runtime since we need Node.js features
+// export const runtime = "edge";
 
 interface FormattedResponse {
   type: string;

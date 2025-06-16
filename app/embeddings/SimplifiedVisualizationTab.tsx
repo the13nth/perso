@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,23 +21,23 @@ interface Point3D {
   };
 }
 
-interface VisualizationTabProps {
+interface SimplifiedVisualizationTabProps {
   documents: any[]; // Replace with proper type
   notes: any[]; // Replace with proper type
   activities: any[]; // Replace with proper type
 }
 
-export default function VisualizationTab({ documents, notes, activities }: VisualizationTabProps) {
+export default function SimplifiedVisualizationTab({ documents, notes, activities }: SimplifiedVisualizationTabProps) {
   const [points, setPoints] = useState<Point3D[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
 
-  const fetchVisualizationData = async () => {
+  const fetchSimplifiedVisualizationData = async () => {
     try {
       setLoading(true);
       setError(null); // Reset error state
-      const response = await fetch('/api/embeddings/visualization');
+      const response = await fetch('/api/embeddings/visualization/simplified');
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -59,7 +57,7 @@ export default function VisualizationTab({ documents, notes, activities }: Visua
       
       setPoints(data.points);
     } catch (err) {
-      console.error('Error fetching visualization data:', err);
+      console.error('Error fetching simplified visualization data:', err);
       setError(err instanceof Error ? err.message : 'An error occurred while fetching data');
     } finally {
       setLoading(false);
@@ -67,7 +65,7 @@ export default function VisualizationTab({ documents, notes, activities }: Visua
   };
 
   useEffect(() => {
-    fetchVisualizationData();
+    fetchSimplifiedVisualizationData();
   }, [documents, notes, activities]);
 
   // Get unique categories from points
@@ -120,7 +118,7 @@ export default function VisualizationTab({ documents, notes, activities }: Visua
       y: filteredPoints.map(p => p.y),
       z: filteredPoints.map(p => p.z),
       marker: {
-        size: 6,
+        size: 8,
         color: filteredPoints.map(p => getCategoryColor(p.category)),
       },
       text: filteredPoints.map(p => `${p.metadata.title} (${p.category})\n${p.metadata.text}`),
@@ -145,7 +143,7 @@ export default function VisualizationTab({ documents, notes, activities }: Visua
         <CardContent className="flex items-center justify-center min-h-[600px]">
           <div className="text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-            <div className="text-sm text-muted-foreground">Loading visualization...</div>
+            <div className="text-sm text-muted-foreground">Loading simplified visualization...</div>
           </div>
         </CardContent>
       </Card>
@@ -158,7 +156,7 @@ export default function VisualizationTab({ documents, notes, activities }: Visua
         <CardContent className="flex items-center justify-center min-h-[600px]">
           <div className="text-center">
             <div className="text-sm text-destructive mb-2">{error}</div>
-            <Button onClick={fetchVisualizationData}>Retry</Button>
+            <Button onClick={fetchSimplifiedVisualizationData}>Retry</Button>
           </div>
         </CardContent>
       </Card>
@@ -168,7 +166,7 @@ export default function VisualizationTab({ documents, notes, activities }: Visua
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <CardTitle className="text-base sm:text-lg">Embeddings Visualization</CardTitle>
+        <CardTitle className="text-base sm:text-lg">Simplified Embeddings View</CardTitle>
         <div className="flex flex-wrap gap-1 sm:gap-2 w-full sm:max-w-[70%]">
           {categories.map(category => (
             <Badge 

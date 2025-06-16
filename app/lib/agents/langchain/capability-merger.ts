@@ -168,7 +168,7 @@ export async function createSuperAgent(
       parentAgents: parentAgents.map(a => a.agentId),
       mergedCapabilities: mergeResult.mergedCapabilities,
       metadata: {
-        type: 'swarm_result' as const,
+        type: 'agent_config',
         contentId: agentId,
         userId: parentAgents[0]?.metadata?.userId || '',
         name,

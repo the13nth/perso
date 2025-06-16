@@ -1,29 +1,28 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Message } from "ai";
 import { ContextAnalysis, RemixState } from "./types";
 import { Command } from "./graph";
-
-if (!process.env.GOOGLE_API_KEY) {
-  throw new Error("GOOGLE_API_KEY is not set ind environment variables");
-}
-
-// Initialize model with API key
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+import { initializeGeminiModel } from "@/app/utils/modelInit";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
 
 export async function contextAnalyzerAgent(state: RemixState): Promise<Command> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = await initializeGeminiModel({
+    maxOutputTokens: 2048,
+    temperature: 0.7
+  });
 
   const analyzedContexts: ContextAnalysis[] = [];
 
   // Analyze each parent agent's context
   for (const agent of state.parentAgents) {
-    const prompt = `
+    const prompt = new PromptTemplate({
+      template: `
       Analyze the following agent's context and capabilities:
-      Agent Name: ${agent.name}
-      Description: ${agent.description}
-      Category: ${agent.category}
-      Use Cases: ${agent.useCases}
-      Context IDs: ${agent.selectedContextIds?.join(", ") || "none"}
+      Agent Name: {name}
+      Description: {description}
+      Category: {category}
+      Use Cases: {useCases}
+      Context IDs: {contextIds}
 
       Provide a detailed analysis including:
       1. Summary of the agent's knowledge domain
@@ -32,11 +31,18 @@ export async function contextAnalyzerAgent(state: RemixState): Promise<Command> 
       4. Unique capabilities and knowledge areas
 
       Format the response as a structured analysis that can be parsed.
-    `;
+      `,
+      inputVariables: ['name', 'description', 'category', 'useCases', 'contextIds']
+    });
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const analysis = response.text();
+    const chain = prompt.pipe(model).pipe(new StringOutputParser());
+    const analysis = await chain.invoke({
+      name: agent.name,
+      description: agent.description,
+      category: agent.category,
+      useCases: agent.useCases,
+      contextIds: agent.selectedContextIds?.join(", ") || "none"
+    });
 
     // Find overlaps with other agents
     const overlaps = state.parentAgents

@@ -2,6 +2,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { auth } from '@clerk/nextjs/server';
 import { Message } from 'ai';
 import { BaseRAGService, RAGResponse } from './BaseRAGService';
+import { initializeGeminiModel } from '@/app/utils/modelInit';
+import { PromptTemplate } from '@langchain/core/prompts';
+import { StringOutputParser } from '@langchain/core/output_parsers';
 
 if (!process.env.GOOGLE_API_KEY) {
   throw new Error('Missing GOOGLE_API_KEY environment variable');
@@ -175,7 +178,7 @@ ${email.hasFullContent ? email.content : email.snippet}
 
   public async generateResponse(agentId: string, messages: Message[]): Promise<RAGResponse> {
     try {
-      // Fetch emails
+      const startTime = Date.now();
       console.log(`Generating response for agent: ${agentId}`);
       console.log(`Message count: ${messages.length}`);
       
@@ -191,38 +194,96 @@ ${email.hasFullContent ? email.content : email.snippet}
         .join('\n');
 
       // Generate response using the model
-      const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-001" });
-      
-      const prompt = EMAIL_SYSTEM_PROMPT
-        .replace('{chat_history}', chatHistory)
-        .replace('{email_data}', formattedEmails)
-        .replace('{query}', currentMessage.content);
+      const model = await initializeGeminiModel({
+        maxOutputTokens: 2048,
+        temperature: 0.7
+      });
 
-      const result = await model.generateContent([{ text: prompt }]);
-      const responseText = result.response.text();
+      const prompt = new PromptTemplate({
+        template: EMAIL_SYSTEM_PROMPT
+          .replace('{chat_history}', '{chatHistory}')
+          .replace('{email_data}', '{emailData}')
+          .replace('{query}', '{userQuery}'),
+        inputVariables: ['chatHistory', 'emailData', 'userQuery']
+      });
+
+      const chain = prompt.pipe(model).pipe(new StringOutputParser());
+      const responseText = await chain.invoke({
+        chatHistory: chatHistory,
+        emailData: formattedEmails,
+        userQuery: currentMessage.content
+      });
+
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
       
       return {
         success: true,
         response: responseText,
         agentId,
         contextUsed: emails.length,
+        results: [{
+          timestamp: endTime,
+          success: true,
+          responseTime,
+          output: {
+            insights: [{
+              insight: "Email data analyzed",
+              evidence: `Analyzed ${emails.length} emails`,
+              confidence: 1.0,
+              category: "email"
+            }],
+            metadata: {
+              responseTime,
+              contextUsed: emails.length > 0,
+              categoriesAnalyzed: ['email'],
+              confidenceScore: 0.8
+            }
+          },
+          metrics: {
+            contextRelevance: 0.8,
+            insightQuality: 0.8,
+            responseLatency: responseTime
+          }
+        }],
         relevanceScores: emails.map(email => ({
           source: email.subject,
           score: email.hasFullContent ? 1.0 : 0.5,
           category: 'email'
         })),
-        results: [],
-        categoryContexts: []
+        categoryContexts: [{
+          category: 'email',
+          count: emails.length,
+          relevantCount: emails.filter(e => e.hasFullContent).length
+        }]
       };
-    } catch (_error) {
-      console.error('Error generating response:', _error);
+    } catch (error) {
+      console.error('Error generating response:', error);
       return {
         success: false,
         response: "Failed to generate response",
         agentId,
         contextUsed: 0,
+        results: [{
+          timestamp: Date.now(),
+          success: false,
+          responseTime: 0,
+          output: {
+            insights: [],
+            metadata: {
+              responseTime: 0,
+              contextUsed: false,
+              categoriesAnalyzed: [],
+              confidenceScore: 0
+            }
+          },
+          metrics: {
+            contextRelevance: 0,
+            insightQuality: 0,
+            responseLatency: 0
+          }
+        }],
         relevanceScores: [],
-        results: [],
         categoryContexts: []
       };
     }

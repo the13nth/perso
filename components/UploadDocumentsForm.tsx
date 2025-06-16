@@ -31,12 +31,12 @@ console.log('Storage Bucket:', process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
 
 const app = !getApps().length 
   ? initializeApp({
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
     })
   : getApp();
 
@@ -129,19 +129,19 @@ export function UploadDocumentsForm({
       }));
       
       const requestBody = {
-        documentId: uploadState.documentId,
-        metadata: {
-          userId: user?.id,
-          fileName: file?.name,
+          documentId: uploadState.documentId,
+          metadata: {
+            userId: user?.id,
+            fileName: file?.name,
           fileUrl: uploadState.uploadedFileUrl,
           fileType: file?.type,
           fileSize: file?.size,
-          categories: selectedCategories,
-          access: accessLevel,
-          contentType: "document",
-          originalFileName: file?.name,
-          uploadedAt: new Date().toISOString(),
-          status: "pending",
+            categories: selectedCategories,
+            access: accessLevel,
+            contentType: "document",
+            originalFileName: file?.name,
+            uploadedAt: new Date().toISOString(),
+            status: "pending",
           processingStartedAt: new Date().toISOString(),
           source: "user-upload"
         }
@@ -163,11 +163,11 @@ export function UploadDocumentsForm({
       const data = await response.json();
       console.log('Ingest API response:', data);
       
-      setUploadState(prev => ({ 
-        ...prev, 
+            setUploadState(prev => ({
+              ...prev,
         documentId: data.documentId,
-        isIngesting: false,
-        ingestionProgress: 100,
+              isIngesting: false,
+              ingestionProgress: 100,
         showSuccessModal: true
       }));
 
@@ -201,7 +201,7 @@ export function UploadDocumentsForm({
       }
 
       // Validate file size (5MB limit)
-      const MAX_FILE_SIZE = 5 * 1024 * 1024;
+      const MAX_FILE_SIZE = 15 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
         throw new Error(`File size (${Math.round(file.size/1024)}KB) exceeds the ${Math.round(MAX_FILE_SIZE/1024)}KB limit`);
       }

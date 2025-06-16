@@ -1,26 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@firebase/firestore', 'styled-jsx', 'pdf-parse'],
+  serverExternalPackages: ['@firebase/firestore', 'styled-jsx', 'pdf-parse', '@pinecone-database/pinecone'],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
+        fs: false,
         net: false,
         tls: false,
+        crypto: false,
+        stream: false,
+        path: false,
       };
     }
     return config;
   },
   eslint: {
     ignoreDuringBuilds: true
-  },
-  api: {
-    responseLimit: '8mb',
-    bodyParser: {
-      sizeLimit: '8mb',
-    },
-    externalResolver: true,
-    timeout: 60000,
   }
 };
 

@@ -123,7 +123,7 @@ export default function CreateAgentPage() {
 
       const data = await response.json();
       toast.success('Agent created successfully!');
-      router.push(`/agents/${data.agentId}`);
+      router.push('/agents');
     } catch (_error) {
       console.error('Error creating agent:', _error);
       toast.error(_error instanceof Error ? _error.message : 'Failed to create agent');

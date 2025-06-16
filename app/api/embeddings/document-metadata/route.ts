@@ -29,13 +29,13 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     const snapshot = await docRef.get();
-    
+
     if (snapshot.empty) {
       return NextResponse.json(
         { metadata: null },
         { status: 200 }
       );
-    }
+      }
 
     const metadata = snapshot.docs[0].data();
     return NextResponse.json({ metadata });
@@ -63,7 +63,7 @@ export async function DELETE(request: NextRequest) {
     // Get filename from request body
     const body = await request.json();
     const { fileName } = body;
-
+    
     if (!fileName) {
       return NextResponse.json(
         { error: "fileName is required" },

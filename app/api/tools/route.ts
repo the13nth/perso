@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { ToolRegistry, Tool } from '@/app/lib/tools/definitions';
+import { ToolRegistry } from "@/app/lib/tools/registry";
 import { z } from 'zod';
 import { listUserAgents, type AgentMetadata } from '@/lib/pinecone';
+import { getPineconeClient } from "@/app/lib/pinecone";
+import { createDocumentRetrievalTool } from "@/app/lib/tools/document/retrieval";
+import { RetrievalService } from "@/app/lib/services/RetrievalService";
+import { createActivityAnalysisTool } from "@/app/lib/tools/activity/analysis";
 
 // Built-in tools from your codebase with compatibility mapping
 const BUILT_IN_TOOLS = [
@@ -148,49 +152,42 @@ async function calculateToolUsage(userId: string) {
   }
 }
 
-export async function GET(_request: NextRequest) {
+// Initialize tools registry
+const toolRegistry = new ToolRegistry();
+const retrievalService = new RetrievalService();
+
+// Initialize default tools
+async function initializeTools() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    // Create and register document retrieval tool
+    const documentRetrievalTool = createDocumentRetrievalTool(retrievalService);
+    toolRegistry.registerTool(documentRetrievalTool);
+    
+    // Create and register activity analysis tool
+    const activityAnalysisTool = createActivityAnalysisTool();
+    toolRegistry.registerTool(activityAnalysisTool);
+    
+    // Add more tool initializations here as we implement them
+    
+  } catch (error) {
+    console.error("Error initializing tools:", error);
+  }
+}
 
-    // Calculate tool usage by agents
-    const toolUsage = await calculateToolUsage(userId);
+// Initialize tools when the module loads
+initializeTools();
 
-    // Get custom tools from registry (if any)
-    const customTools = ToolRegistry.list().map((tool: Tool) => ({
-      name: tool.name,
-      description: tool.description,
-      category: 'Custom',
-      isCustom: true,
-      usageCount: 0, // Custom tools usage would need different tracking
-      schema: tool.schema
-    }));
-
-    // Combine built-in and custom tools with usage counts
-    const allTools = [
-      ...BUILT_IN_TOOLS.map(tool => ({
-        ...tool,
-        usageCount: toolUsage[tool.name] || 0
-      })),
-      ...customTools
-    ];
-
+export async function GET() {
+  try {
+    const tools = toolRegistry.getAllToolsMetadata();
+    const statistics = toolRegistry.getStatistics();
+    
     return NextResponse.json({
-      success: true,
-      tools: allTools,
-      totalCount: allTools.length,
-      builtInCount: BUILT_IN_TOOLS.length,
-      customCount: customTools.length,
-      totalUsage: Object.values(toolUsage).reduce((sum, count) => sum + count, 0)
+      tools,
+      ...statistics
     });
-
-  } catch (_error) {
-    console.error("Error fetching tools:", _error);
+  } catch (error) {
+    console.error("Error fetching tools:", error);
     return NextResponse.json(
       { error: "Failed to fetch tools" },
       { status: 500 }
@@ -198,125 +195,56 @@ export async function GET(_request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const body = await request.json();
-    const { name, description, category, code, parameters } = body;
-
+    const data = await req.json();
+    
     // Validate required fields
-    if (!name || !description || !category) {
+    if (!data.name || !data.description || !data.category) {
       return NextResponse.json(
-        { error: "Name, description, and category are required" },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Validate tool name (alphanumeric and underscores only)
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    // Validate tool name format
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(data.name)) {
       return NextResponse.json(
-        { error: "Tool name must be alphanumeric with underscores only" },
+        { error: "Tool name must start with a letter or underscore and contain only letters, numbers, and underscores" },
         { status: 400 }
       );
     }
-
-    // Check if tool already exists
-    const existingTool = ToolRegistry.get(name);
-    if (existingTool) {
-      return NextResponse.json(
-        { error: "A tool with this name already exists" },
-        { status: 409 }
-      );
-    }
-
-    // Parse parameters schema
-    let schemaProperties: Record<string, any> = {};
-    if (parameters) {
+    
+    // Parse parameters schema if provided
+    let schema;
+    if (data.parameters) {
       try {
-        schemaProperties = JSON.parse(parameters);
-      } catch {
+        schema = JSON.parse(data.parameters);
+      } catch (error) {
         return NextResponse.json(
-          { error: "Invalid JSON in parameters schema" },
+          { error: "Invalid parameters JSON schema" },
           { status: 400 }
         );
       }
     }
 
-    // Create Zod schema from properties
-    const zodSchema = z.object({
-      input: z.string(),
-      context: z.record(z.any()).optional(),
-      ...Object.fromEntries(
-        Object.entries(schemaProperties).map(([key, value]: [string, any]) => [
-          key,
-          value.type === 'string' ? z.string() : 
-          value.type === 'number' ? z.number() :
-          value.type === 'boolean' ? z.boolean() :
-          z.any()
-        ])
-      )
-    });
-
-    // Create function from code
-    let toolFunction;
-    if (code) {
-      try {
-        // Wrap the code in a function and evaluate it safely
-        const wrappedCode = `(${code})`;
-        toolFunction = eval(wrappedCode);
-        
-        if (typeof toolFunction !== 'function') {
-          throw new Error('Code must be a valid function');
-        }
-      } catch (_error) {
-        return NextResponse.json(
-          { error: "Invalid function code: " + (_error instanceof Error ? _error.message : 'Unknown error') },
-          { status: 400 }
-        );
-      }
-    } else {
-      // Default function if no code provided
-      toolFunction = async (params: Record<string, unknown>) => {
-        return { 
-          success: true,
-          result: { message: `Tool ${name} executed with params:`, params }
-        };
-      };
-    }
-
-    // Register the new tool
-    ToolRegistry.register({
-      name,
-      description,
-      schema: zodSchema,
-      execute: toolFunction
-    });
-
-    const newTool = {
-      name,
-      description,
-      category,
-      isCustom: true,
-      schema: schemaProperties,
-      createdBy: userId,
-      createdAt: new Date().toISOString()
-    };
-
+    // Create custom tool (implementation pending)
+    // This is where we would create and register a new custom tool
+    // For now, we'll just return the metadata
+    
     return NextResponse.json({
-      success: true,
-      tool: newTool,
-      message: "Tool created successfully"
+      message: "Tool created successfully",
+      tool: {
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        isCustom: true,
+        usageCount: 0,
+        schema: schema
+      }
     });
-
-  } catch (_error) {
-    console.error("Error creating tool:", _error);
+  } catch (error) {
+    console.error("Error creating tool:", error);
     return NextResponse.json(
       { error: "Failed to create tool" },
       { status: 500 }

@@ -17,9 +17,6 @@ const pinecone = new Pinecone({
 
 // Constants
 const MAX_VECTORS = 500; // Limit number of vectors for visualization
-const CHUNK_SIZE = 100; // Process vectors in chunks for memory efficiency
-
-type ContentType = 'document' | 'note' | 'activity';
 
 interface VectorMetadata {
   type?: string;
@@ -29,6 +26,7 @@ interface VectorMetadata {
   title?: string;
   text?: string;
   userId?: string;
+  fileName?: string;
   category?: string;
   categories?: string[] | string;
   docType?: string;
@@ -57,38 +55,27 @@ export async function GET(req: NextRequest) {
       filter: { userId }
     });
 
-    console.log(`[Visualization] Found ${queryResponse.matches.length} matches`);
+    // Group vectors by their parent document/note/activity
+    const groupedVectors: Record<string, {
+      type: 'document' | 'note' | 'activity';
+      category: string;
+      vectors: number[][];
+      metadata: {
+        id: string;
+        title: string;
+        text: string;
+      };
+    }> = {};
 
-    // Prepare arrays for PCA
-    const vectors: number[][] = [];
-    const metadata: any[] = [];
-    const types: string[] = [];
-    const categories: string[] = [];
-
-    // Validate and collect vectors
+    // Process and group vectors
     queryResponse.matches.forEach((match) => {
-      // Skip invalid vectors
-      if (!match.values || 
-          !Array.isArray(match.values) || 
-          match.values.length !== 768 ||
-          !match.values.every(v => typeof v === 'number' && isFinite(v))) {
-        return;
-      }
+      if (!match.values || !Array.isArray(match.values)) return;
 
-      // Determine the type from metadata
-      let type: ContentType | undefined;
       const meta = match.metadata as VectorMetadata;
+      let groupId: string | undefined;
+      let type: 'document' | 'note' | 'activity' | undefined;
+      let title: string | undefined;
       
-      if (meta?.type === 'document' || meta?.documentId) {
-        type = 'document';
-      } else if (meta?.type === 'note' || meta?.noteId) {
-        type = 'note';
-      } else if (meta?.type === 'activity' || meta?.activityId) {
-        type = 'activity';
-      }
-
-      if (!type) return;
-
       // Determine category
       let category = 'Uncategorized';
       if (meta.category) {
@@ -108,53 +95,70 @@ export async function GET(req: NextRequest) {
         category = meta.docType;
       }
 
-      vectors.push(match.values);
-      types.push(type);
-      categories.push(category);
-      metadata.push({
-        id: meta?.documentId || meta?.noteId || meta?.activityId,
-        title: meta?.title || 'Untitled',
-        text: typeof meta?.text === 'string' 
-          ? meta.text.substring(0, 100) 
-          : 'No preview available'
-      });
+      if (meta.documentId || (meta.type === 'document')) {
+        groupId = meta.documentId || meta.fileName;
+        type = 'document';
+        title = meta.fileName || meta.title || 'Untitled Document';
+      } else if (meta.noteId || (meta.type === 'note')) {
+        groupId = meta.noteId;
+        type = 'note';
+        title = meta.title || 'Untitled Note';
+      } else if (meta.activityId || (meta.type === 'activity')) {
+        groupId = meta.activityId;
+        type = 'activity';
+        title = meta.title || 'Untitled Activity';
+      }
+
+      if (!groupId || !type) return;
+
+      if (!groupedVectors[groupId]) {
+        groupedVectors[groupId] = {
+          type,
+          category,
+          vectors: [],
+          metadata: {
+            id: groupId,
+            title: title || 'Untitled',
+            text: meta.text || 'No preview available'
+          }
+        };
+      }
+
+      groupedVectors[groupId].vectors.push(match.values);
     });
 
-    console.log(`[Visualization] Processing ${vectors.length} valid vectors`);
+    // Calculate average vectors for each group
+    const points = Object.entries(groupedVectors).map(([id, group]) => {
+      // Calculate average vector
+      const avgVector = group.vectors.reduce((acc, vector) => {
+        return acc.map((val, i) => val + vector[i]);
+      }, new Array(768).fill(0)).map(val => val / group.vectors.length);
 
-    // Apply dimensionality reduction
+      return {
+        vector: avgVector,
+        type: group.type,
+        category: group.category,
+        metadata: group.metadata
+      };
+    });
+
+    // Apply PCA to the averaged vectors
     let reduced: number[][];
-    if (vectors.length === 0) {
+    if (points.length === 0) {
       reduced = [];
-    } else if (vectors.length === 1) {
+    } else if (points.length === 1) {
       reduced = [[0, 0, 0]];
-    } else if (vectors.length === 2) {
+    } else if (points.length === 2) {
       reduced = [[-1, 0, 0], [1, 0, 0]];
     } else {
       try {
-        // Process vectors in chunks to reduce memory usage
-        const chunks: number[][][] = [];
-        for (let i = 0; i < vectors.length; i += CHUNK_SIZE) {
-          const chunk = vectors.slice(i, i + CHUNK_SIZE);
-          
-          // Normalize vectors in this chunk
-          const normalizedChunk = chunk.map(vector => {
-            const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
-            return vector.map(val => val / (magnitude || 1)); // Avoid division by zero
-          });
-          
-          chunks.push(normalizedChunk);
-        }
-
-        // Combine normalized chunks and perform PCA
-        const normalizedVectors = chunks.flat();
-        const pca = new PCA(normalizedVectors);
-        reduced = pca.predict(normalizedVectors, { nComponents: 3 }).to2DArray();
-        console.log("[Visualization] PCA completed successfully");
+        const vectors = points.map(p => p.vector);
+        const pca = new PCA(vectors);
+        reduced = pca.predict(vectors, { nComponents: 3 }).to2DArray();
       } catch (pcaError) {
-        console.error("[Visualization] PCA failed:", pcaError);
+        console.error("[Simplified Visualization] PCA failed:", pcaError);
         // Fallback to simple projection if PCA fails
-        reduced = vectors.map(v => [v[0] || 0, v[1] || 0, v[2] || 0]);
+        reduced = points.map(p => [p.vector[0] || 0, p.vector[1] || 0, p.vector[2] || 0]);
       }
     }
 
@@ -178,14 +182,14 @@ export async function GET(req: NextRequest) {
         x: coords[0],
         y: coords[1],
         z: coords[2],
-        type: types[i],
-        category: categories[i],
-        metadata: metadata[i]
+        type: points[i].type,
+        category: points[i].category,
+        metadata: points[i].metadata
       }))
     });
 
   } catch (error) {
-    console.error("Error in visualization endpoint:", error);
+    console.error("Error in simplified visualization endpoint:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }

@@ -1,7 +1,7 @@
 import { RecordMetadata } from "@pinecone-database/pinecone";
 
 // Content Types
-export type ContentType = 'document' | 'note' | 'activity' | 'swarm_result';
+export type ContentType = 'document' | 'note' | 'activity';
 
 // Base Content Interface
 export interface BaseContent {
@@ -227,24 +227,6 @@ export interface ContentMetadata {
     sequence?: number;
     iteration?: number;
     streak?: number;
-  };
-
-  // Swarm-specific metadata
-  swarm?: {
-    agentId: string;
-    taskId: string;
-    confidence: number;
-    resultType: 'intermediate' | 'final' | 'insight' | 'recommendation';
-    performanceMetrics?: {
-      processingTime: number;
-      resourceUsage: number;
-      qualityScore: number;
-    };
-    validations?: {
-      method: string;
-      score: number;
-      timestamp: number;
-    }[];
   };
 }
 

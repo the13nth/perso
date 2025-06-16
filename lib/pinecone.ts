@@ -177,18 +177,36 @@ interface AgentConfig {
   isPublic?: boolean;
 }
 
+async function embedAgent(agentConfig: AgentConfig): Promise<number[]> {
+  // Combine all relevant agent data into a single text for embedding
+  const agentText = [
+    agentConfig.name,
+    agentConfig.description,
+    agentConfig.category,
+    agentConfig.useCases,
+    agentConfig.triggers?.join(", "),
+  ].filter(Boolean).join("\n");
+
+  // Generate embedding for the combined text
+  const [embedding] = await embeddings.embedDocuments([agentText]);
+  return embedding;
+}
+
 export async function storeAgentWithContext(
   agentId: string,
   config: unknown,
-  contextDocuments: Document[],
+  _contextDocuments: Document[],
   selectedContextIds: string[],
   ownerId: string
 ): Promise<AgentMetadata> {
-  if (!index || !contextIndex) await initIndexes();
+  if (!index) await initIndexes();
 
   const agentConfig = config as AgentConfig;
   
-  // Store agent metadata
+  // Generate embedding for the agent
+  const embedding = await embedAgent(agentConfig);
+
+  // Prepare metadata
   const metadata: AgentMetadata = {
     agentId,
     name: agentConfig.name,
@@ -196,59 +214,23 @@ export async function storeAgentWithContext(
     category: agentConfig.category,
     useCases: agentConfig.useCases || '',
     triggers: agentConfig.triggers || [],
-    dataAccess: agentConfig.dataAccess?.split(',').map((d: string) => d.trim()) || [],
+    dataAccess: agentConfig.dataAccess ? [agentConfig.dataAccess] : [],
     isPublic: agentConfig.isPublic || false,
-    ownerId,
-    userId: ownerId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    userId: ownerId,
+    ownerId,
     selectedContextIds,
     type: 'agent_config'
   };
 
-  // Store agent configuration
+  // Store agent with prefixed ID
+  const prefixedAgentId = agentId.startsWith('agent_') ? agentId : `agent_${agentId}`;
   await index.upsert([{
-    id: `agent_${agentId}`,
-    values: createPlaceholderVector(),
+    id: prefixedAgentId,
+    values: embedding,
     metadata
   }]);
-
-  // Store context documents if any
-  if (contextDocuments.length > 0) {
-    const contextVectors: PineconeRecord<PineconeCompatibleMetadata>[] = contextDocuments.map((doc, i) => ({
-      id: `${agentId}_context_${i}`,
-      values: createPlaceholderVector(),
-      metadata: {
-        agentId,
-        userId: ownerId,
-        content: doc.pageContent,
-        source: doc.metadata.source,
-        title: `Uploaded Context ${i + 1}`,
-        createdAt: Date.now()
-      }
-    }));
-
-    await contextIndex.upsert(contextVectors);
-  }
-
-  // Link selected contexts to the agent
-  if (selectedContextIds.length > 0) {
-    const selectedContexts = await contextIndex.fetch(selectedContextIds);
-    const contextVectors: PineconeRecord<PineconeCompatibleMetadata>[] = Object.values(selectedContexts.records)
-      .filter((record): record is PineconeRecord<PineconeCompatibleMetadata> => record !== null)
-      .map(record => ({
-        id: `${agentId}_${record.id}`,
-        values: createPlaceholderVector(),
-        metadata: {
-          ...record.metadata as PineconeCompatibleMetadata,
-          agentId
-        }
-      }));
-
-    if (contextVectors.length > 0) {
-      await contextIndex.upsert(contextVectors);
-    }
-  }
 
   return metadata;
 }
@@ -260,16 +242,44 @@ export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
   const fullAgentId = agentId.startsWith('agent_') ? agentId : `agent_${agentId}`;
   
   console.log('Fetching agent with ID:', fullAgentId);
-  const response = await index.fetch([fullAgentId]);
+  console.log('Using Pinecone index:', process.env.PINECONE_INDEX);
+  
+  // Try both with and without prefix
+  const response = await index.fetch([fullAgentId, agentId]);
   console.log('Individual agent fetch response:', JSON.stringify(response.records, null, 2));
 
-  const agent = response.records[fullAgentId];
+  // Check both prefixed and unprefixed IDs
+  const agent = response.records[fullAgentId] || response.records[agentId];
   if (!agent) {
+    console.log('Agent not found with either ID format. Trying query...');
+    // Try querying instead of direct fetch
+    const queryResponse = await index.query({
+      vector: createPlaceholderVector(),
+      filter: { 
+        $and: [
+          { agentId: { $in: [agentId, fullAgentId] } },
+          { type: 'agent_config' }
+        ]
+      },
+      topK: 1
+    });
+    console.log('Query response:', JSON.stringify(queryResponse.matches, null, 2));
+    
+    if (queryResponse.matches.length > 0) {
+      const metadata = queryResponse.matches[0].metadata as AgentMetadata;
+      // Remove prefix if it exists
+      metadata.agentId = metadata.agentId.replace('agent_', '');
+      return metadata;
+    }
     throw new Error('Agent not found');
   }
 
-  console.log('Individual agent metadata:', JSON.stringify(agent.metadata, null, 2));
-  return agent.metadata as AgentMetadata;
+  // Ensure the returned metadata has the unprefixed agentId for consistency
+  const metadata = agent.metadata as AgentMetadata;
+  metadata.agentId = metadata.agentId.replace('agent_', '');
+  
+  console.log('Individual agent metadata:', JSON.stringify(metadata, null, 2));
+  return metadata;
 }
 
 export async function updateAgentConfig(
@@ -423,7 +433,12 @@ export async function listUserAgents(ownerId: string): Promise<AgentMetadata[]> 
   // First query to get matching IDs
   const queryResponse = await index.query({
     vector: createPlaceholderVector(),
-    filter: { ownerId },
+    filter: { 
+      $and: [
+        { ownerId },
+        { type: 'agent_config' }
+      ]
+    },
     topK: 100
   });
 
@@ -438,10 +453,16 @@ export async function listUserAgents(ownerId: string): Promise<AgentMetadata[]> 
   const response = await index.fetch(agentIds);
   console.log('Fetch response:', JSON.stringify(response.records, null, 2));
 
-  // Map and filter out any invalid records
+  // Map and filter out any invalid records, ensure consistent agentId format
   const agents = Object.values(response.records)
-    .map(record => record?.metadata as AgentMetadata)
-    .filter(agent => agent && agent.agentId && agent.name);
+    .map(record => {
+      if (!record?.metadata) return null;
+      const metadata = record.metadata as AgentMetadata;
+      // Remove agent_ prefix from agentId for consistency
+      metadata.agentId = metadata.agentId.replace('agent_', '');
+      return metadata;
+    })
+    .filter((agent): agent is AgentMetadata => agent !== null && !!agent.agentId && !!agent.name);
 
   console.log('Filtered agents:', JSON.stringify(agents, null, 2));
   return agents;

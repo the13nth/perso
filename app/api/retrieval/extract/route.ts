@@ -7,14 +7,17 @@ import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { processPDF } from "@/app/lib/utils/pdfUtils";
 
-// Maximum file size (5MB)
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+// Maximum file size (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // Supported file types
 const SUPPORTED_EXTENSIONS = new Set(['.txt', '.pdf', '.xlsx', '.xls']);
 
-// Next.js 13+ API routes don't use this config object anymore
-// The bodyParser is handled automatically
+// Configure route options for Next.js 13+ App Router
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+// Configure body parser options
 export async function POST(req: NextRequest) {
   let tempFilePath: string | null = null;
 
@@ -28,20 +31,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Parse form data with size limit
+    const contentLength = parseInt(req.headers.get('content-length') || '0', 10);
+    if (contentLength > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File size (${Math.round(contentLength/1024)}KB) exceeds the ${Math.round(MAX_FILE_SIZE/1024)}KB limit` },
+        { status: 400 }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File;
 
     if (!file) {
       return NextResponse.json(
         { error: "No file provided" },
-        { status: 400 }
-      );
-    }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: `File size (${Math.round(file.size/1024)}KB) exceeds the ${Math.round(MAX_FILE_SIZE/1024)}KB limit` },
         { status: 400 }
       );
     }

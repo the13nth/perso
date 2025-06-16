@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, AlertCircle, CheckCircle2, XCircle, Bug, Loader2 } from "lucide-react";
+import { Mail, AlertCircle, CheckCircle2, XCircle, Bug, Loader2, ArrowLeft } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 
 interface Email {
   id: string;
@@ -26,6 +27,7 @@ interface Email {
 
 export default function GmailIntegrationPage() {
   const { isSignedIn } = useUser();
+  const router = useRouter();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export default function GmailIntegrationPage() {
 
   if (!isSignedIn) {
     return (
-      <div className="container max-w-4xl py-6">
+      <div className="container py-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Unauthorized</AlertTitle>
@@ -234,22 +236,58 @@ ${emailData.body || emailData.snippet || "No content available"}
   };
 
   return (
-    <div className="container max-w-4xl py-6 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Gmail Integration</h1>
+    <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2"
+          onClick={() => router.push("/integrations")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Integrations
+        </Button>
+      </div>
+
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold">Gmail Integration</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">
+          Connect your Gmail account to enable email analysis and insights.
+        </p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-6 w-6" />
-            Connect Gmail Account
-          </CardTitle>
+        <CardHeader className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-primary/10 rounded-md">
+              <Mail className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle>Connect Gmail Account</CardTitle>
+          </div>
           <CardDescription>
             Connect your Gmail account to enable email analysis and insights.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+          {/* Connection Status */}
+          {isCheckingStatus ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Checking connection status...
+            </div>
+          ) : success ? (
+            <div className="flex items-center gap-2 text-green-500">
+              <CheckCircle2 className="h-5 w-5" />
+              Connected to Gmail
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <XCircle className="h-5 w-5" />
+              Not connected
+            </div>
+          )}
+
+          {/* Error Message */}
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -258,128 +296,132 @@ ${emailData.body || emailData.snippet || "No content available"}
             </Alert>
           )}
 
-          {isCheckingStatus ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : success ? (
-            <div className="space-y-4">
-              <Alert>
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle>Connected</AlertTitle>
-                <AlertDescription>
-                  Your Gmail account is successfully connected.
-                </AlertDescription>
-              </Alert>
-              
-              <div className="flex gap-2">
+          {/* Features List */}
+          <div className="space-y-3">
+            <h3 className="font-medium">What this integration enables:</h3>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                Analysis of email patterns and communication trends
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                Automated categorization of emails
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                Insights into email response times and engagement
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                Search and retrieval across your email history
+              </li>
+            </ul>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            {success ? (
+              <>
                 <Button 
                   variant="destructive" 
                   onClick={handleDisconnect}
                   className="w-full sm:w-auto"
                 >
-                  <XCircle className="h-4 w-4 mr-2" />
                   Disconnect Gmail
                 </Button>
-                
                 <Button
                   variant="outline"
                   onClick={handleDebugFetch}
                   disabled={isLoadingEmails}
                   className="w-full sm:w-auto"
                 >
-                  <Bug className="h-4 w-4 mr-2" />
-                  {isLoadingEmails ? "Loading..." : "Debug: Show Emails"}
+                  {isLoadingEmails ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Bug className="h-4 w-4 mr-2" />
+                      Test Connection
+                    </>
+                  )}
                 </Button>
-              </div>
-            </div>
-          ) : (
-            <Button
-              onClick={handleGmailConnect}
-              disabled={isConnecting}
-              className="w-full sm:w-auto"
-            >
-              {isConnecting ? (
-                <>
-                  <span className="animate-spin mr-2">⭮</span>
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Connect Gmail
-                </>
-              )}
-            </Button>
-          )}
-
-          <div className="mt-6 space-y-2">
-            <h3 className="font-medium">What this integration enables:</h3>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-              <li>Analysis of email patterns and communication trends</li>
-              <li>Automated categorization of emails</li>
-              <li>Insights into email response times and engagement</li>
-              <li>Search and retrieval across your email history</li>
-            </ul>
+              </>
+            ) : (
+              <Button 
+                onClick={handleGmailConnect}
+                disabled={isConnecting}
+                className="w-full sm:w-auto"
+              >
+                {isConnecting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Connect Gmail
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>
-              We only request read access to your emails. You can revoke access at any time
-              through your Google Account settings or by clicking the Disconnect button above.
-            </p>
-          </div>
+          {/* Privacy Notice */}
+          <p className="text-xs text-muted-foreground">
+            We only request read access to your emails. You can revoke access at any time through your Google Account settings
+            or by clicking the Disconnect button above.
+          </p>
         </CardContent>
       </Card>
 
+      {/* Debug Modal */}
       <Dialog open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Debug: Email Headers Preview</DialogTitle>
+            <DialogTitle>Gmail Integration Test</DialogTitle>
             <DialogDescription>
               Showing the most recent emails from your Gmail account.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {emails.map((email) => (
-              <Card key={email.id} className="p-4">
-                <div className="space-y-2">
-                  {email.from && (
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {email.from}
-                    </p>
-                  )}
-                  {email.subject && (
-                    <p className="text-sm font-semibold">
-                      {email.subject}
-                    </p>
-                  )}
-                  {(email.body || email.snippet) && (
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-40 overflow-auto">
-                      {email.body || email.snippet}
-                    </p>
-                  )}
-                  <div className="pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleIngestEmail(email.id, email)}
-                      disabled={email.isIngesting}
-                    >
-                      {email.isIngesting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Ingesting...
-                        </>
-                      ) : (
-                        <>
-                          <Mail className="h-4 w-4 mr-2" />
-                          Ingest Email
-                        </>
-                      )}
-                    </Button>
+              <Card key={email.id}>
+                <CardHeader>
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <CardTitle className="text-base">{email.subject}</CardTitle>
+                      <CardDescription>{email.from}</CardDescription>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {email.date}
+                    </span>
                   </div>
-                </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    {email.body || email.snippet || "No preview available"}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => handleIngestEmail(email.id, email)}
+                    disabled={email.isIngesting}
+                  >
+                    {email.isIngesting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Ingesting...
+                      </>
+                    ) : (
+                      "Ingest Email"
+                    )}
+                  </Button>
+                </CardContent>
               </Card>
             ))}
           </div>

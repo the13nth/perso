@@ -3,12 +3,13 @@
 import { useState, useEffect, useMemo, memo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, FileText, StickyNote, Activity, Trash2, Database, LineChart } from "lucide-react";
+import { Loader2, FileText, StickyNote, Activity, Trash2, Database, LineChart, Minimize2 } from "lucide-react";
 import { format } from "date-fns";
 import StorageDocuments from "./StorageDocuments";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import VisualizationTab from "./VisualizationTab";
+import SimplifiedVisualizationTab from "./SimplifiedVisualizationTab";
 
 interface Note {
   id: string;
@@ -130,8 +131,8 @@ const NotesTab = memo(function NotesTab({
       {notes.map((note) => (
         <Card key={note.id}>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>{note.title || "Untitled Note"}</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <CardTitle className="text-base sm:text-lg line-clamp-1">{note.title || "Untitled Note"}</CardTitle>
               <div className="flex items-center gap-2">
                 {processing.has(note.id) ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -140,50 +141,54 @@ const NotesTab = memo(function NotesTab({
                     variant="destructive"
                     size="sm"
                     onClick={() => onDeleteEmbeddings(note)}
+                    className="w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
-                    Delete Embeddings
+                    <span className="hidden sm:inline">Delete Embeddings</span>
+                    <span className="sm:hidden">Delete</span>
                   </Button>
                 ) : (
                   <Button
                     variant="default"
                     size="sm"
                     onClick={() => onEmbed(note)}
+                    className="w-full sm:w-auto"
                   >
                     <Database className="h-4 w-4 mr-1" />
-                    Embed
+                    <span className="hidden sm:inline">Embed</span>
+                    <span className="sm:hidden">Embed</span>
                   </Button>
                 )}
               </div>
             </div>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               Created: {format(note.createdAt, 'PPP')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-sm text-muted-foreground">
-              <p className="line-clamp-2">{note.content}</p>
-              <div className="flex items-center gap-4 mt-2">
-                <div className="flex gap-2">
+              <p className="line-clamp-2 text-xs sm:text-sm">{note.content}</p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 mt-2">
+                <div className="flex flex-wrap gap-1 sm:gap-2">
                   {note.categories?.map((category: string) => (
-                    <span key={category} className="bg-secondary px-2 py-1 rounded-md text-xs">
+                    <span key={category} className="bg-secondary px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs">
                       {category}
                     </span>
                   ))}
                 </div>
                 {note.embeddings && (
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs">
                     <span className="text-muted-foreground">
                       {note.embeddings.totalChunks} chunks
                     </span>
-                    <span>•</span>
+                    <span className="hidden sm:inline">•</span>
                     <span className="text-muted-foreground">
                       {note.embeddings.embeddingDimensions}d
                     </span>
                     {note.embeddings.lastUpdated && (
                       <>
-                        <span>•</span>
-                        <span className="text-muted-foreground">
+                        <span className="hidden sm:inline">•</span>
+                        <span className="text-muted-foreground hidden sm:inline">
                           Updated: {format(new Date(note.embeddings.lastUpdated), 'PPP')}
                         </span>
                       </>
@@ -228,8 +233,8 @@ const ActivitiesTab = memo(function ActivitiesTab({
       {activities.map((activity) => (
         <Card key={activity.id}>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>{activity.activity}</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <CardTitle className="text-base sm:text-lg line-clamp-1">{activity.activity}</CardTitle>
               <div className="flex items-center gap-2">
                 {processing.has(activity.id) ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -238,50 +243,54 @@ const ActivitiesTab = memo(function ActivitiesTab({
                     variant="destructive"
                     size="sm"
                     onClick={() => onDeleteEmbeddings(activity)}
+                    className="w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
-                    Delete Embeddings
+                    <span className="hidden sm:inline">Delete Embeddings</span>
+                    <span className="sm:hidden">Delete</span>
                   </Button>
                 ) : (
                   <Button
                     variant="default"
                     size="sm"
                     onClick={() => onEmbed(activity)}
+                    className="w-full sm:w-auto"
                   >
                     <Database className="h-4 w-4 mr-1" />
-                    Embed
+                    <span className="hidden sm:inline">Embed</span>
+                    <span className="sm:hidden">Embed</span>
                   </Button>
                 )}
               </div>
             </div>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               Type: {activity.activity} • Created: {format(activity.createdAt, 'PPP')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-sm text-muted-foreground">
-              <p className="line-clamp-2">{activity.text}</p>
-              <div className="flex items-center gap-4 mt-2">
-                <div className="flex gap-2">
+              <p className="line-clamp-2 text-xs sm:text-sm">{activity.text}</p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 mt-2">
+                <div className="flex flex-wrap gap-1 sm:gap-2">
                   {activity.categories?.map((category: string) => (
-                    <span key={category} className="bg-secondary px-2 py-1 rounded-md text-xs">
+                    <span key={category} className="bg-secondary px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs">
                       {category}
                     </span>
                   ))}
                 </div>
                 {activity.embeddings && (
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs">
                     <span className="text-muted-foreground">
                       {activity.embeddings.totalChunks} chunks
                     </span>
-                    <span>•</span>
+                    <span className="hidden sm:inline">•</span>
                     <span className="text-muted-foreground">
                       {activity.embeddings.embeddingDimensions}d
                     </span>
                     {activity.embeddings.lastUpdated && (
                       <>
-                        <span>•</span>
-                        <span className="text-muted-foreground">
+                        <span className="hidden sm:inline">•</span>
+                        <span className="text-muted-foreground hidden sm:inline">
                           Updated: {format(new Date(activity.embeddings.lastUpdated), 'PPP')}
                         </span>
                       </>
@@ -290,7 +299,7 @@ const ActivitiesTab = memo(function ActivitiesTab({
                 )}
               </div>
               {activity.structuredData && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
                   <div>Duration: {activity.structuredData.activity.duration}</div>
                   <div>Energy: {activity.structuredData.activity.energy}</div>
                   {activity.structuredData.activity.endTime && (
@@ -298,7 +307,7 @@ const ActivitiesTab = memo(function ActivitiesTab({
                   )}
                 </div>
               )}
-          </div>
+            </div>
           </CardContent>
         </Card>
       ))}
@@ -579,45 +588,76 @@ export default function EmbeddingsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-8">
+    <div className="container mx-auto p-2 sm:p-4 space-y-4 sm:space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Knowledge Base</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Knowledge Base</h1>
       </div>
 
       <Tabs defaultValue="documents" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="documents" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Documents
-          </TabsTrigger>
-          <TabsTrigger value="notes" className="flex items-center gap-2">
-            <StickyNote className="h-4 w-4" />
-            Notes ({notes.length})
-          </TabsTrigger>
-          <TabsTrigger value="activities" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            Activities ({activities.length})
-          </TabsTrigger>
-          <TabsTrigger value="visualization" className="flex items-center gap-2">
-            <LineChart className="h-4 w-4" />
-            Visualization
-          </TabsTrigger>
-        </TabsList>
-
+        <div className="border-b">
+          <TabsList className="flex flex-nowrap overflow-x-auto sm:flex-wrap -mb-px gap-1 sm:gap-2 p-1 sm:p-0 bg-transparent">
+            <TabsTrigger 
+              value="documents" 
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors"
+            >
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Documents</span>
+              <span className="sm:hidden">Docs</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="notes" 
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors whitespace-nowrap"
+            >
+              <StickyNote className="h-4 w-4" />
+              <span className="hidden sm:inline">Notes</span>
+              <span className="sm:hidden">Notes</span>
+              <span className="text-xs">({notes.length})</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="activities" 
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors whitespace-nowrap"
+            >
+              <Activity className="h-4 w-4" />
+              <span className="hidden sm:inline">Activities</span>
+              <span className="sm:hidden">Acts</span>
+              <span className="text-xs">({activities.length})</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="visualization" 
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors whitespace-nowrap"
+            >
+              <LineChart className="h-4 w-4" />
+              <span className="hidden sm:inline">Visualization</span>
+              <span className="sm:hidden">Viz</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="simplified-visualization" 
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors whitespace-nowrap"
+            >
+              <Minimize2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Simplified View</span>
+              <span className="sm:hidden">Simple</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent value="documents" className="space-y-4">
           <StorageDocuments onDocumentsChange={setDocuments} />
         </TabsContent>
-
         <TabsContent value="notes" className="space-y-4">
           <NotesTab {...memoizedNotes} />
         </TabsContent>
-
         <TabsContent value="activities" className="space-y-4">
           <ActivitiesTab {...memoizedActivities} />
         </TabsContent>
-
         <TabsContent value="visualization" className="space-y-4">
           <VisualizationTab 
+            documents={documents} 
+            notes={notes} 
+            activities={activities}
+          />
+        </TabsContent>
+        <TabsContent value="simplified-visualization" className="space-y-4">
+          <SimplifiedVisualizationTab 
             documents={documents} 
             notes={notes} 
             activities={activities}

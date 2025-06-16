@@ -99,12 +99,17 @@ export async function storeAgentWithContext(
   selectedContextIds: string[],
   ownerId: string
 ): Promise<AgentMetadata> {
-  const index = await initIndex();
+  if (!index) await initIndexes();
+
   const agentConfig = config as Partial<AgentMetadata>;
+  
+  // Normalize the agent ID
+  const normalizedId = agentId.replace(/^agent_/, '');
+  const prefixedId = `agent_${normalizedId}`;
   
   // Store agent metadata
   const metadata: AgentMetadata = {
-    agentId,
+    agentId: normalizedId, // Store normalized ID in metadata
     name: agentConfig.name || '',
     description: agentConfig.description || '',
     category: agentConfig.category || '',
@@ -126,7 +131,7 @@ export async function storeAgentWithContext(
   );
   
   await index.upsert([{
-    id: `agent_${agentId}`,
+    id: prefixedId, // Use prefixed ID for storage
     values: configEmbedding,
     metadata: metadata as unknown as RecordMetadata
   }]);
@@ -163,15 +168,29 @@ export async function storeAgentWithContext(
 }
 
 export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
-  const index = await initIndex();
-  const response = await index.fetch([`agent_${agentId}`]);
+  if (!index) await initIndexes();
+
+  // Normalize the agent ID
+  const normalizedId = agentId.replace(/^agent_/, '');
+  const prefixedId = `agent_${normalizedId}`;
   
-  const agent = response.records[`agent_${agentId}`];
-  if (!agent || !agent.metadata) {
+  console.log('Fetching agent with normalized ID:', normalizedId);
+  console.log('Using Pinecone index:', process.env.PINECONE_INDEX);
+  
+  // Try fetching with both formats
+  const response = await index.fetch([prefixedId]);
+  
+  if (!response.records[prefixedId]) {
+    console.log('Agent not found with ID:', prefixedId);
     throw new Error('Agent not found');
   }
 
-  return agent.metadata as unknown as AgentMetadata;
+  const metadata = response.records[prefixedId].metadata as AgentMetadata;
+  
+  // Ensure consistent ID format in metadata
+  metadata.agentId = normalizedId;
+  
+  return metadata;
 }
 
 export async function getAgentContext(agentId: string, query?: string): Promise<Document[]> {
@@ -182,133 +201,28 @@ export async function getAgentContext(agentId: string, query?: string): Promise<
     ? await embeddings.embedQuery(query)
     : await embeddings.embedQuery("general context");
 
-  // Determine agent category and build appropriate filter
-  const agentCategory = agentConfig.category?.toLowerCase() || '';
-  let categorySpecificFilter;
-
-  if (agentCategory.includes('finance') || agentConfig.description?.toLowerCase().includes('financial')) {
-    categorySpecificFilter = {
-      $and: [
-        { 
-          type: { 
-            $in: ["comprehensive_activity", "transaction", "financial_record", "document"] 
-          } 
-        },
-        { 
-          $or: [
-            { primaryCategory: { $eq: "finances" } },
-            { category: { $eq: "finances" } },
-            { contentType: { $eq: "document" } }
-          ]
-        }
-      ]
-    };
-  } else if (agentCategory.includes('run') || agentConfig.description?.toLowerCase().includes('running')) {
-    categorySpecificFilter = {
-      $and: [
-        { 
-          type: { 
-            $in: ["comprehensive_activity", "activity", "physical"] 
-          } 
-        },
-        { 
-          $or: [
-            { activity: { $eq: "running" } },
-            { activityType: { $eq: "physical" } },
-            { category: { $eq: "physical" } }
-          ]
-        }
-      ]
-    };
-  } else {
-    // Default filter for other agent types
-    categorySpecificFilter = {
-      $and: [
-        { type: { $in: ["comprehensive_activity", "activity"] } },
-        { 
-          $or: [
-            { categories: { $in: agentConfig.selectedContextIds || [] } },
-            { activity: { $in: agentConfig.selectedContextIds || [] } },
-            { activityType: { $in: agentConfig.selectedContextIds || [] } },
-            { category: { $in: agentConfig.selectedContextIds || [] } }
-          ]
-        }
-      ]
-    };
-  }
-
-  // Build final filter combining agent-specific and category-specific filters
-  const filter = {
-    $or: [
-      // Direct agent context
-      { agentId },
-      { id: { $in: agentConfig.selectedContextIds || [] } },
-      { type: 'context', agentId },
-      // Category-specific filter
-      categorySpecificFilter
-    ]
-  };
-
-  console.log('DEBUG: Querying with filter:', JSON.stringify(filter, null, 2));
-
-  // First get high relevance matches
-  const highRelevanceResponse = await index.query({
+  // Query for relevant context
+  const queryResponse = await index.query({
     vector: queryEmbedding,
-    filter,
-    topK: 15,
+    filter: {
+      agentId: { $eq: agentId },
+      type: { $eq: "context" }
+    },
     includeMetadata: true,
-    includeValues: false
+    topK: 10
   });
 
-  // Then get additional context
-  const additionalFilter = {
-    $and: [
-      { ...filter },
-      { id: { $nin: highRelevanceResponse.matches.map(m => m.id) } }
-    ]
-  };
-
-  const additionalResponse = await index.query({
-    vector: queryEmbedding,
-    filter: additionalFilter,
-    topK: 10,
-    includeMetadata: true,
-    includeValues: false
-  });
-
-  console.log('DEBUG: High relevance matches:', highRelevanceResponse.matches.length);
-  console.log('DEBUG: Additional matches:', additionalResponse.matches.length);
-
-  // Combine and process matches
-  const allMatches = [...highRelevanceResponse.matches, ...additionalResponse.matches];
-  
-  // Process matches into documents with enhanced metadata
-  const documents: Document[] = allMatches.map(match => {
-    // Extract and clean the content
-    let content = String(match.metadata?.content || match.metadata?.text || '');
-    
-    // Add metadata about the document type and source
-    const metadata = {
-      source: match.metadata?.source || match.metadata?.type || 'Unknown',
-      title: match.metadata?.title || '',
-      score: match.score || 0,
-      type: match.metadata?.type || 'unknown',
-      category: match.metadata?.category || match.metadata?.primaryCategory || 'unknown',
-      timestamp: match.metadata?.createdAt || match.metadata?.timestamp || '',
-      documentId: match.id
-    };
-
+  // Convert to Documents
+  return queryResponse.matches.map(match => {
+    const metadata = match.metadata as PineconeMetadata;
     return new Document({
-      pageContent: content,
-      metadata
+      pageContent: metadata.content,
+      metadata: {
+        source: metadata.source,
+        score: parseFloat(metadata.score)
+      }
     });
   });
-
-  // Sort by relevance score
-  documents.sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0));
-
-  console.log('DEBUG: Returning documents:', documents.length);
-  return documents;
 }
 
 export async function initIndexes() {
@@ -557,4 +471,15 @@ export async function initSystemContexts() {
     await index.upsert(systemContexts);
     console.log(`Stored ${systemContexts.length} system contexts`);
   }
+}
+
+let pineconeClient: Pinecone | null = null;
+
+export async function getPineconeClient(): Promise<Pinecone> {
+  if (!pineconeClient) {
+    pineconeClient = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY!,
+    });
+  }
+  return pineconeClient;
 } 

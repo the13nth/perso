@@ -49,7 +49,8 @@ export async function GET(req: NextRequest) {
         userId: { $eq: userId }
       },
       topK: 100,
-      includeMetadata: true
+      includeMetadata: true,
+      includeValues: true
     });
 
     // No embeddings found
@@ -59,12 +60,19 @@ export async function GET(req: NextRequest) {
 
     // Calculate metadata from matches
     const totalChunks = queryResponse.matches.length;
-    const embeddingDimensions = queryResponse.matches[0].values.length;
-    const lastUpdated = queryResponse.matches
-      .map(match => match.metadata?.timestamp as string)
-      .filter(Boolean)
+    
+    // Check if first match and its values exist
+    const firstMatch = queryResponse.matches[0];
+    const embeddingDimensions = firstMatch?.values?.length ?? 768; // Default to standard dimension if not available
+    
+    // Get last updated timestamp
+    const timestamps = queryResponse.matches
+      .map(match => match.metadata?.timestamp)
+      .filter((timestamp): timestamp is string => typeof timestamp === 'string')
       .sort()
-      .reverse()[0] || null;
+      .reverse();
+    
+    const lastUpdated = timestamps.length > 0 ? timestamps[0] : null;
 
     return NextResponse.json({
       metadata: {

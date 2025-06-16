@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Plus, Loader2, ExternalLink, AlertCircle, RefreshCw, Rocket, Activity, Brain, Zap } from "lucide-react";
+import { Bot, Plus, Loader2, ExternalLink, AlertCircle, RefreshCw, Rocket, Activity, Brain, Zap, LayoutDashboard, User, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -14,6 +14,9 @@ import { toast } from 'sonner';
 import { Progress } from "@/components/ui/progress";
 import { AgentRunMetrics } from '@/lib/services/agent-runner';
 import { AgentResultsDialog } from '@/app/components/AgentResultsDialog';
+import { Avatar } from "@/app/components/ui/avatar";
+import { Eye, MessageSquare } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AgentMetrics {
   successRate: number;
@@ -238,7 +241,7 @@ function AgentsContent() {
   const [userAgents, setUserAgents] = useState<AgentMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [isLaunching, setIsLaunching] = useState(false);
   const [agentMetrics, setAgentMetrics] = useState<Record<string, AgentRunMetrics>>({});
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics>({
@@ -247,6 +250,7 @@ function AgentsContent() {
     totalRuns: 0,
     overallSuccess: 0
   });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -343,6 +347,11 @@ function AgentsContent() {
     }
   };
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setIsMobileMenuOpen(false); // Close mobile menu when tab changes
+  };
+
   if (error) {
     return (
       <div className="container max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
@@ -352,40 +361,73 @@ function AgentsContent() {
   }
 
   return (
-    <div className="container max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">AI Agents Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Monitor and manage your AI agents</p>
+          <h1 className="text-xl sm:text-2xl font-bold">AI Agents Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Monitor and manage your AI agents
+          </p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Button 
-            className="flex-1 sm:flex-none shadow-sm"
-            size="lg"
+            size="sm" 
+            className="w-full sm:w-auto" 
+            variant="outline"
             onClick={launchAllAgents}
             disabled={isLaunching || userAgents.length === 0}
           >
-            <Rocket className="h-5 w-5 mr-2" aria-hidden="true" />
+            <Rocket className="w-4 h-4 mr-2" />
             {isLaunching ? 'Launching...' : 'Launch All Agents'}
           </Button>
           <Link href="/agents/create">
-            <Button variant="outline" className="w-full sm:w-auto shadow-sm" size="lg">
-              <Plus className="h-5 w-5 mr-2" aria-hidden="true" />
+            <Button size="sm" className="w-full sm:w-auto">
+              <Plus className="w-4 h-4 mr-2" />
               Create Agent
             </Button>
           </Link>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 max-w-[400px]">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="my-agents">My Agents</TabsTrigger>
-          <TabsTrigger value="public">Public Agents</TabsTrigger>
-        </TabsList>
+      <Tabs 
+        value={activeTab} 
+        onValueChange={handleTabChange} 
+        className="space-y-4"
+      >
+        <div className={cn(
+          "border-b transition-all duration-200",
+          isMobileMenuOpen ? "pb-4" : "pb-0"
+        )}>
+          <TabsList 
+            className="flex flex-nowrap overflow-x-auto sm:flex-wrap -mb-px gap-1 sm:gap-2 p-1 sm:p-0 bg-transparent"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            <TabsTrigger 
+              value="dashboard" 
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Dashboard</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="my-agents"
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors"
+            >
+              <User className="w-4 h-4" />
+              <span>My Agents</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="public-agents"
+              className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base px-2 sm:px-4 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none hover:text-primary transition-colors"
+            >
+              <Globe className="w-4 h-4" />
+              <span>Public Agents</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="dashboard" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <TabsContent value="dashboard" className="space-y-4">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             <DashboardCard
               title="Total Agents"
               value={dashboardMetrics.totalAgents}
@@ -431,7 +473,7 @@ function AgentsContent() {
           </div>
         </TabsContent>
 
-        <TabsContent value="my-agents" className="space-y-6">
+        <TabsContent value="my-agents" className="space-y-4">
           {isLoading ? (
             <LoadingState type="user" />
           ) : userAgents.length > 0 ? (
@@ -445,7 +487,7 @@ function AgentsContent() {
           )}
         </TabsContent>
 
-        <TabsContent value="public" className="space-y-6">
+        <TabsContent value="public-agents" className="space-y-4">
           {isLoading ? (
             <LoadingState type="public" />
           ) : publicAgents.length > 0 ? (

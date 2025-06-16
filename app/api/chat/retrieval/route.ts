@@ -3,9 +3,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { SwarmRetrievalService } from '@/app/lib/services/SwarmRetrievalService';
+import { RetrievalService } from '@/app/lib/services/RetrievalService';
 
-const retrievalService = new SwarmRetrievalService();
+const retrievalService = new RetrievalService();
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Process the retrieval request using swarm
+    // Process the retrieval request
     const result = await retrievalService.processRetrievalRequest(
       lastUserMessage.content,
       userId,

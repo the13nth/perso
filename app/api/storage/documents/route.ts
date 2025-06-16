@@ -25,10 +25,10 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      // List files in the user's directory
+    // List files in the user's directory
       const [files] = await adminStorage.getFiles({
-        prefix: `users/${userId}/`,
-      });
+      prefix: `users/${userId}/`,
+    });
 
       // If no files found, return empty array
       if (!files || files.length === 0) {
@@ -38,21 +38,21 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // Transform file metadata into the required format
-      const documents = await Promise.all(files.map(async (file) => {
-        const [metadata] = await file.getMetadata();
-        
-        return {
-          id: file.name,
-          name: file.name.split('/').pop() || file.name,
-          type: metadata.contentType || 'application/octet-stream',
-          size: parseInt(String(metadata.size || '0')),
-          createdAt: metadata.timeCreated,
-          path: file.name,
-        };
-      }));
+    // Transform file metadata into the required format
+    const documents = await Promise.all(files.map(async (file) => {
+      const [metadata] = await file.getMetadata();
+      
+      return {
+        id: file.name,
+        name: file.name.split('/').pop() || file.name,
+        type: metadata.contentType || 'application/octet-stream',
+        size: parseInt(String(metadata.size || '0')),
+        createdAt: metadata.timeCreated,
+        path: file.name,
+      };
+    }));
 
-      return NextResponse.json({ documents });
+    return NextResponse.json({ documents });
     } catch (bucketError: any) {
       // Handle specific bucket errors
       if (bucketError.code === 404) {

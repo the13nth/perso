@@ -4370,12 +4370,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pinecone-database/pinecone@npm:3.0.2":
-  version: 3.0.2
-  resolution: "@pinecone-database/pinecone@npm:3.0.2"
-  dependencies:
-    encoding: ^0.1.13
-  checksum: 9e45c4616478022d95a74a75b8e242438adea61743a32664affd8c5bf9d79227c5d6245c449f35ebd0d7bd0dc006624bff2dfb1b76332545debee73103677509
+"@pinecone-database/pinecone@npm:^6.1.1":
+  version: 6.1.1
+  resolution: "@pinecone-database/pinecone@npm:6.1.1"
+  checksum: 92302cf5c87f4ddc45c37276b81bf7940995ddf8816e1ad88c21cc90ead3ac1745a9ca77c4773a39c59dee9e09cbeccca572e5681389800aac088c07bbaa8c9d
   languageName: node
   linkType: hard
 
@@ -4616,6 +4614,29 @@ __metadata:
     "@types/react-dom":
       optional: true
   checksum: 6cdf74f06090f8994cdf6d3935a44ea3ac309163a4f59c476482c4907e8e0775f224045030abf10fa4f9e1cb7743db034429249b9e59354988e247eeb0f4fdcf
+  languageName: node
+  linkType: hard
+
+"@radix-ui/react-avatar@npm:^1.1.10":
+  version: 1.1.10
+  resolution: "@radix-ui/react-avatar@npm:1.1.10"
+  dependencies:
+    "@radix-ui/react-context": 1.1.2
+    "@radix-ui/react-primitive": 2.1.3
+    "@radix-ui/react-use-callback-ref": 1.1.1
+    "@radix-ui/react-use-is-hydrated": 0.1.0
+    "@radix-ui/react-use-layout-effect": 1.1.1
+  peerDependencies:
+    "@types/react": "*"
+    "@types/react-dom": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: 3d63c9b99549c574be0f3f24028ab3f339e51ca85fc0821887f83e30af1342a41b3a3f40bf0fc12cdb2814340342530b4aba6b758deda9e99f6846b41d2f987f
   languageName: node
   linkType: hard
 
@@ -5516,6 +5537,21 @@ __metadata:
     "@types/react":
       optional: true
   checksum: 0eb0756c2c55ddcde9ff01446ab01c085ab2bf799173e97db7ef5f85126f9e8600225570801a1f64740e6d14c39ffe8eed7c14d29737345a5797f4622ac96f6f
+  languageName: node
+  linkType: hard
+
+"@radix-ui/react-use-is-hydrated@npm:0.1.0":
+  version: 0.1.0
+  resolution: "@radix-ui/react-use-is-hydrated@npm:0.1.0"
+  dependencies:
+    use-sync-external-store: ^1.5.0
+  peerDependencies:
+    "@types/react": "*"
+    react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+  checksum: 72e68a85a7a4a6dafd255a0cc87b6410bf0356c5e296e2eb82c265559408a735204cd150408b9c0d598057dafad3d51086e0362633bd728e95655b3bfd70ae26
   languageName: node
   linkType: hard
 
@@ -21005,10 +21041,11 @@ __metadata:
     "@netlify/plugin-nextjs": ^5.11.2
     "@next/bundle-analyzer": ^14.1.0
     "@next/eslint-plugin-next": ^15.3.3
-    "@pinecone-database/pinecone": 3.0.2
+    "@pinecone-database/pinecone": ^6.1.1
     "@prisma/client": ^6.9.0
     "@radix-ui/primitive": latest
     "@radix-ui/react-alert-dialog": 0.1.7
+    "@radix-ui/react-avatar": ^1.1.10
     "@radix-ui/react-checkbox": ^1.1.3
     "@radix-ui/react-dialog": ^1.1.4
     "@radix-ui/react-dropdown-menu": ^2.1.15
@@ -21455,7 +21492,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"use-sync-external-store@npm:^1.2.0, use-sync-external-store@npm:^1.2.2, use-sync-external-store@npm:^1.4.0":
+"use-sync-external-store@npm:^1.2.0, use-sync-external-store@npm:^1.2.2, use-sync-external-store@npm:^1.4.0, use-sync-external-store@npm:^1.5.0":
   version: 1.5.0
   resolution: "use-sync-external-store@npm:1.5.0"
   peerDependencies:

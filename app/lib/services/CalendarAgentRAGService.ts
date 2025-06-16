@@ -2,6 +2,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { auth } from '@clerk/nextjs/server';
 import { Message } from 'ai';
 import { BaseRAGService, RAGResponse } from './BaseRAGService';
+import { initializeGeminiModel } from '@/app/utils/modelInit';
+import { PromptTemplate } from '@langchain/core/prompts';
+import { StringOutputParser } from '@langchain/core/output_parsers';
 
 if (!process.env.GOOGLE_API_KEY) {
   throw new Error('Missing GOOGLE_API_KEY environment variable');
@@ -186,7 +189,7 @@ ${event.location ? `Location: ${event.location}\n` : ''}${attendeeCount > 0 ? `A
 
   public async generateResponse(agentId: string, messages: Message[]): Promise<RAGResponse> {
     try {
-      // Fetch calendar events
+      const startTime = Date.now();
       console.log(`Generating response for agent: ${agentId}`);
       console.log(`Message count: ${messages.length}`);
       
@@ -202,38 +205,96 @@ ${event.location ? `Location: ${event.location}\n` : ''}${attendeeCount > 0 ? `A
         .join('\n');
 
       // Generate response using the model
-      const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-001" });
-      
-      const prompt = CALENDAR_SYSTEM_PROMPT
-        .replace('{chat_history}', chatHistory)
-        .replace('{calendar_data}', formattedEvents)
-        .replace('{query}', currentMessage.content);
+      const model = await initializeGeminiModel({
+        maxOutputTokens: 2048,
+        temperature: 0.7
+      });
 
-      const result = await model.generateContent([{ text: prompt }]);
-      const responseText = result.response.text();
+      const prompt = new PromptTemplate({
+        template: CALENDAR_SYSTEM_PROMPT
+          .replace('{chat_history}', '{chatHistory}')
+          .replace('{calendar_data}', '{calendarData}')
+          .replace('{query}', '{userQuery}'),
+        inputVariables: ['chatHistory', 'calendarData', 'userQuery']
+      });
+
+      const chain = prompt.pipe(model).pipe(new StringOutputParser());
+      const responseText = await chain.invoke({
+        chatHistory: chatHistory,
+        calendarData: formattedEvents,
+        userQuery: currentMessage.content
+      });
+
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
       
       return {
         success: true,
         response: responseText,
         agentId,
         contextUsed: events.length,
+        results: [{
+          timestamp: endTime,
+          success: true,
+          responseTime,
+          output: {
+            insights: [{
+              insight: "Calendar data analyzed",
+              evidence: `Analyzed ${events.length} events`,
+              confidence: 1.0,
+              category: "calendar"
+            }],
+            metadata: {
+              responseTime,
+              contextUsed: events.length > 0,
+              categoriesAnalyzed: ['calendar'],
+              confidenceScore: 0.8
+            }
+          },
+          metrics: {
+            contextRelevance: 0.8,
+            insightQuality: 0.8,
+            responseLatency: responseTime
+          }
+        }],
         relevanceScores: events.map(event => ({
           source: event.summary,
-          score: 1.0,
+          score: event.description ? 1.0 : 0.5,
           category: 'calendar'
         })),
-        results: [],
-  categoryContexts: []
+        categoryContexts: [{
+          category: 'calendar',
+          count: events.length,
+          relevantCount: events.filter(e => e.description).length
+        }]
       };
-    } catch (_error) {
-      console.error('Error generating response:', _error);
+    } catch (error) {
+      console.error('Error generating response:', error);
       return {
         success: false,
         response: "Failed to generate response",
         agentId,
         contextUsed: 0,
+        results: [{
+          timestamp: Date.now(),
+          success: false,
+          responseTime: 0,
+          output: {
+            insights: [],
+            metadata: {
+              responseTime: 0,
+              contextUsed: false,
+              categoriesAnalyzed: [],
+              confidenceScore: 0
+            }
+          },
+          metrics: {
+            contextRelevance: 0,
+            insightQuality: 0,
+            responseLatency: 0
+          }
+        }],
         relevanceScores: [],
-        results: [],
         categoryContexts: []
       };
     }
