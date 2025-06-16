@@ -12,15 +12,21 @@ NODE_VERSION = "18"
 # Function configurations
 [functions]
   node_bundler = "esbuild"
-  max_body_size = "10mb"
+  included_files = ["**/*.json"]
 
-[functions."app/api/**"]
-  timeout = 30
-  max_body_size = "10mb"
+[[functions]]
+  pattern = "app/api/**"
+  included_files = ["**/*.json"]
+  external_node_modules = ["@pinecone-database/pinecone"]
+  [functions.environment]
+    MAX_BODY_SIZE = "10mb"
 
-[functions."app/api/agents/*/questions/*"]
-  timeout = 30
-  max_body_size = "10mb"
+[[functions]]
+  pattern = "app/api/agents/*/questions/*"
+  included_files = ["**/*.json"]
+  external_node_modules = ["@pinecone-database/pinecone"]
+  [functions.environment]
+    MAX_BODY_SIZE = "10mb"
 
 # Environment variables that must be set on Netlify
 [template.environment]
