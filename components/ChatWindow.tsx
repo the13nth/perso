@@ -9,10 +9,10 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 // Define UIMessage type locally
 type UIMessage = Message & {
   sources?: Array<{
-    pageContent: string;
-    metadata?: {
-      loc?: { lines: { from: number; to: number; }; };
-    };
+    contentPreview: string;
+    source: string;
+    score: number;
+    category: string;
   }>;
   parts?: Array<{
     type: 'tool-invocation' | 'text';
@@ -35,15 +35,10 @@ import { Input } from "./ui/input";
 import { cn } from "@/utils/cn";
 
 interface Source {
-  pageContent: string;
-  metadata?: {
-    loc?: {
-      lines: {
-        from: number;
-        to: number;
-      };
-    };
-  };
+  contentPreview: string;
+  source: string;
+  score: number;
+  category: string;
 }
 
 export function ChatInput(props: {

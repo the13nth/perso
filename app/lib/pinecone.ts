@@ -194,32 +194,93 @@ export async function getAgentConfig(agentId: string): Promise<AgentMetadata> {
 }
 
 export async function getAgentContext(agentId: string, query?: string): Promise<Document[]> {
-  const index = await initIndex();
-  const agentConfig = await getAgentConfig(agentId);
-  
-  const queryEmbedding = query 
-    ? await embeddings.embedQuery(query)
-    : await embeddings.embedQuery("general context");
+  if (!index) await initIndexes();
 
-  // Query for relevant context
-  const queryResponse = await index.query({
-    vector: queryEmbedding,
-    filter: {
-      agentId: { $eq: agentId },
-      type: { $eq: "context" }
-    },
-    includeMetadata: true,
-    topK: 10
+  console.log(`[Pinecone] Getting context for agent: ${agentId}`);
+  
+  // Get agent config to get selectedContextIds
+  const agentConfig = await getAgentConfig(agentId);
+  console.log(`[Pinecone] Agent config:`, {
+    selectedContextIds: agentConfig.selectedContextIds,
+    category: agentConfig.category
   });
 
-  // Convert to Documents
-  return queryResponse.matches.map(match => {
-    const metadata = match.metadata as PineconeMetadata;
+  // First, check if any documents exist for this agent
+  console.log('[Pinecone] Checking for any existing documents');
+  const checkResponse = await index.query({
+    vector: await embeddings.embedQuery("general context"),
+    filter: { agentId },  // Just filter by agentId first
+    topK: 10,
+    includeMetadata: true
+  });
+
+  console.log(`[Pinecone] Found ${checkResponse.matches?.length || 0} total documents for agent`);
+  if (checkResponse.matches?.length) {
+    console.log('[Pinecone] Sample document metadata:', checkResponse.matches[0].metadata);
+  }
+
+  // Get query embedding for actual search
+  console.log('[Pinecone] Generating query embedding');
+  const queryVector = query 
+    ? await embeddings.embedQuery(query)
+    : await embeddings.embedQuery("general context");
+  console.log('[Pinecone] Query embedding generated successfully');
+
+  // Query for documents matching our categories
+  const selectedContextIds = agentConfig.selectedContextIds || [];
+  console.log('[Pinecone] Querying with category filter:', {
+    filter: {
+      $and: [
+        { type: "document" },
+        { 
+          $or: [
+            { category: { $in: selectedContextIds } },
+            { categories: { $in: selectedContextIds } }
+          ]
+        }
+      ]
+    }
+  });
+
+  const queryResponse = await index.query({
+    vector: queryVector,
+    filter: {
+      $and: [
+        { type: "document" },
+        { 
+          $or: [
+            { category: { $in: selectedContextIds } },
+            { categories: { $in: selectedContextIds } }
+          ]
+        }
+      ]
+    },
+    topK: 10,
+    includeMetadata: true
+  });
+
+  console.log(`[Pinecone] Found ${queryResponse.matches?.length || 0} matches with filter`);
+  
+  // Log each match for debugging
+  queryResponse.matches?.forEach((match, i) => {
+    const text = match.metadata?.text;
+    console.log(`[Pinecone] Match ${i + 1}:`, {
+      id: match.id,
+      score: match.score,
+      categories: match.metadata?.categories,
+      category: match.metadata?.category,
+      type: match.metadata?.type,
+      textPreview: typeof text === 'string' ? text.substring(0, 100) + '...' : 'No text available'
+    });
+  });
+
+  // Convert matches to Documents
+  return (queryResponse.matches || []).map(match => {
     return new Document({
-      pageContent: metadata.content,
+      pageContent: String(match.metadata?.text || ''),
       metadata: {
-        source: metadata.source,
-        score: parseFloat(metadata.score)
+        ...match.metadata,
+        score: match.score
       }
     });
   });

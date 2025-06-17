@@ -10,6 +10,13 @@ interface Transaction {
   details: string;
 }
 
+interface Reference {
+  contentPreview: string;
+  source: string;
+  score: number;
+  category: string;
+}
+
 export type FormattedSection = 
   | { type: 'accountOverview'; content: AccountDetail[] }
   | { type: 'transactions'; content: Transaction[] }
@@ -17,7 +24,8 @@ export type FormattedSection =
   | { type: 'additionalInfo'; content: string }
   | { type: 'recommendations'; content: string[] }
   | { type: 'disclaimer'; content: string }
-  | { type: 'text'; content: string };
+  | { type: 'text'; content: string }
+  | { type: 'references'; content: Reference[] };
 
 const AccountOverview: React.FC<{ details: AccountDetail[] }> = ({ details }) => (
   <div className="bg-gray-800 rounded-lg p-4 mb-4">
@@ -85,6 +93,23 @@ const TextContent: React.FC<{ content: string }> = ({ content }) => (
   </div>
 );
 
+const References: React.FC<{ references: Reference[] }> = ({ references }) => (
+  <div className="bg-gray-800/50 rounded-lg p-4 mb-4 mt-2">
+    <h3 className="text-sm font-semibold text-blue-400 mb-2">Reference Documents</h3>
+    <div className="space-y-3">
+      {references.map((ref, index) => (
+        <div key={index} className="border-l-2 border-blue-500/30 pl-3">
+          <div className="text-gray-300 text-sm font-medium mb-1">
+            {ref.source} ({Math.round(ref.score * 100)}% relevance)
+          </div>
+          <div className="text-gray-400 text-sm">{ref.contentPreview}</div>
+          <div className="text-gray-500 text-xs mt-1">Category: {ref.category}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 export const MessageContent: React.FC<{ content: FormattedSection[] }> = ({ content }) => {
   return (
     <div className="space-y-4">
@@ -104,6 +129,8 @@ export const MessageContent: React.FC<{ content: FormattedSection[] }> = ({ cont
             return <Disclaimer key={index} content={section.content} />;
           case 'text':
             return <TextContent key={index} content={section.content} />;
+          case 'references':
+            return <References key={index} references={section.content} />;
           default:
             return null;
         }

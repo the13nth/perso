@@ -5,6 +5,6 @@ export default async function ChatPage({
 }: {
   params: Promise<{ agentId: string }>;
 }) {
-  const { agentId } = await params;
-  return <AgentChatInterface endpoint={`/api/agents/${agentId}/chat`} />;
+  const resolvedParams = await params;
+  return <AgentChatInterface endpoint={`/api/agents/${resolvedParams.agentId}/chat`} />;
 }

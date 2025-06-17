@@ -46,6 +46,8 @@ interface DocumentMetadata extends RecordMetadata {
   totalChunks: number;
   title: string;
   categories: string[];
+  category: string;
+  primaryCategory: string;
   type: 'document';
   source: 'user';
   access: string;
@@ -184,6 +186,8 @@ export async function POST(req: NextRequest) {
       const batchEmbeddings = await Promise.all(
         batchChunks.map(async (chunk, index) => {
           const embedding = await embeddings.embedQuery(chunk);
+          const mainCategory = metadata.categories?.[0] || 'general';
+          
           const docMetadata: DocumentMetadata = {
             text: chunk,
             documentId,
@@ -192,16 +196,19 @@ export async function POST(req: NextRequest) {
             totalChunks,
             title: metadata.fileName || 'Untitled Document',
             categories: metadata.categories || ['general'],
+            category: mainCategory,
+            primaryCategory: mainCategory,
             type: 'document',
             source: 'user',
             access: metadata.access || 'personal',
             fileName: metadata.fileName,
             fileType: metadata.fileType,
             fileSize: metadata.fileSize,
-            uploadedAt: metadata.uploadedAt
+            uploadedAt: new Date().toISOString()
           };
+
           return {
-            id: `${documentId}-${i + index}`,
+            id: `${documentId}_${i + index}`,
             values: embedding,
             metadata: docMetadata
           };

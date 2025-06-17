@@ -1,44 +1,47 @@
 "use client";
 
-import { type Message, type ToolCall } from "ai";
-import { useChat } from "ai/react";
-import React, { useState, useEffect, useCallback } from "react";
+import { useChat, Message } from "ai/react";
+import React, { useState, useCallback, useEffect } from "react";
 import type { FormEvent } from "react";
-import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "./ui/button";
-import { LoaderCircle, Bot, User, AlertCircle, Save } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
-import { cn } from "@/utils/cn";
-import { IntermediateStep } from "./IntermediateStep";
-import { CategorySelectionModal } from "./CategorySelectionModal";
+import { LoaderCircle, Bot, User, Save } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import { useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
+import { IntermediateStep } from "./IntermediateStep";
+import { CategorySelectionModal } from "./CategorySelectionModal";
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { format } from "date-fns";
 import { LangGraphUI, ProcessStep } from './LangGraphUI';
 import { CategoryBubble } from '@/app/components/chat/CategoryBubble';
+import { cn } from "@/utils/cn";
 
-interface ExtendedMessage extends Message {
+interface Source {
+  contentPreview: string;
+  source: string;
+  score: number;
+  category: string;
+}
+
+interface ToolCall {
+  id: string;
+  type: string;
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+interface ExtendedMessage extends Omit<Message, 'tool_calls'> {
   tool_calls?: ToolCall[];
   categoryContexts?: Array<{
     category: string;
     count: number;
     relevantCount: number;
   }>;
-}
-
-interface Source {
-  pageContent: string;
-  metadata?: {
-    loc?: {
-      lines: {
-        from: number;
-        to: number;
-      };
-    };
-  };
 }
 
 interface ChatCardProps {
@@ -198,73 +201,56 @@ const ChatCard = React.memo(({ message, aiEmoji, sources, sessionId, onSaveRespo
                       className="flex items-start"
                     >
                       <span className="mr-2 text-primary dark:text-primary-foreground">•</span>
-                      <span>{children}</span>
+                      {children}
                     </motion.li>
-                  ),
-                  p: ({ children }) => (
-                    <p className="mb-2 leading-relaxed">{children}</p>
-                  ),
-                  strong: ({ children }) => (
-                    <strong className="font-semibold text-primary dark:text-primary-foreground">{children}</strong>
-                  ),
-                  code: ({ children }) => (
-                    <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono">{children}</code>
-                  ),
+                  )
                 }}
               >
                 {processedContent}
               </ReactMarkdown>
             )}
-          </div>
-          
-          {sources && sources.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-xs font-medium text-muted-foreground">Sources</span>
-              </div>
-              <div className="space-y-2">
-                {sources.map((source, i) => (
-                  <motion.div
-                    key={`source-${i}`}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="text-xs bg-muted/50 p-2 sm:p-2 rounded hover:bg-muted/70 transition-colors"
-                  >
-                    <div className="font-medium break-words">{i + 1}. &ldquo;{source.pageContent}&rdquo;</div>
-                    {source.metadata?.loc?.lines && (
-                      <div className="text-muted-foreground mt-1">
-                        Lines {source.metadata.loc.lines.from} to {source.metadata.loc.lines.to}
+
+            {/* Add Sources Display */}
+            {!isUser && sources && sources.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 bg-gray-800/40 rounded-lg border border-gray-700"
+              >
+                <div className="px-4 py-2 border-b border-gray-700">
+                  <h3 className="text-sm font-medium text-gray-200">Sources & References</h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  {sources.map((source, index) => (
+                    <div key={index} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-blue-400">{source.source}</span>
+                        <span className="text-xs text-gray-400">
+                          {Math.round(source.score * 100)}% relevance
+                        </span>
                       </div>
-                    )}
-                  </motion.div>
+                      <p className="text-sm text-gray-300">{source.contentPreview}</p>
+                      <div className="text-xs text-gray-500">Category: {source.category}</div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Show category bubbles for AI messages */}
+            {isAssistant && message.categoryContexts && message.categoryContexts.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {message.categoryContexts.map((ctx) => (
+                  <CategoryBubble
+                    key={ctx.category}
+                    category={ctx.category}
+                    count={ctx.count}
+                    relevantCount={ctx.relevantCount}
+                  />
                 ))}
               </div>
-            </motion.div>
-          )}
-
-          {isAssistant && message.categoryContexts && message.categoryContexts.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-3 flex flex-wrap gap-2 border-t pt-3"
-            >
-              <span className="text-xs text-muted-foreground font-medium">Context used:</span>
-              {message.categoryContexts.map((ctx) => (
-                <CategoryBubble
-                  key={ctx.category}
-                  category={ctx.category}
-                  count={ctx.count}
-                  relevantCount={ctx.relevantCount}
-                />
-              ))}
-            </motion.div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
     </motion.div>
@@ -346,45 +332,26 @@ function ChatMessages({
   savedResponses: Set<string>;
   processingSteps: ProcessStep[];
 }) {
-  // Keep track of the last user message to show the graph after
-  const lastUserMessageIndex = [...messages].reverse().findIndex(m => m.role === 'user');
-  const lastUserMessage = lastUserMessageIndex !== -1 ? messages[messages.length - 1 - lastUserMessageIndex] : null;
-
   return (
-    <LayoutGroup>
-      <AnimatePresence mode="popLayout">
-        {messages.map((message, i) => {
-          const sourceKey = (messages.length - 1 - i).toString();
-          const previousUserMessage = messages[i - 1];
-          const messageKey = previousUserMessage && message.role === "assistant" 
-            ? `${previousUserMessage.content}-${message.content}` 
-            : `${message.id}`;
-          
-          const isLastUserMessage = message === lastUserMessage;
-          
-          return (
-            <div key={message.id} className="flex flex-col gap-4">
-              <ChatCard
-                message={message}
-                aiEmoji={aiEmoji}
-                sources={sourcesForMessages[sourceKey]}
-                sessionId={sessionId}
-                onSaveResponse={onSaveResponse}
-                previousUserMessage={previousUserMessage as Message}
-                isSaving={savingStates[messageKey] || false}
-                isSaved={savedResponses.has(messageKey)}
-              />
-              {isLastUserMessage && (
-                <LangGraphUI 
-                  steps={processingSteps}
-                  className="mt-4"
-                />
-              )}
-            </div>
-          );
-        })}
-      </AnimatePresence>
-    </LayoutGroup>
+    <div className="flex-1 space-y-6 overflow-y-auto">
+      <LayoutGroup>
+        <AnimatePresence initial={false}>
+          {messages.map((message, i) => (
+            <ChatCard
+              key={message.id}
+              message={message}
+              aiEmoji={aiEmoji}
+              sources={sourcesForMessages[message.id]}
+              sessionId={sessionId}
+              onSaveResponse={onSaveResponse}
+              previousUserMessage={messages[i - 1]?.role === 'user' ? messages[i - 1] : undefined}
+              isSaving={savingStates[message.id]}
+              isSaved={savedResponses.has(message.id)}
+            />
+          ))}
+        </AnimatePresence>
+      </LayoutGroup>
+    </div>
   );
 }
 
@@ -415,38 +382,21 @@ export function AgentChatInterface(props: {
 
   const chat = useChat({
     api: props.endpoint,
-    body: {
-      sessionId: sessionId,
-    },
-    onResponse(response) {
-      const sourcesHeader = response.headers.get("x-sources");
-      const sources = sourcesHeader
-        ? JSON.parse(Buffer.from(sourcesHeader, "base64").toString("utf8"))
-        : [];
-
-      const messageIndexHeader = response.headers.get("x-message-index");
-      if (sources.length && messageIndexHeader !== null) {
-        setSourcesForMessages({
-          ...sourcesForMessages,
-          [messageIndexHeader]: sources,
-        });
-      }
-
-      // Parse category contexts from response headers if available
-      const categoryContextsHeader = response.headers.get("x-category-contexts");
-      if (categoryContextsHeader) {
-        const categoryContexts = JSON.parse(Buffer.from(categoryContextsHeader, "base64").toString("utf8"));
-        const messages = chat.messages as ExtendedMessage[];
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage) {
-          lastMessage.categoryContexts = categoryContexts;
+    onFinish: (message) => {
+      try {
+        // Parse the message content as JSON
+        const data = JSON.parse(message.content);
+        if (data.closestMatches) {
+          // Store sources for this message
+          setSourcesForMessages(prev => ({
+            ...prev,
+            [message.id]: data.closestMatches
+          }));
         }
+      } catch (error) {
+        console.error('Error parsing message:', error);
       }
-    },
-    onError: (e) =>
-      toast.error(`Error while processing your request`, {
-        description: e.message,
-      }),
+    }
   }) as { messages: ExtendedMessage[] } & Omit<ReturnType<typeof useChat>, 'messages'>;
 
   const sendMessage = useCallback(async (e: FormEvent<HTMLFormElement>) => {

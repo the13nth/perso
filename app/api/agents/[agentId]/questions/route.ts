@@ -32,24 +32,46 @@ Name: {agentName}
 Description: {agentDescription}
 Contexts: {contexts}
 
-DATA AVAILABILITY:
+DATA SAMPLES:
 {dataSamples}
 
-Based on the agent's purpose and data availability, generate 3 specific and relevant questions.
+TASK:
+Generate 3 UNIQUE and HIGHLY SPECIFIC questions that demonstrate the agent's capabilities. Each question must be different in both topic and type.
 
-RULES:
-1. If actual data samples are provided, create questions that reference specific data points
-2. If NO data samples are provided, generate questions about:
-   - The agent's general capabilities
-   - How to provide/upload relevant data
-   - What types of insights the agent could provide once data is available
-3. NEVER generate questions that assume data exists when it doesn't
-4. Be explicit when asking about hypothetical scenarios vs actual data
+REQUIREMENTS:
+1. CONTEXT UTILIZATION:
+   - If data samples are available:
+     * MUST reference specific data points, metrics, or patterns from the samples
+     * Use actual values, dates, or categories from the data
+     * Focus on insights that can be derived from the available data
+   - If no data samples:
+     * Focus on the agent's specific expertise areas mentioned in description
+     * Ask about data upload/connection process
+     * Inquire about potential insights once data is available
+
+2. QUESTION DIVERSITY:
+   Each question MUST be a different type:
+   - ANALYTICAL: Ask for patterns, trends, or insights
+   - ACTIONABLE: Request specific recommendations or actions
+   - EXPLORATORY: Investigate relationships or correlations
+
+3. SPECIFICITY RULES:
+   - Include specific metrics, timeframes, or categories when available
+   - Reference actual context categories provided
+   - Use domain-specific terminology from the agent description
+   - Make questions impossible to answer with generic responses
+
+4. FORBIDDEN:
+   - NO generic questions like "What can you do?"
+   - NO repetitive question structures
+   - NO questions that could apply to any agent
+   - NO questions about unavailable data
+   - NEVER repeat the same topic or analysis type
 
 Format your response as a simple numbered list:
-1. [First Question]
-2. [Second Question]
-3. [Third Question]
+1. [First Question - MUST be Analytical]
+2. [Second Question - MUST be Actionable]
+3. [Third Question - MUST be Exploratory]
 
 IMPORTANT: Use ONLY the numbered list format above, no other text or formatting.`;
 
@@ -59,26 +81,64 @@ async function fetchDataSamples(contextIds: string[], userId: string): Promise<s
     const samples: string[] = [];
     const index = pinecone.index(process.env.PINECONE_INDEX || "");
     
-    const filter = {
-      $and: [
-        { userId: { $eq: userId } },
-        { categories: { $in: contextIds } }
-      ]
-    };
+    // Generate multiple diverse queries to get different types of samples
+    const queryPromises = [
+      // Query for recent data
+      index.query({
+        vector: await embeddings.embedQuery("most recent data points"),
+        filter: {
+          $and: [
+            { userId: { $eq: userId } },
+            { categories: { $in: contextIds } }
+          ]
+        },
+        topK: 10,
+        includeMetadata: true
+      }),
+      // Query for important patterns
+      index.query({
+        vector: await embeddings.embedQuery("significant patterns or trends"),
+        filter: {
+          $and: [
+            { userId: { $eq: userId } },
+            { categories: { $in: contextIds } }
+          ]
+        },
+        topK: 10,
+        includeMetadata: true
+      }),
+      // Query for unique insights
+      index.query({
+        vector: await embeddings.embedQuery("unique or unusual data points"),
+        filter: {
+          $and: [
+            { userId: { $eq: userId } },
+            { categories: { $in: contextIds } }
+          ]
+        },
+        topK: 10,
+        includeMetadata: true
+      })
+    ];
 
-    const queryResponse = await index.query({
-      vector: await embeddings.embedQuery("sample content"),
-      filter: filter,
-      topK: 25,
-      includeMetadata: true
-    });
-
-    const pineconeTexts = queryResponse.matches
-      ?.map(match => match.metadata?.text)
-      .filter((text): text is string => typeof text === 'string') || [];
+    // Wait for all queries to complete
+    const queryResults = await Promise.all(queryPromises);
     
-    samples.push(...pineconeTexts);
-    return samples;
+    // Process and combine results
+    for (const response of queryResults) {
+      const pineconeTexts = response.matches
+        ?.map(match => match.metadata?.text)
+        .filter((text): text is string => typeof text === 'string') || [];
+      
+      samples.push(...pineconeTexts);
+    }
+
+    // Shuffle the samples to ensure randomness
+    const shuffledSamples = samples
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 25); // Limit to 25 samples for diversity
+
+    return shuffledSamples;
   } catch (error) {
     console.error('Error fetching data samples:', error);
     return [];
@@ -118,7 +178,7 @@ export async function GET(
 
     const model = await initializeGeminiModel({
       maxOutputTokens: 1024,
-      temperature: 0.7
+      temperature: 0.1  
     });
 
     const prompt = new PromptTemplate({

@@ -359,70 +359,123 @@ export async function updateAgentConfig(
 export async function getAgentContext(agentId: string, query?: string): Promise<Document[]> {
   if (!contextIndex) await initIndexes();
 
-  // First get the agent config to get selectedContextIds
-  const agentConfig = await getAgentConfig(agentId);
+  console.log(`[Pinecone] Getting context for agent: ${agentId}`);
   
-  // Get embeddings for the query if provided
-  let queryVector;
-  if (query) {
-    const embedding = await embeddings.embedQuery(query);
-    queryVector = embedding;
-  } else {
-    queryVector = createPlaceholderVector();
-  }
+  // Get agent config to get selectedContextIds
+  const agentConfig = await getAgentConfig(agentId);
+  console.log(`[Pinecone] Agent config:`, {
+    selectedContextIds: agentConfig.selectedContextIds,
+    category: agentConfig.category
+  });
 
-  // Enhanced filter for better multi-category handling
-  const filter = {
-      $or: [
-        // Include documents directly linked to the agent
-        { agentId },
-        // Include documents from selected context categories
-      { 
-        $and: [
-          { 
-            $or: [
-              { categories: { $in: agentConfig.selectedContextIds || [] } },
-              { category: { $in: agentConfig.selectedContextIds || [] } },
-              { primaryCategory: { $in: agentConfig.selectedContextIds || [] } },
-              { type: { $in: agentConfig.selectedContextIds || [] } }
-            ]
-          },
-          // Include relevant document types
-          {
-            $or: [
-              { type: { $in: ["comprehensive_activity", "activity", "document", "transaction", "financial_record", "context"] } },
-              { documentType: { $in: ["bank_statement", "transaction_history", "tax_document"] } }
-            ]
-          }
-        ]
-      }
+  // First, list all available categories in Pinecone
+  console.log('[Pinecone] Starting categories check...');
+  console.log('[Pinecone] Query filter:', {
+    $and: [
+      { type: "document" },
+      { categories: { $exists: true } }
     ]
-  };
+  });
 
-  console.log('DEBUG: Querying with filter:', JSON.stringify(filter, null, 2));
-
-  // Get all context documents for the agent with increased topK for better coverage
-  const response = await contextIndex.query({
-    vector: queryVector,
-    filter: filter,
-    topK: 25, // Increased from 10 to get more comprehensive context
+  const categoriesCheck = await contextIndex.query({
+    vector: createPlaceholderVector(),
+    filter: { 
+      $and: [
+        { type: "document" },  // Only look at actual documents
+        { categories: { $exists: true } }  // Must have categories field
+      ]
+    },
+    topK: 10000,
     includeMetadata: true
   });
 
-  console.log('DEBUG: High relevance matches:', response.matches.filter(m => (m.score ?? 0) > 0.7).length);
-  console.log('DEBUG: Additional matches:', response.matches.filter(m => (m.score ?? 0) <= 0.7).length);
-  console.log('DEBUG: Returning documents:', response.matches.length);
+  console.log('[Pinecone] Categories check response:', {
+    totalMatches: categoriesCheck.matches?.length || 0,
+    sampleMatch: categoriesCheck.matches?.[0] ? {
+      id: categoriesCheck.matches[0].id,
+      type: categoriesCheck.matches[0].metadata?.type,
+      categories: categoriesCheck.matches[0].metadata?.categories
+    } : 'No matches'
+  });
 
-  return response.matches.map(match => new Document({
-    pageContent: String(match.metadata?.content || match.metadata?.text || ''),
-    metadata: {
-      source: match.metadata?.source,
-      title: match.metadata?.title,
-      score: match.score,
-      category: match.metadata?.category || match.metadata?.primaryCategory,
-      type: match.metadata?.type
+  // Extract unique categories
+  const uniqueCategories = new Set<string>();
+  categoriesCheck.matches?.forEach(match => {
+    // Check array categories
+    if (Array.isArray(match.metadata?.categories)) {
+      match.metadata.categories.forEach(cat => uniqueCategories.add(String(cat)));
     }
-  }));
+    // Check single category field
+    if (match.metadata?.category) {
+      uniqueCategories.add(String(match.metadata.category));
+    }
+  });
+
+  console.log('[Pinecone] Available categories:', {
+    count: uniqueCategories.size,
+    categories: Array.from(uniqueCategories),
+    documents: categoriesCheck.matches?.map(match => ({
+      id: match.id,
+      type: match.metadata?.type,
+      categories: match.metadata?.categories,
+      textPreview: typeof match.metadata?.text === 'string' 
+        ? match.metadata.text.substring(0, 100) + '...' 
+        : 'No text available'
+    }))
+  });
+
+  // Get embeddings for the query
+  console.log(`[Pinecone] Generating embedding for query: ${query}`);
+  const queryVector = query 
+    ? await embeddings.embedQuery(query)
+    : await embeddings.embedQuery("general context");
+
+  // Query for documents matching our categories
+  console.log('[Pinecone] Querying with category filter:', {
+    filter: {
+      $and: [
+        { type: "document" },
+        { categories: { $in: agentConfig.selectedContextIds || [] } }
+      ]
+    }
+  });
+
+  const queryResponse = await contextIndex.query({
+    vector: queryVector,
+    filter: {
+      $and: [
+        { type: "document" },  // Only get actual documents
+        { categories: { $in: agentConfig.selectedContextIds || [] } }  // Match any of our categories
+      ]
+    },
+    topK: 10,
+    includeMetadata: true
+  });
+
+  console.log(`[Pinecone] Found ${queryResponse.matches?.length || 0} matches with filter`);
+  
+  // Log each match for debugging
+  queryResponse.matches?.forEach((match, i) => {
+    const text = match.metadata?.text;
+    console.log(`[Pinecone] Match ${i + 1}:`, {
+      id: match.id,
+      score: match.score,
+      categories: match.metadata?.categories,
+      type: match.metadata?.type,
+      textPreview: typeof text === 'string' ? text.substring(0, 100) + '...' : 'No text available'
+    });
+  });
+
+  // Convert matches to Documents
+  return (queryResponse.matches || []).map(match => {
+    return new Document({
+      pageContent: String(match.metadata?.text || ''),
+      metadata: {
+        ...match.metadata,
+        score: match.score
+      }
+    });
+  });
 }
 
 export async function listUserAgents(ownerId: string): Promise<AgentMetadata[]> {
